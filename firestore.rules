@@ -1,63 +1,17 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default-deny catch-all
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
     function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 64 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
-    function isValidQrCode(data) {
-      return data.keys().hasAll(['id', 'is_active']) &&
-        data.id is string &&
-        data.id.size() <= 64 &&
-        data.is_active is bool &&
-        (!('target_url' in data) || data.target_url == null || (data.target_url is string && data.target_url.size() <= 2048)) &&
-        (!('app_type' in data) || data.app_type == null || (data.app_type is string && data.app_type.size() <= 64)) &&
-        (!('created_at' in data) || (data.created_at is string && data.created_at.size() <= 64)) &&
-        (!('updated_at' in data) || (data.updated_at is string && data.updated_at.size() <= 64)) &&
-        (!('total_scans' in data) || data.total_scans is number);
+      return id is string && id.size() > 0 && id.size() <= 64;
     }
 
     match /qr_codes/{qrId} {
-      // Anyone can get a QR code by its ID to read status or perform deep link redirection
-      allow get: if isValidId(qrId);
+      allow read: if true;
+      allow write: if true;
+    }
 
-      // List allowed for general browsing in the app
-      allow list: if true;
-
-      // Creation: valid QR code matching path id
-      allow create: if isValidId(qrId) &&
-        isValidQrCode(incoming()) &&
-        incoming().id == qrId;
-
-      // Update:
-      // Case 1: First-time customer activation (from inactive to active, immutable id)
-      // Case 2: Admin editing target_url or incrementing total_scans
-      allow update: if isValidId(qrId) &&
-        isValidQrCode(incoming()) &&
-        incoming().id == existing().id && (
-          // Customer activation: only allowed once when inactive
-          (!existing().is_active && incoming().is_active == true && incoming().diff(existing()).affectedKeys().hasOnly(['is_active', 'target_url', 'app_type', 'updated_at'])) ||
-          // Scan counter increment
-          (incoming().diff(existing()).affectedKeys().hasOnly(['total_scans'])) ||
-          // Admin management update
-          (incoming().diff(existing()).affectedKeys().hasOnly(['target_url', 'app_type', 'updated_at', 'is_active']))
-        );
-
-      // Deletion: restricted
-      allow delete: if isValidId(qrId);
+    match /platform_settings/{docId} {
+      allow read, write: if true;
     }
   }
 }
