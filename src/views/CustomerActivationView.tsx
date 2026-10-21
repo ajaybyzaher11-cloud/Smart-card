@@ -16,7 +16,7 @@ import {
   Wallet 
 } from 'lucide-react';
 import { activateQrCode } from '../lib/qrService';
-import { encodeBankDetails } from '../lib/deepLinks';
+import { encodeBankDetails, processSmartLink } from '../lib/deepLinks';
 import { AppType, QrCodeRecord } from '../types/qr';
 
 interface CustomerActivationViewProps {
@@ -133,21 +133,37 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
     setLoading(true);
     setErrorMsg(null);
 
+    const smartLink = processSmartLink(valueToSave, selectedType);
+    const destinationUrl = smartLink.schemeUrl || smartLink.fallbackUrl;
+
     try {
       const res = await activateQrCode(qrId, valueToSave, selectedType);
-      if (!res.success || !res.record) {
-        setErrorMsg(res.error || 'تعذر تفعيل الكارت، يرجى المحاولة مرة أخرى.');
-        setLoading(false);
+
+      // 1. If bank or wallet: show the bank account / wallet details card
+      if (selectedType === 'bank' || selectedType === 'wallet') {
+        if (res.record) {
+          setActivatedRecord(res.record);
+          setTimeout(() => {
+            onActivated(res.record!);
+          }, 400);
+        }
         return;
       }
 
-      setActivatedRecord(res.record);
-      setTimeout(() => {
-        onActivated(res.record!);
-      }, 900);
+      // 2. For WhatsApp, Instagram, Facebook, Phone, Website, Telegram, etc.:
+      // Direct instant redirection!
+      if (destinationUrl) {
+        window.location.href = destinationUrl;
+      } else if (res.record) {
+        onActivated(res.record);
+      }
     } catch (err) {
       console.error('Activation failed:', err);
-      setErrorMsg('حدث خطأ غير متوقع أثناء تفعيل الكارت.');
+      if (destinationUrl && selectedType !== 'bank' && selectedType !== 'wallet') {
+        window.location.href = destinationUrl;
+      } else {
+        setErrorMsg('حدث خطأ أثناء تفعيل الكارت، يرجى المحاولة مرة أخرى.');
+      }
     } finally {
       setLoading(false);
     }

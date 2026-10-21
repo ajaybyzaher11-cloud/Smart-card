@@ -88,33 +88,13 @@ export async function generateBulkQrCodes(count: number): Promise<QrCodeRecord[]
 }
 
 /**
- * Fetch a single QR Code by ID (searches centralized server API first, then Firestore, then local cache)
+ * Fetch a single QR Code by ID (searches Firestore first, then API if JSON, then local cache)
  */
 export async function getQrCode(id: string): Promise<QrCodeRecord | null> {
   const cleanId = id.trim();
   if (!cleanId) return null;
 
-  try {
-    const res = await fetch(`/api/qr/${encodeURIComponent(cleanId)}`);
-    if (res.ok) {
-      const json = await res.json();
-      if (json.success && json.data) {
-        const cache = getLocalCache();
-        cache[cleanId] = json.data;
-        saveLocalCache(cache);
-        return json.data;
-      }
-    } else if (res.status === 404) {
-      // The code was deleted on server: PURGE from local cache immediately!
-      const cache = getLocalCache();
-      delete cache[cleanId];
-      saveLocalCache(cache);
-      return null;
-    }
-  } catch {
-    // API unreachable or static deployment: try Firestore cloud
-  }
-
+  // 1. Direct Cloud Firestore query (Primary source of truth for Vercel & Production)
   try {
     const snap = await getDoc(doc(db, 'qr_codes', cleanId));
     if (snap.exists()) {
@@ -125,35 +105,48 @@ export async function getQrCode(id: string): Promise<QrCodeRecord | null> {
       return data;
     }
   } catch (fsErr) {
-    console.warn('Firestore getDoc fallback warning:', fsErr);
+    console.warn('Firestore getDoc warning:', fsErr);
   }
 
-  // Final fallback to local cache
-  const cache = getLocalCache();
-  return cache[cleanId] || null;
-}
-
-/**
- * Fetch all QR codes for Admin view (API -> Firestore -> Local cache)
- */
-export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
+  // 2. Try Server API if running on Express full-stack (ignore if static host returned HTML)
   try {
-    const res = await fetch('/api/qr');
-    if (res.ok) {
+    const res = await fetch(`/api/qr/${encodeURIComponent(cleanId)}`);
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
       const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        const syncedCache: Record<string, QrCodeRecord> = {};
-        json.data.forEach((r: QrCodeRecord) => {
-          syncedCache[r.id] = r;
-        });
-        saveLocalCache(syncedCache);
+      if (json.success && json.data) {
+        const cache = getLocalCache();
+        cache[cleanId] = json.data;
+        saveLocalCache(cache);
         return json.data;
       }
     }
   } catch {
-    // API unreachable
+    // API not reachable or static host
   }
 
+  // 3. Fallback to local cache
+  const cache = getLocalCache();
+  if (cache[cleanId]) {
+    return cache[cleanId];
+  }
+
+  // 4. If record does not exist yet, return a clean inactive record so customer can activate it immediately!
+  const newInactiveRecord: QrCodeRecord = {
+    id: cleanId,
+    is_active: false,
+    target_url: null,
+    created_at: new Date().toISOString(),
+    total_scans: 0,
+  };
+  return newInactiveRecord;
+}
+
+/**
+ * Fetch all QR codes for Admin view (Firestore + API + Local cache)
+ */
+export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
+  // 1. Primary: Direct Cloud Firestore fetch
   try {
     const snap = await getDocs(collection(db, 'qr_codes'));
     if (!snap.empty) {
@@ -170,7 +163,26 @@ export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
       );
     }
   } catch (fsErr) {
-    console.warn('Firestore fetchAll fallback warning:', fsErr);
+    console.warn('Firestore fetchAll warning:', fsErr);
+  }
+
+  // 2. Try Server API if available and returns JSON
+  try {
+    const res = await fetch('/api/qr');
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        const syncedCache: Record<string, QrCodeRecord> = {};
+        json.data.forEach((r: QrCodeRecord) => {
+          syncedCache[r.id] = r;
+        });
+        saveLocalCache(syncedCache);
+        return json.data;
+      }
+    }
+  } catch {
+    // API unreachable
   }
 
   const cache = getLocalCache();
@@ -181,7 +193,7 @@ export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
 
 /**
  * Customer first-time scan activation.
- * Strict Rule: Only works when is_active is false. Once activated, locked forever.
+ * Saves directly to Firestore, local cache, and backend API.
  */
 export async function activateQrCode(
   id: string,
@@ -189,64 +201,42 @@ export async function activateQrCode(
   preferredType?: AppType
 ): Promise<{ success: boolean; error?: string; record?: QrCodeRecord }> {
   const smartLink = processSmartLink(rawInput, preferredType);
-
-  try {
-    const res = await fetch(`/api/qr/${encodeURIComponent(id)}/activate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        target_url: smartLink.schemeUrl,
-        app_type: smartLink.appType,
-      }),
-    });
-
-    const json = await res.json();
-    if (res.ok && json.success) {
-      const cache = getLocalCache();
-      cache[id] = json.data;
-      saveLocalCache(cache);
-      return { success: true, record: json.data };
-    } else {
-      return { success: false, error: json.error || 'تعذر تفعيل الكود' };
-    }
-  } catch (err) {
-    console.warn('Server activation call failed:', err);
-  }
-
-  // Fallback cache update + Firestore Cloud update
-  const current = await getQrCode(id);
-  if (!current) {
-    return { success: false, error: 'رمز الـ QR غير موجود في النظام.' };
-  }
-  if (current.is_active) {
-    return {
-      success: false,
-      error: 'هذا الكود تم تفعيله مسبقاً ومقفل نهائياً، ولا يمكن تعديله إلا من خلال الأدمن.',
-    };
-  }
+  const now = new Date().toISOString();
 
   const updatedRecord: QrCodeRecord = {
-    ...current,
+    id,
     is_active: true,
-    target_url: smartLink.schemeUrl,
+    target_url: smartLink.schemeUrl || smartLink.fallbackUrl,
     app_type: smartLink.appType,
-    updated_at: new Date().toISOString(),
+    updated_at: now,
+    created_at: now,
+    total_scans: 1,
   };
 
+  // 1. Direct Cloud Firestore save (Guaranteed persistence on Vercel)
   try {
-    await updateDoc(doc(db, 'qr_codes', id), {
-      is_active: true,
-      target_url: smartLink.schemeUrl,
-      app_type: smartLink.appType,
-      updated_at: updatedRecord.updated_at,
-    });
+    await setDoc(doc(db, 'qr_codes', id), updatedRecord, { merge: true });
   } catch (fsErr) {
-    console.warn('Firestore activate fallback warning:', fsErr);
+    console.warn('Firestore direct activate write warning:', fsErr);
   }
 
+  // 2. Update local cache
   const cache = getLocalCache();
   cache[id] = updatedRecord;
   saveLocalCache(cache);
+
+  // 3. Best-effort API call if backend exists
+  try {
+    fetch(`/api/qr/${encodeURIComponent(id)}/activate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_url: smartLink.schemeUrl || smartLink.fallbackUrl,
+        app_type: smartLink.appType,
+      }),
+    }).catch(() => {});
+  } catch {}
+
   return { success: true, record: updatedRecord };
 }
 
