@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { processSmartLink, triggerSmartRedirect, isRunningInIframe } from '../lib/deepLinks';
 import { QrCodeRecord } from '../types/qr';
+import { PlatformBrandIcon } from '../components/BrandIcons';
 
 interface SmartRedirectViewProps {
   record: QrCodeRecord;
@@ -236,24 +237,7 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
 
   // 3. SMART DEEP LINK REDIRECT VIEW (WhatsApp, Instagram, Facebook, InstaPay, TikTok, Website)
   const getPlatformIcon = () => {
-    switch (linkInfo.appType) {
-      case 'whatsapp':
-        return <MessageSquare className="w-10 h-10 text-emerald-400" />;
-      case 'instagram':
-        return <Instagram className="w-10 h-10 text-pink-400" />;
-      case 'facebook':
-        return <Facebook className="w-10 h-10 text-blue-400" />;
-      case 'instapay':
-        return <CreditCard className="w-10 h-10 text-amber-400" />;
-      case 'phone':
-        return <Phone className="w-10 h-10 text-amber-400" />;
-      case 'telegram':
-        return <Send className="w-10 h-10 text-sky-400" />;
-      case 'tiktok':
-        return <Video className="w-10 h-10 text-rose-400" />;
-      default:
-        return <Globe className="w-10 h-10 text-amber-400" />;
-    }
+    return <PlatformBrandIcon type={linkInfo.appType} className="w-12 h-12" />;
   };
 
   const targetLink = linkInfo.schemeUrl || linkInfo.fallbackUrl;

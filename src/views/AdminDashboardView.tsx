@@ -41,6 +41,7 @@ import { PrintSheetModal } from '../components/PrintSheetModal';
 import { QrScannerModal } from '../components/QrScannerModal';
 import { DeveloperSettingsModal } from '../components/DeveloperSettingsModal';
 import { QrCodeRecord, PlatformSettings } from '../types/qr';
+import { PlatformBrandIcon } from '../components/BrandIcons';
 
 interface AdminDashboardViewProps {
   onLogout: () => void;
@@ -528,14 +529,19 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                     <div>
                       {/* Top Header of card */}
                       <div className="flex items-center justify-between pb-3 border-b border-white/5">
-                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold flex items-center gap-1.5 ${
-                          record.is_active
-                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                            : 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30'
-                        }`}>
-                          <span className={`w-2 h-2 rounded-full ${record.is_active ? 'bg-emerald-400 animate-pulse' : 'bg-yellow-400'}`} />
-                          {record.is_active ? 'مفعل نشط' : 'في انتظار التفعيل'}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {record.is_active && record.app_type && (
+                            <PlatformBrandIcon type={record.app_type as any} className="w-5 h-5 flex-shrink-0" />
+                          )}
+                          <span className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold flex items-center gap-1.5 ${
+                            record.is_active
+                              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                              : 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30'
+                          }`}>
+                            <span className={`w-2 h-2 rounded-full ${record.is_active ? 'bg-emerald-400 animate-pulse' : 'bg-yellow-400'}`} />
+                            {record.is_active ? 'مفعل نشط' : 'في انتظار التفعيل'}
+                          </span>
+                        </div>
 
                         {/* Prominent Eye Badge for admin */}
                         <div 
@@ -686,7 +692,10 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         </div>
                       </td>
                       <td className="py-2.5 px-4 text-slate-300">
-                        {record.app_type || '—'}
+                        <div className="flex items-center gap-1.5">
+                          {record.app_type && <PlatformBrandIcon type={record.app_type as any} className="w-4 h-4 flex-shrink-0" />}
+                          <span className="capitalize">{record.app_type || '—'}</span>
+                        </div>
                       </td>
                       <td className="py-2.5 px-4 font-mono text-slate-400 max-w-xs truncate" dir="ltr">
                         {record.target_url || '—'}

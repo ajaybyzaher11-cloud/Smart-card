@@ -28,6 +28,7 @@ import {
 import { adminUpdateQrCode, generateQrDataUrl, resetQrScanCount } from '../lib/qrService';
 import { processSmartLink, encodeBankDetails, decodeBankDetails } from '../lib/deepLinks';
 import { AppType, QrCodeRecord, BankDetails } from '../types/qr';
+import { PlatformBrandIcon } from './BrandIcons';
 
 interface EditQrModalProps {
   isOpen: boolean;
@@ -293,7 +294,6 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {paymentPlatforms.map((p) => {
-                const IconComponent = p.icon;
                 const isSelected = selectedType === p.type;
                 return (
                   <button
@@ -304,18 +304,16 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                     }}
                     className={`flex items-center gap-2.5 p-3 rounded-2xl border text-right transition cursor-pointer ${
                       isSelected
-                        ? 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-black border-amber-300 shadow-md shadow-amber-500/20 font-black'
+                        ? 'bg-[#1e1c12] text-amber-300 border-amber-400 shadow-[0_0_20px_rgba(250,204,21,0.25)] ring-2 ring-amber-400 font-black'
                         : 'bg-black/40 text-slate-300 border-amber-500/20 hover:border-amber-400/40 hover:bg-black/60'
                     }`}
                   >
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      isSelected ? 'bg-black/20 text-black' : 'bg-black/60 text-amber-400 border border-amber-500/20'
-                    }`}>
-                      <IconComponent className="w-4 h-4" />
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 bg-black/40 p-1">
+                      <PlatformBrandIcon type={p.type} className="w-6 h-6" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-bold truncate">{p.label}</p>
-                      <p className={`text-[10px] truncate ${isSelected ? 'text-black/80 font-bold' : 'text-slate-400'}`}>
+                      <p className={`text-[10px] truncate ${isSelected ? 'text-amber-200 font-bold' : 'text-slate-400'}`}>
                         {p.hint}
                       </p>
                     </div>
@@ -333,7 +331,6 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
             </label>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
               {socialPlatforms.map((p) => {
-                const IconComponent = p.icon;
                 const isSelected = selectedType === p.type;
                 return (
                   <button
@@ -342,13 +339,15 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                     onClick={() => {
                       setSelectedType(p.type);
                     }}
-                    className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border text-xs font-semibold transition gap-1 cursor-pointer ${
+                    className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border text-xs font-semibold transition gap-1.5 cursor-pointer ${
                       isSelected
-                        ? 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-black border-amber-300 shadow-md shadow-amber-500/20 font-black'
+                        ? 'bg-[#1e1c12] text-amber-300 border-amber-400 shadow-[0_0_20px_rgba(250,204,21,0.25)] ring-2 ring-amber-400 font-black'
                         : 'bg-black/40 text-slate-300 border-amber-500/20 hover:border-amber-400/40 hover:bg-black/60'
                     }`}
                   >
-                    <IconComponent className="w-4 h-4" />
+                    <div className="w-7 h-7 flex items-center justify-center">
+                      <PlatformBrandIcon type={p.type} className="w-6 h-6" />
+                    </div>
                     <span className="text-[11px] truncate w-full text-center">{p.label}</span>
                   </button>
                 );
