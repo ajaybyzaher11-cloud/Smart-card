@@ -1,5 +1,7 @@
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, writeBatch, increment } from 'firebase/firestore';
+import { db } from './firebase';
 import { AppType, QrCodeRecord, PlatformSettings } from '../types/qr';
 import { processSmartLink } from './deepLinks';
 
@@ -70,11 +72,23 @@ export async function generateBulkQrCodes(count: number): Promise<QrCodeRecord[]
     cache[record.id] = record;
   }
   saveLocalCache(cache);
+
+  // Sync to Firestore Cloud DB
+  try {
+    const batch = writeBatch(db);
+    for (const item of fallbackList) {
+      batch.set(doc(db, 'qr_codes', item.id), item);
+    }
+    await batch.commit();
+  } catch (fsErr) {
+    console.warn('Firestore batch save warning:', fsErr);
+  }
+
   return fallbackList;
 }
 
 /**
- * Fetch a single QR Code by ID (searches centralized server API first, then local cache)
+ * Fetch a single QR Code by ID (searches centralized server API first, then Firestore, then local cache)
  */
 export async function getQrCode(id: string): Promise<QrCodeRecord | null> {
   const cleanId = id.trim();
@@ -97,18 +111,30 @@ export async function getQrCode(id: string): Promise<QrCodeRecord | null> {
       saveLocalCache(cache);
       return null;
     }
-  } catch (err) {
-    console.warn('Network error fetching from server API:', err);
-    // Only if completely offline:
-    const cache = getLocalCache();
-    return cache[cleanId] || null;
+  } catch {
+    // API unreachable or static deployment: try Firestore cloud
   }
 
-  return null;
+  try {
+    const snap = await getDoc(doc(db, 'qr_codes', cleanId));
+    if (snap.exists()) {
+      const data = snap.data() as QrCodeRecord;
+      const cache = getLocalCache();
+      cache[cleanId] = data;
+      saveLocalCache(cache);
+      return data;
+    }
+  } catch (fsErr) {
+    console.warn('Firestore getDoc fallback warning:', fsErr);
+  }
+
+  // Final fallback to local cache
+  const cache = getLocalCache();
+  return cache[cleanId] || null;
 }
 
 /**
- * Fetch all QR codes for Admin view
+ * Fetch all QR codes for Admin view (API -> Firestore -> Local cache)
  */
 export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
   try {
@@ -116,7 +142,6 @@ export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
     if (res.ok) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        // Replace cache completely with authoritative server list (purging deleted items)
         const syncedCache: Record<string, QrCodeRecord> = {};
         json.data.forEach((r: QrCodeRecord) => {
           syncedCache[r.id] = r;
@@ -125,8 +150,27 @@ export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
         return json.data;
       }
     }
-  } catch (err) {
-    console.warn('Server fetchAll failed, loading local cache:', err);
+  } catch {
+    // API unreachable
+  }
+
+  try {
+    const snap = await getDocs(collection(db, 'qr_codes'));
+    if (!snap.empty) {
+      const list: QrCodeRecord[] = [];
+      const syncedCache: Record<string, QrCodeRecord> = {};
+      snap.forEach((d) => {
+        const item = d.data() as QrCodeRecord;
+        list.push(item);
+        syncedCache[item.id] = item;
+      });
+      saveLocalCache(syncedCache);
+      return list.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    }
+  } catch (fsErr) {
+    console.warn('Firestore fetchAll fallback warning:', fsErr);
   }
 
   const cache = getLocalCache();
@@ -169,7 +213,7 @@ export async function activateQrCode(
     console.warn('Server activation call failed:', err);
   }
 
-  // Fallback cache update
+  // Fallback cache update + Firestore Cloud update
   const current = await getQrCode(id);
   if (!current) {
     return { success: false, error: 'رمز الـ QR غير موجود في النظام.' };
@@ -188,6 +232,17 @@ export async function activateQrCode(
     app_type: smartLink.appType,
     updated_at: new Date().toISOString(),
   };
+
+  try {
+    await updateDoc(doc(db, 'qr_codes', id), {
+      is_active: true,
+      target_url: smartLink.schemeUrl,
+      app_type: smartLink.appType,
+      updated_at: updatedRecord.updated_at,
+    });
+  } catch (fsErr) {
+    console.warn('Firestore activate fallback warning:', fsErr);
+  }
 
   const cache = getLocalCache();
   cache[id] = updatedRecord;
@@ -241,6 +296,19 @@ export async function adminUpdateQrCode(
     updated_at: new Date().toISOString(),
   };
 
+  try {
+    const updateData: any = {
+      target_url: smartLink.schemeUrl,
+      app_type: smartLink.appType,
+      is_active: true,
+      updated_at: updatedRecord.updated_at,
+    };
+    if (label !== undefined) updateData.label = label;
+    await updateDoc(doc(db, 'qr_codes', id), updateData);
+  } catch (fsErr) {
+    console.warn('Firestore admin update fallback warning:', fsErr);
+  }
+
   const cache = getLocalCache();
   cache[id] = updatedRecord;
   saveLocalCache(cache);
@@ -256,6 +324,12 @@ export async function recordQrScan(id: string): Promise<void> {
   } catch {
     // Non-blocking
   }
+
+  try {
+    await updateDoc(doc(db, 'qr_codes', id), {
+      total_scans: increment(1),
+    });
+  } catch {}
 
   const cache = getLocalCache();
   if (cache[id]) {
@@ -286,6 +360,10 @@ export async function resetQrScanCount(id: string, count = 0): Promise<boolean> 
     console.warn('Failed to reset scan count:', err);
   }
 
+  try {
+    await updateDoc(doc(db, 'qr_codes', id), { total_scans: count });
+  } catch {}
+
   const cache = getLocalCache();
   if (cache[id]) {
     cache[id].total_scans = count;
@@ -310,6 +388,12 @@ export async function deleteQrCode(id: string): Promise<boolean> {
     }
   } catch (err) {
     console.warn('Server delete failed, updating local state:', err);
+  }
+
+  try {
+    await deleteDoc(doc(db, 'qr_codes', id));
+  } catch (fsErr) {
+    console.warn('Firestore delete fallback warning:', fsErr);
   }
 
   const cache = getLocalCache();
@@ -425,6 +509,17 @@ export async function fetchPlatformSettings(): Promise<PlatformSettings> {
   }
 
   try {
+    const snap = await getDoc(doc(db, 'settings', 'platform'));
+    if (snap.exists()) {
+      const data = { ...DEFAULT_PLATFORM_SETTINGS, ...snap.data() } as PlatformSettings;
+      try {
+        localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(data));
+      } catch {}
+      return data;
+    }
+  } catch {}
+
+  try {
     const cached = localStorage.getItem(SETTINGS_CACHE_KEY);
     if (cached) return JSON.parse(cached);
   } catch {}
@@ -474,6 +569,10 @@ export async function updatePlatformSettings(settings: Partial<PlatformSettings>
   } catch (err) {
     console.warn('Failed to save settings on server, updating local cache only:', err);
   }
+
+  try {
+    await setDoc(doc(db, 'settings', 'platform'), payload, { merge: true });
+  } catch {}
 
   try {
     localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(payload));
