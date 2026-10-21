@@ -1,0 +1,10 @@
+{
+  "name": "منصة الـ Dynamic QR Codes الذكية",
+  "description": "منصة ويب متكاملة لتوليد وإدارة رموز QR الديناميكية الذكية مع التوجيه المباشر للتطبيقات (Deep Linking) والتفعيل السريع وحماية لوحة التحكم.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
