@@ -27,16 +27,20 @@ function saveLocalCache(cache: Record<string, QrCodeRecord>) {
 }
 
 /**
- * Generates bulk unique QR codes with user-specified count (any number typed by the user)
+ * Generates bulk unique QR codes with user-specified count and subscription duration
  */
-export async function generateBulkQrCodes(count: number): Promise<QrCodeRecord[]> {
+export async function generateBulkQrCodes(count: number, subscriptionMonths = 1): Promise<QrCodeRecord[]> {
   const safeCount = Math.max(1, count || 1);
+  const now = new Date();
+  const expiresAt = subscriptionMonths > 0 
+    ? new Date(now.getTime() + subscriptionMonths * 30 * 24 * 60 * 60 * 1000).toISOString() 
+    : null;
 
   try {
     const res = await fetch('/api/qr/bulk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ count: safeCount }),
+      body: JSON.stringify({ count: safeCount, subscription_months: subscriptionMonths, expires_at: expiresAt }),
     });
 
     if (res.ok) {
@@ -65,8 +69,10 @@ export async function generateBulkQrCodes(count: number): Promise<QrCodeRecord[]
       id,
       is_active: false,
       target_url: null,
-      created_at: new Date().toISOString(),
+      created_at: now.toISOString(),
       total_scans: 0,
+      subscription_months: subscriptionMonths,
+      expires_at: expiresAt,
     };
     fallbackList.push(record);
     cache[record.id] = record;
@@ -201,16 +207,28 @@ export async function activateQrCode(
   preferredType?: AppType
 ): Promise<{ success: boolean; error?: string; record?: QrCodeRecord }> {
   const smartLink = processSmartLink(rawInput, preferredType);
-  const now = new Date().toISOString();
+  const now = new Date();
+  const existing = await getQrCode(id);
+
+  // Preserve existing expires_at if set, otherwise default to 1 month from activation
+  const defaultExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const expires_at = (existing && existing.expires_at !== undefined) 
+    ? existing.expires_at 
+    : defaultExpiry;
+  const subscription_months = (existing && existing.subscription_months !== undefined)
+    ? existing.subscription_months
+    : 1;
 
   const updatedRecord: QrCodeRecord = {
     id,
     is_active: true,
     target_url: smartLink.schemeUrl || smartLink.fallbackUrl,
     app_type: smartLink.appType,
-    updated_at: now,
-    created_at: now,
+    updated_at: now.toISOString(),
+    created_at: existing?.created_at || now.toISOString(),
     total_scans: 1,
+    expires_at,
+    subscription_months,
   };
 
   // 1. Direct Cloud Firestore save (Guaranteed persistence on Vercel)
@@ -233,6 +251,8 @@ export async function activateQrCode(
       body: JSON.stringify({
         target_url: smartLink.schemeUrl || smartLink.fallbackUrl,
         app_type: smartLink.appType,
+        expires_at,
+        subscription_months,
       }),
     }).catch(() => {});
   } catch {}
@@ -241,14 +261,16 @@ export async function activateQrCode(
 }
 
 /**
- * Admin Quick Edit: Modify Target URL exclusively.
+ * Admin Quick Edit: Modify Target URL, label, and subscription expiry.
  * ID is strictly read-only and immutable.
  */
 export async function adminUpdateQrCode(
   id: string,
   rawTargetUrl: string,
   preferredType?: AppType,
-  label?: string
+  label?: string,
+  expiresAt?: string | null,
+  subscriptionMonths?: number
 ): Promise<{ success: boolean; record?: QrCodeRecord }> {
   const smartLink = processSmartLink(rawTargetUrl, preferredType);
 
@@ -260,6 +282,8 @@ export async function adminUpdateQrCode(
         target_url: smartLink.schemeUrl,
         app_type: smartLink.appType,
         label,
+        expires_at: expiresAt,
+        subscription_months: subscriptionMonths,
       }),
     });
 
@@ -283,6 +307,8 @@ export async function adminUpdateQrCode(
     app_type: smartLink.appType,
     is_active: true,
     label: label !== undefined ? label : current.label,
+    expires_at: expiresAt !== undefined ? expiresAt : current.expires_at,
+    subscription_months: subscriptionMonths !== undefined ? subscriptionMonths : current.subscription_months,
     updated_at: new Date().toISOString(),
   };
 
@@ -294,6 +320,8 @@ export async function adminUpdateQrCode(
       updated_at: updatedRecord.updated_at,
     };
     if (label !== undefined) updateData.label = label;
+    if (expiresAt !== undefined) updateData.expires_at = expiresAt;
+    if (subscriptionMonths !== undefined) updateData.subscription_months = subscriptionMonths;
     await updateDoc(doc(db, 'qr_codes', id), updateData);
   } catch (fsErr) {
     console.warn('Firestore admin update fallback warning:', fsErr);
@@ -302,6 +330,104 @@ export async function adminUpdateQrCode(
   const cache = getLocalCache();
   cache[id] = updatedRecord;
   saveLocalCache(cache);
+  return { success: true, record: updatedRecord };
+}
+
+/**
+ * Quick Subscription Renewal: Extends subscription by N months (+30 days per month).
+ * If card is still active, adds to existing expires_at. If expired, adds from now.
+ */
+export async function renewQrSubscription(
+  id: string,
+  monthsToAdd = 1
+): Promise<{ success: boolean; record?: QrCodeRecord }> {
+  const current = await getQrCode(id);
+  if (!current) return { success: false };
+
+  const nowMs = Date.now();
+  let baseMs = nowMs;
+  if (current.expires_at) {
+    const existingMs = new Date(current.expires_at).getTime();
+    if (existingMs > nowMs) {
+      baseMs = existingMs;
+    }
+  }
+
+  const addedDays = monthsToAdd * 30;
+  const newExpiresAt = new Date(baseMs + addedDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const updatedRecord: QrCodeRecord = {
+    ...current,
+    expires_at: newExpiresAt,
+    subscription_months: (current.subscription_months || 0) + monthsToAdd,
+    updated_at: new Date().toISOString(),
+  };
+
+  try {
+    await updateDoc(doc(db, 'qr_codes', id), {
+      expires_at: newExpiresAt,
+      subscription_months: updatedRecord.subscription_months,
+      updated_at: updatedRecord.updated_at,
+    });
+  } catch (fsErr) {
+    console.warn('Firestore renew write warning:', fsErr);
+  }
+
+  try {
+    fetch(`/api/qr/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        expires_at: newExpiresAt,
+        subscription_months: updatedRecord.subscription_months,
+      }),
+    }).catch(() => {});
+  } catch {}
+
+  const cache = getLocalCache();
+  cache[id] = updatedRecord;
+  saveLocalCache(cache);
+
+  return { success: true, record: updatedRecord };
+}
+
+/**
+ * Set custom expiration date or make card permanent (null)
+ */
+export async function setQrExpiration(
+  id: string,
+  expiresAt: string | null
+): Promise<{ success: boolean; record?: QrCodeRecord }> {
+  const current = await getQrCode(id);
+  if (!current) return { success: false };
+
+  const updatedRecord: QrCodeRecord = {
+    ...current,
+    expires_at: expiresAt,
+    updated_at: new Date().toISOString(),
+  };
+
+  try {
+    await updateDoc(doc(db, 'qr_codes', id), {
+      expires_at: expiresAt,
+      updated_at: updatedRecord.updated_at,
+    });
+  } catch (fsErr) {
+    console.warn('Firestore set expiration warning:', fsErr);
+  }
+
+  try {
+    fetch(`/api/qr/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expires_at: expiresAt }),
+    }).catch(() => {});
+  } catch {}
+
+  const cache = getLocalCache();
+  cache[id] = updatedRecord;
+  saveLocalCache(cache);
+
   return { success: true, record: updatedRecord };
 }
 

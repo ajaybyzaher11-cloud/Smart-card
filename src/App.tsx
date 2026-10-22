@@ -5,6 +5,7 @@ import { AdminLoginView } from './views/AdminLoginView';
 import { AdminDashboardView } from './views/AdminDashboardView';
 import { CustomerActivationView } from './views/CustomerActivationView';
 import { SmartRedirectView } from './views/SmartRedirectView';
+import { CardExpiredView } from './views/CardExpiredView';
 import { HomeLandingView } from './views/HomeLandingView';
 import { QrCodeRecord, PlatformSettings } from './types/qr';
 
@@ -86,8 +87,12 @@ export default function App() {
 
   // Route 1: QR Scan path /q/:id
   if (isQrScanPath && qrIdFromPath) {
-    // If already active, direct to smart redirection
+    // If already active, check expiration
     if (activeRecord && activeRecord.is_active) {
+      const isExpired = activeRecord.expires_at && new Date(activeRecord.expires_at).getTime() < Date.now();
+      if (isExpired) {
+        return <CardExpiredView record={activeRecord} settings={settings} />;
+      }
       return <SmartRedirectView record={activeRecord} />;
     }
 

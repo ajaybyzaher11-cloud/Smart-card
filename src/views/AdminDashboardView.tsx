@@ -30,9 +30,11 @@ import {
   MessageSquare,
   Phone,
   Settings,
-  Globe
+  Globe,
+  Edit3,
+  Calendar
 } from 'lucide-react';
-import { fetchAllQrCodes, generateQrDataUrl, deleteQrCode, getQrCode, fetchPlatformSettings, updatePlatformSettings } from '../lib/qrService';
+import { fetchAllQrCodes, generateQrDataUrl, deleteQrCode, getQrCode, fetchPlatformSettings, updatePlatformSettings, renewQrSubscription } from '../lib/qrService';
 import { logoutAdmin, getAdminPassword, setAdminPassword } from '../lib/auth';
 import { BulkGenerateModal } from '../components/BulkGenerateModal';
 import { UploadQrModal } from '../components/UploadQrModal';
@@ -53,8 +55,9 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
   const [records, setRecords] = useState<QrCodeRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'expired'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [renewingId, setRenewingId] = useState<string | null>(null);
 
   // Modals state
   const [isBulkOpen, setIsBulkOpen] = useState(false);
@@ -99,6 +102,20 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
     }
   };
 
+  const handleQuickRenew = async (id: string, months = 1) => {
+    setRenewingId(id);
+    try {
+      const res = await renewQrSubscription(id, months);
+      if (res.success && res.record) {
+        setRecords((prev) => prev.map((r) => (r.id === id ? res.record! : r)));
+      }
+    } catch (err) {
+      console.error('Quick renew failed:', err);
+    } finally {
+      setRenewingId(null);
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -132,7 +149,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         fetchAllQrCodes().then((latest) => {
           setRecords((prev) => {
             const hasChanged = latest.length !== prev.length || 
-              latest.some((r, idx) => prev[idx]?.total_scans !== r.total_scans || prev[idx]?.is_active !== r.is_active);
+              latest.some((r, idx) => prev[idx]?.total_scans !== r.total_scans || prev[idx]?.is_active !== r.is_active || prev[idx]?.expires_at !== r.expires_at);
             return hasChanged ? latest : prev;
           });
         }).catch(() => {});
@@ -184,14 +201,16 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
 
     if (!matchesSearch) return false;
 
-    if (filterStatus === 'active') return r.is_active;
+    if (filterStatus === 'active') return r.is_active && (!r.expires_at || new Date(r.expires_at).getTime() >= Date.now());
+    if (filterStatus === 'expired') return r.is_active && r.expires_at && new Date(r.expires_at).getTime() < Date.now();
     if (filterStatus === 'inactive') return !r.is_active;
     return true;
   });
 
   // KPI Calculations
   const totalCodes = records.length;
-  const activeCodes = records.filter((r) => r.is_active).length;
+  const expiredCodes = records.filter((r) => r.is_active && r.expires_at && new Date(r.expires_at).getTime() < Date.now()).length;
+  const activeCodes = records.filter((r) => r.is_active && (!r.expires_at || new Date(r.expires_at).getTime() >= Date.now())).length;
   const pendingCodes = records.filter((r) => !r.is_active).length;
   const totalScans = records.reduce((acc, curr) => acc + (curr.total_scans || 0), 0);
 
@@ -279,54 +298,65 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         )}
 
         {/* KPI Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/40 shadow-lg flex items-center justify-between transition">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/40 shadow-lg flex items-center justify-between transition">
             <div>
-              <p className="text-xs font-bold text-slate-400">إجمالي الرموز المولدة</p>
-              <p className="text-2xl font-black text-amber-400 mt-1">{totalCodes}</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">معرّفات nanoid فريدة</p>
+              <p className="text-[11px] font-bold text-slate-400">إجمالي الرموز</p>
+              <p className="text-xl sm:text-2xl font-black text-amber-400 mt-0.5">{totalCodes}</p>
+              <p className="text-[10px] text-slate-500">معرّفات nanoid فريدة</p>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-400 flex items-center justify-center">
-              <QrIcon className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-400 flex items-center justify-center">
+              <QrIcon className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="p-5 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-emerald-400/40 shadow-lg flex items-center justify-between transition">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-emerald-400/40 shadow-lg flex items-center justify-between transition">
             <div>
-              <p className="text-xs font-bold text-slate-400">اللينكات المفعلة</p>
-              <p className="text-2xl font-black text-emerald-400 mt-1">{activeCodes}</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">موجهة لتطبيقات العملاء</p>
+              <p className="text-[11px] font-bold text-slate-400">الاشتراكات النشطة</p>
+              <p className="text-xl sm:text-2xl font-black text-emerald-400 mt-0.5">{activeCodes}</p>
+              <p className="text-[10px] text-slate-500">سارية وتعمل الآن</p>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 flex items-center justify-center">
-              <CheckCircle2 className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="p-5 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/40 shadow-lg flex items-center justify-between transition">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-rose-500/20 hover:border-rose-400/40 shadow-lg flex items-center justify-between transition">
             <div>
-              <p className="text-xs font-bold text-slate-400">في انتظار تفعيل العميل</p>
-              <p className="text-2xl font-black text-yellow-400 mt-1">{pendingCodes}</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">متاحة للمسحة الأولى</p>
+              <p className="text-[11px] font-bold text-slate-400">اشتراكات منتهية</p>
+              <p className="text-xl sm:text-2xl font-black text-rose-400 mt-0.5">{expiredCodes}</p>
+              <p className="text-[10px] text-slate-500">تتطلب التجديد</p>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 flex items-center justify-center">
-              <Clock className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-400 flex items-center justify-center">
+              <Clock className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="p-5 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/40 shadow-lg flex items-center justify-between transition">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/40 shadow-lg flex items-center justify-between transition">
             <div>
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-bold text-slate-400">إجمالي عمليات المسح</p>
-                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] text-emerald-400 font-bold">
+              <p className="text-[11px] font-bold text-slate-400">بانتظار التفعيل</p>
+              <p className="text-xl sm:text-2xl font-black text-yellow-400 mt-0.5">{pendingCodes}</p>
+              <p className="text-[10px] text-slate-500">كروت جديدة غير معينة</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 flex items-center justify-center">
+              <Clock className="w-5 h-5" />
+            </div>
+          </div>
+
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/40 shadow-lg flex items-center justify-between transition col-span-2 md:col-span-1">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[11px] font-bold text-slate-400">إجمالي المسح</p>
+                <span className="flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[9px] text-emerald-400 font-bold">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  مباشر Live
+                  مباشر
                 </span>
               </div>
-              <p className="text-2xl font-black text-amber-300 mt-1">{totalScans}</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">توجيه فوري ومحدث لحظياً</p>
+              <p className="text-xl sm:text-2xl font-black text-amber-300 mt-0.5">{totalScans}</p>
+              <p className="text-[10px] text-slate-500">توجيه فوري لحظي</p>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center">
-              <BarChart3 className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center">
+              <BarChart3 className="w-5 h-5" />
             </div>
           </div>
         </div>
@@ -408,15 +438,15 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                 <button
                   type="button"
                   onClick={() => setFilterStatus('active')}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl transition ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
                     filterStatus === 'active'
                       ? 'bg-amber-400 text-black shadow-md font-black'
                       : 'text-slate-400 hover:text-white hover:bg-white/5'
                   }`}
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>اللينكات المفعلة</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  <span>النشطة</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                     filterStatus === 'active' ? 'bg-black/20 text-black' : 'bg-amber-400/20 text-amber-300'
                   }`}>
                     {activeCodes}
@@ -425,8 +455,26 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
 
                 <button
                   type="button"
+                  onClick={() => setFilterStatus('expired')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
+                    filterStatus === 'expired'
+                      ? 'bg-rose-500 text-white shadow-md font-black'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>منتهية الصلاحية</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    filterStatus === 'expired' ? 'bg-black/30 text-white' : 'bg-rose-500/20 text-rose-300'
+                  }`}>
+                    {expiredCodes}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setFilterStatus('inactive')}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl transition ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
                     filterStatus === 'inactive'
                       ? 'bg-yellow-500 text-black shadow-md font-black'
                       : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -434,7 +482,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                 >
                   <Clock className="w-3.5 h-3.5" />
                   <span>في انتظار التفعيل</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                     filterStatus === 'inactive' ? 'bg-black/20 text-black' : 'bg-yellow-400/20 text-yellow-300'
                   }`}>
                     {pendingCodes}
@@ -444,14 +492,14 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                 <button
                   type="button"
                   onClick={() => setFilterStatus('all')}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl transition ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
                     filterStatus === 'all'
                       ? 'bg-white/20 text-white shadow-md font-black'
                       : 'text-slate-400 hover:text-white hover:bg-white/5'
                   }`}
                 >
                   <span>الكل</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                     filterStatus === 'all' ? 'bg-black/20 text-white' : 'bg-white/10 text-slate-300'
                   }`}>
                     {records.length}
@@ -599,24 +647,105 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         </p>
 
                         {/* Prominent Eye details banner */}
-                        <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-center gap-1.5 text-xs text-amber-300 font-extrabold bg-amber-400/10 py-1.5 px-2 rounded-xl border border-amber-400/20">
-                          <Eye className="w-3.5 h-3.5 text-amber-400" />
-                          <span>
-                            {record.is_active 
-                              ? `تم الفتح والمسح: ${record.total_scans || 0} مرة`
-                              : 'في انتظار التفعيل (العد يبدأ بعد التفعيل)'}
+                        <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between gap-1.5 text-xs text-amber-300 font-extrabold bg-amber-400/10 py-1.5 px-2.5 rounded-xl border border-amber-400/20">
+                          <span className="flex items-center gap-1.5">
+                            <Eye className="w-3.5 h-3.5 text-amber-400" />
+                            <span>
+                              {record.is_active 
+                                ? `تم المسح: ${record.total_scans || 0} مرة`
+                                : 'في انتظار التفعيل'}
+                            </span>
                           </span>
+                        </div>
+
+                        {/* Subscription Expiry & Duration Management Box */}
+                        <div className="mt-2.5 p-3 bg-black/60 border border-amber-500/25 rounded-xl space-y-2 text-right">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-bold text-amber-200/90 flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-amber-400" />
+                              <span>صلاحية الكارت:</span>
+                            </span>
+                            {record.expires_at ? (
+                              new Date(record.expires_at).getTime() < Date.now() ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/35 animate-pulse">
+                                  منتهي الصلاحية ⚠️
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                  باقي {Math.max(0, Math.ceil((new Date(record.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} يوم
+                                </span>
+                              )
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                دائم / غير محدود ✦
+                              </span>
+                            )}
+                          </div>
+
+                          {record.expires_at && (
+                            <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                              <span>تاريخ الانتهاء:</span>
+                              <span className="font-mono text-amber-300 font-bold" dir="ltr">
+                                {new Date(record.expires_at).toLocaleDateString('ar-EG', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Quick 1-Click Renewal Buttons */}
+                          <div className="flex items-center gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              disabled={renewingId === record.id}
+                              onClick={() => handleQuickRenew(record.id, 1)}
+                              className="flex-1 py-1.5 px-2 bg-gradient-to-r from-amber-400/20 to-yellow-500/20 hover:from-amber-400 hover:to-yellow-500 hover:text-black text-amber-300 border border-amber-400/35 rounded-lg text-[11px] font-black transition flex items-center justify-center gap-1 disabled:opacity-50"
+                              title="تجديد/تمديد شهر إضافي (30 يوماً)"
+                            >
+                              <Sparkles className="w-3 h-3" />
+                              <span>+1 شهر</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={renewingId === record.id}
+                              onClick={() => handleQuickRenew(record.id, 3)}
+                              className="py-1.5 px-2 bg-white/5 hover:bg-amber-400/20 text-slate-300 hover:text-amber-300 border border-white/10 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1 disabled:opacity-50"
+                              title="تجديد 3 أشهر"
+                            >
+                              <span>+3 شهور</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setSelectedEditRecord(record)}
+                              className="py-1.5 px-2 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 rounded-lg text-[11px] font-bold transition flex items-center justify-center gap-1"
+                              title="تحديد الرابط وتاريخ الانتهاء"
+                            >
+                              <Calendar className="w-3 h-3 text-amber-400" />
+                              <span>تحديد</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="mt-4 pt-3 border-t border-white/5 space-y-2">
-                      <div className="flex items-center justify-center gap-1 text-[10px] text-amber-300/80 font-bold bg-amber-400/5 py-1 px-2 rounded-lg border border-amber-400/15">
-                        <Lock className="w-3 h-3 text-amber-400" />
-                        <span>للتعديل: امسح الرمز أو ارفع صورته بالأعلى</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1.5">
+                    <div className="mt-3 pt-3 border-t border-white/5 space-y-2">
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {/* Edit Button */}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedEditRecord(record)}
+                          className="py-2 bg-amber-400/10 hover:bg-amber-400 hover:text-black text-amber-300 rounded-xl text-[11px] font-black transition flex items-center justify-center gap-1 border border-amber-400/30"
+                          title="تعديل الرابط وتاريخ الصلاحية"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>تعديل</span>
+                        </button>
+
                         {/* Download QR */}
                         <button
                           type="button"
@@ -663,8 +792,9 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                   <tr>
                     <th className="py-3 px-4">كود الـ QR</th>
                     <th className="py-3 px-4">الحالة</th>
-                    <th className="py-3 px-4">عدد مرات الفتح/المسح (العين)</th>
-                    <th className="py-3 px-4">المنصة والتوجيه</th>
+                    <th className="py-3 px-4">مدة التفعيل والاشتراك</th>
+                    <th className="py-3 px-4">مرات المسح</th>
+                    <th className="py-3 px-4">المنصة</th>
                     <th className="py-3 px-4">الرابط المستهدف</th>
                     <th className="py-3 px-4">تاريخ الإنشاء</th>
                     <th className="py-3 px-4 text-center">إجراءات</th>
@@ -685,10 +815,48 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                           {record.is_active ? 'مفعل نشط' : 'في انتظار التفعيل'}
                         </span>
                       </td>
+                      <td className="py-2.5 px-4">
+                        <div className="flex flex-col gap-1 items-start">
+                          {record.expires_at ? (
+                            new Date(record.expires_at).getTime() < Date.now() ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                منتهي الصلاحية ⚠️
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                نشط (باقي {Math.max(0, Math.ceil((new Date(record.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} يوم)
+                              </span>
+                            )
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                              دائم / غير محدود ✦
+                            </span>
+                          )}
+                          <div className="flex items-center gap-1.5 pt-0.5">
+                            <button
+                              type="button"
+                              disabled={renewingId === record.id}
+                              onClick={() => handleQuickRenew(record.id, 1)}
+                              className="px-2 py-0.5 bg-amber-400/20 hover:bg-amber-400 hover:text-black text-amber-300 rounded text-[10px] font-black border border-amber-400/30 transition disabled:opacity-50"
+                              title="تجديد +1 شهر"
+                            >
+                              +1 شهر
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedEditRecord(record)}
+                              className="p-1 text-slate-400 hover:text-amber-300 transition"
+                              title="تعديل الصلاحية"
+                            >
+                              <Calendar className="w-3 h-3 text-amber-400" />
+                            </button>
+                          </div>
+                        </div>
+                      </td>
                       <td className="py-2.5 px-4 font-extrabold text-amber-300">
                         <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-400/10 border border-amber-400/30 rounded-full text-xs">
                           <Eye className="w-3.5 h-3.5 text-amber-400" />
-                          <span>{record.total_scans || 0} مسحة</span>
+                          <span>{record.total_scans || 0}</span>
                         </div>
                       </td>
                       <td className="py-2.5 px-4 text-slate-300">
@@ -705,6 +873,14 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                       </td>
                       <td className="py-2.5 px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEditRecord(record)}
+                            className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-amber-400/10 rounded-lg transition"
+                            title="تعديل الرابط وتاريخ الصلاحية"
+                          >
+                            <Edit3 className="w-4 h-4 text-amber-400" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleDownloadQr(record)}

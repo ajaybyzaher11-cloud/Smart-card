@@ -13,6 +13,7 @@ interface BulkGenerateModalProps {
 export function BulkGenerateModal({ isOpen, onClose, onGenerated, domainUrl }: BulkGenerateModalProps) {
   // Direct editable number input (defaults to 10 or empty for easy typing)
   const [countInput, setCountInput] = useState<string>('10');
+  const [subscriptionMonths, setSubscriptionMonths] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [generatedCodes, setGeneratedCodes] = useState<Array<{ record: QrCodeRecord; qrDataUrl: string }>>([]);
@@ -37,7 +38,7 @@ export function BulkGenerateModal({ isOpen, onClose, onGenerated, domainUrl }: B
     setErrorMsg(null);
 
     try {
-      const records = await generateBulkQrCodes(parsedCount);
+      const records = await generateBulkQrCodes(parsedCount, subscriptionMonths);
       const withDataUrls = await Promise.all(
         records.map(async (record) => {
           const fullScanUrl = `${domainUrl}/q/${record.id}`;
@@ -157,6 +158,51 @@ export function BulkGenerateModal({ isOpen, onClose, onGenerated, domainUrl }: B
                     ))}
                   </div>
                 </div>
+              </div>
+
+              {/* Subscription Duration Selector */}
+              <div className="space-y-2 p-4 bg-black/40 border border-amber-500/20 rounded-2xl">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-amber-200 flex items-center gap-2">
+                    <span>⏳ مدة صلاحية وتفعيل الكروت:</span>
+                  </label>
+                  <span className="text-[11px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
+                    {subscriptionMonths === 0 ? 'دائم / غير محدود' : `اشتراك لمدة ${subscriptionMonths} شهر`}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
+                  {[
+                    { label: 'شهر واحد (شهري)', months: 1, popular: true },
+                    { label: '3 شهور', months: 3 },
+                    { label: '6 شهور', months: 6 },
+                    { label: 'سنة كاملة', months: 12 },
+                    { label: 'دائم (غير محدود)', months: 0 },
+                  ].map((plan) => (
+                    <button
+                      key={plan.months}
+                      type="button"
+                      onClick={() => setSubscriptionMonths(plan.months)}
+                      className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center gap-1 border ${
+                        subscriptionMonths === plan.months
+                          ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-black border-amber-300 shadow-[0_0_15px_rgba(234,179,8,0.3)]'
+                          : 'bg-black/30 hover:bg-white/5 text-slate-300 border-white/10'
+                      }`}
+                    >
+                      <span>{plan.label}</span>
+                      {plan.popular && (
+                        <span className={`text-[9px] px-1.5 py-0.2 rounded-full ${
+                          subscriptionMonths === plan.months ? 'bg-black text-amber-300' : 'bg-amber-400/20 text-amber-300'
+                        }`}>
+                          الافتراضي
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-400 pt-1 leading-normal">
+                  * يبدأ احتساب التاريخ من تاريخ اليوم، ويمكنك دائماً تمديده أو تجديده بضغطة زر من لوحة التحكم لكل كود على حدة.
+                </p>
               </div>
 
               {errorMsg && (

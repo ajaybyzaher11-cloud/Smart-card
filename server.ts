@@ -70,6 +70,8 @@ interface QrRecord {
   created_at: string;
   updated_at?: string;
   total_scans: number;
+  expires_at?: string | null;
+  subscription_months?: number;
 }
 
 function loadDatabase(): Record<string, QrRecord> {
@@ -119,9 +121,14 @@ app.get('/api/qr/:id', (req, res) => {
   res.json({ success: true, data: record });
 });
 
-// 3. Bulk Generate QR codes (Accepts ANY count typed by user)
+// 3. Bulk Generate QR codes (Accepts ANY count typed by user and subscription duration)
 app.post('/api/qr/bulk', (req, res) => {
   const count = parseInt(req.body.count, 10);
+  const subscriptionMonths = typeof req.body.subscription_months === 'number' ? req.body.subscription_months : 1;
+  const providedExpiresAt = req.body.expires_at !== undefined ? req.body.expires_at : (
+    subscriptionMonths > 0 ? new Date(Date.now() + subscriptionMonths * 30 * 24 * 60 * 60 * 1000).toISOString() : null
+  );
+
   if (isNaN(count) || count < 1) {
     return res.status(400).json({ success: false, error: 'الرجاء إدخال رقم صحيح أكبر من صفر' });
   }
@@ -144,6 +151,8 @@ app.post('/api/qr/bulk', (req, res) => {
       target_url: null,
       created_at: new Date().toISOString(),
       total_scans: 0,
+      subscription_months: subscriptionMonths,
+      expires_at: providedExpiresAt,
     };
 
     db[id] = record;
@@ -157,7 +166,7 @@ app.post('/api/qr/bulk', (req, res) => {
 // 4. Customer First-Scan Activation
 app.post('/api/qr/:id/activate', (req, res) => {
   const { id } = req.params;
-  const { target_url, app_type } = req.body;
+  const { target_url, app_type, expires_at, subscription_months } = req.body;
 
   if (!target_url) {
     return res.status(400).json({ success: false, error: 'الرابط مطلوب' });
@@ -181,6 +190,8 @@ app.post('/api/qr/:id/activate', (req, res) => {
   current.target_url = target_url;
   current.app_type = app_type || 'website';
   current.updated_at = now;
+  if (expires_at !== undefined) current.expires_at = expires_at;
+  if (subscription_months !== undefined) current.subscription_months = subscription_months;
 
   saveDatabase(db);
   res.json({ success: true, data: current });
@@ -189,7 +200,7 @@ app.post('/api/qr/:id/activate', (req, res) => {
 // 5. Admin Exclusive Quick Edit
 app.put('/api/qr/:id', (req, res) => {
   const { id } = req.params;
-  const { target_url, app_type, label } = req.body;
+  const { target_url, app_type, label, expires_at, subscription_months } = req.body;
 
   const db = loadDatabase();
   const current = db[id];
@@ -202,6 +213,8 @@ app.put('/api/qr/:id', (req, res) => {
   if (target_url !== undefined) current.target_url = target_url;
   if (app_type !== undefined) current.app_type = app_type;
   if (label !== undefined) current.label = label;
+  if (expires_at !== undefined) current.expires_at = expires_at;
+  if (subscription_months !== undefined) current.subscription_months = subscription_months;
   current.is_active = true;
   current.updated_at = now;
 
@@ -431,7 +444,13 @@ app.get('/q/:id', (req, res, next) => {
     }
   }
 
-  // If active and has a target URL and NOT a bank card:
+  // If active and subscription is expired, let React render luxury CardExpiredView
+  const isExpired = record.expires_at && new Date(record.expires_at).getTime() < Date.now();
+  if (isExpired) {
+    return next();
+  }
+
+  // If active, NOT expired, and has a target URL and NOT a bank card:
   // Send INSTANT HTTP 302 REDIRECT directly to destination!
   if (record.is_active && record.target_url && record.app_type !== 'bank' && !record.target_url.startsWith('bank://')) {
     let target = record.target_url.trim();

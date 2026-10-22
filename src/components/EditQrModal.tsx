@@ -23,7 +23,9 @@ import {
   Copy,
   Info,
   Sparkles,
-  RotateCcw
+  RotateCcw,
+  Clock,
+  Calendar
 } from 'lucide-react';
 import { adminUpdateQrCode, generateQrDataUrl, resetQrScanCount } from '../lib/qrService';
 import { processSmartLink, encodeBankDetails, decodeBankDetails } from '../lib/deepLinks';
@@ -63,6 +65,9 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
+  // Subscription expiry state
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+
   // Bank Specific fields
   const [bankName, setBankName] = useState(EGYPTIAN_BANKS[0]);
   const [accountNumber, setAccountNumber] = useState('');
@@ -81,6 +86,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       setLabel(record.label || '');
       setSavedSuccess(false);
       setCurrentScans(record.total_scans || 0);
+      setExpiresAt(record.expires_at || null);
 
       const rawUrl = record.target_url || '';
       setTargetUrl(rawUrl);
@@ -119,6 +125,14 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
     }
   };
 
+  const handleExtendDays = (days: number) => {
+    const base = (expiresAt && new Date(expiresAt).getTime() > Date.now())
+      ? new Date(expiresAt).getTime()
+      : Date.now();
+    const nextDate = new Date(base + days * 24 * 60 * 60 * 1000).toISOString();
+    setExpiresAt(nextDate);
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -143,7 +157,13 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
     }
 
     try {
-      const result = await adminUpdateQrCode(record.id, finalRawInput, selectedType, label.trim());
+      const result = await adminUpdateQrCode(
+        record.id, 
+        finalRawInput, 
+        selectedType, 
+        label.trim(),
+        expiresAt
+      );
       if (result.success && result.record) {
         setSavedSuccess(true);
         onSaved(result.record);
@@ -516,6 +536,92 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
               placeholder="مثال: كارت تحويل بنكي للمتجر - الحساب الرئيسي"
               className="w-full px-3.5 py-2.5 bg-black/60 border border-amber-500/20 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
+          </div>
+
+          {/* Subscription Expiry & Duration Management */}
+          <div className="p-4 bg-gradient-to-br from-amber-500/10 via-black/60 to-[#121216] border border-amber-500/30 rounded-2xl space-y-3.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-amber-400" />
+                <span>إدارة مدة التفعيل والاشتراك الشهري:</span>
+              </span>
+              {expiresAt ? (
+                new Date(expiresAt).getTime() < Date.now() ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                    منتهي الصلاحية ⚠️
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    نشط (باقي {Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} يوم)
+                  </span>
+                )
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                  دائم / غير محدود ✦
+                </span>
+              )}
+            </div>
+
+            {/* Current Expiry Date Display & Date Input */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+              <div className="space-y-1">
+                <label className="text-[11px] text-slate-300 font-semibold block">
+                  تاريخ انتهاء الاشتراك:
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={expiresAt ? expiresAt.split('T')[0] : ''}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setExpiresAt(new Date(e.target.value + 'T23:59:59.000Z').toISOString());
+                      } else {
+                        setExpiresAt(null);
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-black/70 border border-amber-500/30 rounded-xl text-xs font-mono text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+              </div>
+
+              {/* Fast Extend Buttons */}
+              <div className="space-y-1">
+                <label className="text-[11px] text-slate-300 font-semibold block">
+                  تمديد سريع للاشتراك:
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => handleExtendDays(30)}
+                    className="flex-1 py-2 px-2.5 bg-amber-400/15 hover:bg-amber-400 hover:text-black text-amber-300 border border-amber-400/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1"
+                  >
+                    <span>+1 شهر</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExtendDays(90)}
+                    className="flex-1 py-2 px-2.5 bg-amber-400/15 hover:bg-amber-400 hover:text-black text-amber-300 border border-amber-400/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1"
+                  >
+                    <span>+3 شهور</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExpiresAt(null)}
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold transition border ${
+                      expiresAt === null
+                        ? 'bg-cyan-500/30 text-cyan-200 border-cyan-400'
+                        : 'bg-black/40 text-slate-400 border-white/10 hover:text-white'
+                    }`}
+                  >
+                    <span>دائم</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-normal">
+              * عند انتهاء مدة التفعيل، ستتوقف إعادة التوجيه وسيظهر للعميل صفحة فاخرة لتجديد الاشتراك عبر واتساب.
+            </p>
           </div>
 
           {/* Live Preview Card */}

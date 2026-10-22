@@ -20,6 +20,8 @@ export interface BankDetails {
   notes?: string;
 }
 
+export type SubscriptionPlan = 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'unlimited' | 'custom';
+
 export interface QrCodeRecord {
   id: string; // Primary key, immutable nanoid(10)
   is_active: boolean; // default false, becomes true on first activation
@@ -30,6 +32,8 @@ export interface QrCodeRecord {
   total_scans?: number;
   label?: string; // Optional friendly label or note by admin
   bank_details?: BankDetails;
+  expires_at?: string | null; // ISO timestamp or null for permanent
+  subscription_months?: number; // e.g. 1 for monthly, 3, 6, 12, or 0 for unlimited
 }
 
 export interface DeepLinkInfo {
