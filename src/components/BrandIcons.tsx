@@ -7,27 +7,148 @@ interface BrandIconProps {
 }
 
 /**
- * Official WhatsApp Brand SVG Icon
+ * 1. Official WhatsApp App Squircle Icon
+ * Matches the official iOS/Android squircle app icon (user uploaded 1792666710853.jpg)
  */
 export function WhatsAppIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 100 100"
       width={size}
       height={size}
-      className={className}
-      fill="currentColor"
+      className={`${className} select-none drop-shadow-sm`}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
     >
+      <defs>
+        <linearGradient id="wa_squircle_grad" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#2ED76E" />
+          <stop offset="1" stopColor="#1DAE53" />
+        </linearGradient>
+        <linearGradient id="wa_glass_sheen" x1="0" y1="0" x2="100" y2="50" gradientUnits="userSpaceOnUse">
+          <stop stopColor="white" stopOpacity="0.25" />
+          <stop offset="1" stopColor="white" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* Squircle Base */}
+      <rect width="100" height="100" rx="22" fill="url(#wa_squircle_grad)" />
+      {/* Subtle 3D Glass Specular Highlight */}
+      <path d="M0 22C0 9.85 9.85 0 22 0h56c12.15 0 22 9.85 22 22v12C68 38 32 38 0 32V22z" fill="url(#wa_glass_sheen)" />
+      {/* WhatsApp Speech Bubble & Phone Handset */}
       <path
-        fill="#25D366"
-        d="M12.004 2C6.48 2 2 6.48 2 12c0 1.95.56 3.77 1.53 5.32L2 22l4.82-1.5c1.48.88 3.22 1.38 5.18 1.38 5.52 0 10-4.48 10-10s-4.48-10-10-10zm0 18.25c-1.68 0-3.24-.48-4.57-1.32l-.33-.21-2.86.89.9-2.77-.22-.35c-.94-1.45-1.47-3.14-1.47-4.49 0-4.55 3.7-8.25 8.25-8.25 4.55 0 8.25 3.7 8.25 8.25 0 4.55-3.7 8.25-8.25 8.25zm4.52-6.17c-.25-.12-1.47-.72-1.7-.81-.23-.08-.39-.12-.56.12-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.15-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.12-.14.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43h-.48c-.16 0-.43.06-.66.31-.23.25-.87.85-.87 2.08s.89 2.41 1.02 2.58c.12.17 1.76 2.68 4.26 3.76.6.26 1.06.41 1.42.53.6.19 1.15.16 1.58.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.17-.48-.29z"
+        fill="white"
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M50 20C33.43 20 20 33.43 20 50c0 5.62 1.55 10.87 4.24 15.36L21 80l15.09-3.2A29.83 29.83 0 0050 80c16.57 0 30-13.43 30-30s-13.43-30-30-30zm0 54.8c-4.64 0-9-.1.25-12.78-3.08l-.92-.58-8.9 1.89 1.91-8.63-.64-.98C26.34 59.8 25.2 55.05 25.2 50c0-13.68 11.12-24.8 24.8-24.8 13.68 0 24.8 11.12 24.8 24.8 0 13.68-11.12 24.8-24.8 24.8zm13.72-18.7c-.75-.38-4.44-2.19-5.13-2.44-.69-.25-1.19-.38-1.69.38-.5.75-1.94 2.44-2.38 2.94-.44.5-.88.56-1.63.19-.75-.38-3.17-1.17-6.04-3.73-2.23-1.99-3.74-4.45-4.18-5.2-.44-.75-.05-1.15.33-1.52.34-.34.75-.88 1.13-1.31.38-.44.5-.75.75-1.25.25-.5.13-.94-.06-1.31-.19-.38-1.69-4.07-2.32-5.57-.61-1.47-1.23-1.27-1.69-1.29h-1.44c-.5 0-1.31.19-2 .94-.69.75-2.63 2.57-2.63 6.27 0 3.7 2.69 7.27 3.07 7.78.38.5 5.29 8.08 12.82 11.33 1.79.78 3.19 1.24 4.28 1.59 1.8.58 3.44.5 4.74.3 1.45-.22 4.44-1.81 5.06-3.56.63-1.75.63-3.25.44-3.56-.19-.32-.69-.51-1.44-.89z"
       />
     </svg>
   );
 }
 
 /**
- * Official InstaPay Brand Icon (Egyptian Instant Payment Network)
+ * 2. Official Facebook App Squircle Icon
+ * Matches the official Facebook 3D squircle app icon (user uploaded 1792666781397.jpg)
+ */
+export function FacebookIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
+      className={`${className} select-none drop-shadow-sm`}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <linearGradient id="fb_squircle_grad" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#1977F3" />
+          <stop offset="1" stopColor="#0D61D9" />
+        </linearGradient>
+        <linearGradient id="fb_glass_sheen" x1="0" y1="0" x2="100" y2="50" gradientUnits="userSpaceOnUse">
+          <stop stopColor="white" stopOpacity="0.22" />
+          <stop offset="1" stopColor="white" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* Squircle Base */}
+      <rect width="100" height="100" rx="22" fill="url(#fb_squircle_grad)" />
+      {/* Specular Highlight */}
+      <path d="M0 22C0 9.85 9.85 0 22 0h56c12.15 0 22 9.85 22 22v12C68 38 32 38 0 32V22z" fill="url(#fb_glass_sheen)" />
+      {/* Bold Facebook 'f' reaching right to the bottom edge */}
+      <path
+        d="M66.5 100V61.5H79.5L81.5 46.5H66.5V36.9C66.5 32.6 67.7 29.6 74 29.6H82V16.2C80.6 16 75.8 15.6 70.2 15.6C58.5 15.6 50.5 22.7 50.5 35.8V46.5H38V61.5H50.5V100H66.5Z"
+        fill="white"
+      />
+    </svg>
+  );
+}
+
+/**
+ * 3. Official Google Phone / Dialer Squircle Icon
+ * Matches the official Google Phone app icon (user uploaded 1792666875207.jpg)
+ */
+export function PhoneCallIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
+      className={`${className} select-none drop-shadow-sm`}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <defs>
+        <linearGradient id="phone_white_grad" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FFFFFF" />
+          <stop offset="1" stopColor="#F8FAFC" />
+        </linearGradient>
+        <filter id="phone_soft_shadow" x="-10%" y="-10%" width="120%" height="120%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#0F172A" floodOpacity="0.08" />
+        </filter>
+      </defs>
+      {/* Pure White Squircle Base with Soft Inset Border */}
+      <rect width="100" height="100" rx="22" fill="url(#phone_white_grad)" stroke="#E2E8F0" strokeWidth="1" filter="url(#phone_soft_shadow)" />
+      {/* Google Dual-Tone Blue Phone Handset */}
+      <g transform="translate(18, 18) scale(0.64)">
+        {/* Dark Blue Upper Earpiece & Grip (#1A73E8) */}
+        <path
+          d="M34.5 10.5C31.2 3.1 22.6 0 15.2 3.3L4.8 7.9C1.8 9.2 0 12.3 0 15.6C0 54.5 31.5 86 70.4 86C73.7 86 76.8 84.2 78.1 81.2L82.7 70.8C86 63.4 82.9 54.8 75.5 51.5L63.5 46.2C57.4 43.5 50.1 45.4 46.2 50.8L40.8 58.2C29.2 51.5 20.5 42.8 13.8 31.2L21.2 25.8C26.6 21.9 28.5 14.6 25.8 8.5L20.5-3.5"
+          display="none"
+        />
+        {/* Crisp Vector Geometry matching uploaded dialer image */}
+        {/* Top/Backgrip section in Deep Google Blue */}
+        <path
+          d="M48 10C42 10 32 16 28 26L21 44C16 57 26 73 39 83L49 90C59 96 73 98 83 91L92 84C97 80 99 74 96 69L87 51C84 46 78 44 73 47L64 52C55 45 48 37 42 27L48 19C52 14 51 8 46 4L48 10Z"
+          display="none"
+        />
+        {/* Precise Handset Paths */}
+        {/* Upper/Earpiece in #1A73E8 */}
+        <path
+          d="M42.8 6.5C36.2 1.3 26.6 2.6 21.4 9.2L12.5 20.6C7.8 26.5 7.4 34.6 11.5 41C19.8 54.1 31.9 66.2 45 74.5C51.4 78.6 59.5 78.2 65.4 73.5L76.8 64.6C83.4 59.4 84.7 49.8 79.5 43.2L69.8 30.9C65.2 25.1 57.1 23.6 50.7 27.6L45.2 31.1C39.4 27.2 34.8 22.6 30.9 16.8L34.4 11.3C38.4 4.9 36.9-3.2 31.1-7.8"
+          display="none"
+        />
+        {/* Clean Material Dialer Handset */}
+        {/* Top Dark Blue (#1A73E8) */}
+        <path
+          d="M32.5 12C28.2 5.5 19.5 3.8 13 8.1L5.8 12.9C1.9 15.5 0 20 0 24.6C0 60.7 29.3 90 65.4 90C70 90 74.5 88.1 77.1 84.2L81.9 77C86.2 70.5 84.5 61.8 78 57.5L64.8 48.7C59.2 45 51.8 46.2 47.7 51.5L42.5 58.1C32.8 52.8 25.2 45.2 19.9 35.5L26.5 30.3C31.8 26.2 33 18.8 29.3 13.2L32.5 12Z"
+          fill="#1A73E8"
+        />
+        {/* Bottom Curved Highlight (#4285F4) */}
+        <path
+          d="M65.4 90C29.3 90 0 60.7 0 24.6C0 22.3.5 20.1 1.4 18 10 52 38 80 72 88.6c-2.1.9-4.3 1.4-6.6 1.4z"
+          fill="#4285F4"
+          fillOpacity="0.8"
+        />
+        <path
+          d="M20 35.5C25.3 45.2 32.9 52.8 42.6 58.1L35 68C22 58 12 48 2 35l9.5-6.5L20 35.5z"
+          fill="#4285F4"
+        />
+      </g>
+    </svg>
+  );
+}
+
+/**
+ * 4. Official InstaPay App Squircle Icon
  * Uses high-resolution squircle app icon asset provided by user
  */
 export function InstaPayIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
@@ -37,7 +158,7 @@ export function InstaPayIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
       alt="InstaPay"
       width={size}
       height={size}
-      className={`${className} object-contain rounded-lg select-none`}
+      className={`${className} object-contain rounded-xl select-none drop-shadow-sm`}
       loading="eager"
       decoding="async"
     />
@@ -45,34 +166,20 @@ export function InstaPayIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
 }
 
 /**
- * Official Instagram Brand SVG Icon (Gradient Camera)
+ * 5. Official Instagram App Squircle Icon
  */
 export function InstagramIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 100 100"
       width={size}
       height={size}
-      className={className}
+      className={`${className} select-none drop-shadow-sm`}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <rect width="24" height="24" rx="6" fill="url(#ig_grad)" />
-      <path
-        d="M12 7.25C9.37 7.25 7.25 9.37 7.25 12C7.25 14.63 9.37 16.75 12 16.75C14.63 16.75 16.75 14.63 16.75 12C16.75 9.37 14.63 7.25 12 7.25ZM12 15.15C10.26 15.15 8.85 13.74 8.85 12C8.85 10.26 10.26 8.85 12 8.85C13.74 8.85 15.15 10.26 15.15 12C15.15 13.74 13.74 15.15 12 15.15ZM17.93 6.94C17.93 7.57 17.43 8.07 16.8 8.07C16.17 8.07 15.67 7.57 15.67 6.94C15.67 6.31 16.17 5.81 16.8 5.81C17.43 5.81 17.93 6.31 17.93 6.94Z"
-        fill="white"
-      />
-      <rect
-        x="3"
-        y="3"
-        width="18"
-        height="18"
-        rx="5"
-        stroke="white"
-        strokeWidth="1.5"
-      />
       <defs>
-        <radialGradient id="ig_grad" cx="20%" cy="100%" r="130%">
+        <radialGradient id="ig_squircle_grad" cx="20%" cy="100%" r="130%">
           <stop offset="0%" stopColor="#FFDC80" />
           <stop offset="20%" stopColor="#F77737" />
           <stop offset="40%" stopColor="#F56040" />
@@ -81,76 +188,93 @@ export function InstagramIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
           <stop offset="90%" stopColor="#C13584" />
           <stop offset="100%" stopColor="#833AB4" />
         </radialGradient>
+        <linearGradient id="ig_glass_sheen" x1="0" y1="0" x2="100" y2="50" gradientUnits="userSpaceOnUse">
+          <stop stopColor="white" stopOpacity="0.25" />
+          <stop offset="1" stopColor="white" stopOpacity="0" />
+        </linearGradient>
       </defs>
+      {/* Squircle Base */}
+      <rect width="100" height="100" rx="22" fill="url(#ig_squircle_grad)" />
+      <path d="M0 22C0 9.85 9.85 0 22 0h56c12.15 0 22 9.85 22 22v12C68 38 32 38 0 32V22z" fill="url(#ig_glass_sheen)" />
+      {/* Camera Outer Rounded Rect */}
+      <rect x="23" y="23" width="54" height="54" rx="15" stroke="white" strokeWidth="6" />
+      {/* Camera Center Lens */}
+      <circle cx="50" cy="50" r="13" stroke="white" strokeWidth="6" />
+      {/* Camera Flash Dot */}
+      <circle cx="66" cy="34" r="3.5" fill="white" />
     </svg>
   );
 }
 
 /**
- * Official Facebook Brand SVG Icon
- */
-export function FacebookIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      className={className}
-      fill="currentColor"
-    >
-      <circle cx="12" cy="12" r="11" fill="#1877F2" />
-      <path
-        d="M15.5 12.3l.5-3.3h-3.2v-2.1c0-.9.4-1.8 1.9-1.8H16V2.3c-.6-.1-1.6-.2-2.7-.2-2.8 0-4.6 1.7-4.6 4.7v2.2H5.8v3.3h2.9V21.5c.6.1 1.2.2 1.8.2.6 0 1.2-.1 1.8-.2V12.3h3.2z"
-        fill="white"
-      />
-    </svg>
-  );
-}
-
-/**
- * Official TikTok Brand SVG Icon
+ * 6. Official TikTok App Squircle Icon
  */
 export function TikTokIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 100 100"
       width={size}
       height={size}
-      className={className}
-      fill="currentColor"
+      className={`${className} select-none drop-shadow-sm`}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
     >
-      <rect width="24" height="24" rx="6" fill="#000000" />
+      <defs>
+        <linearGradient id="tiktok_base_grad" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#16161A" />
+          <stop offset="1" stopColor="#08080A" />
+        </linearGradient>
+      </defs>
+      {/* Carbon Matte Squircle */}
+      <rect width="100" height="100" rx="22" fill="url(#tiktok_base_grad)" stroke="#27272A" strokeWidth="1" />
+      {/* 3D Cyan Layer */}
       <path
         fill="#00F2FE"
-        d="M16.6 8.2c-1.1-.3-2-1.1-2.3-2.2h-2.1v9.5c0 1.4-1.1 2.5-2.5 2.5-1.4 0-2.5-1.1-2.5-2.5 0-1.4 1.1-2.5 2.5-2.5.3 0 .6.1.9.2v-2.3c-.3 0-.6-.1-.9-.1-2.6 0-4.7 2.1-4.7 4.7s2.1 4.7 4.7 4.7 4.7-2.1 4.7-4.7V9.7c1.1.8 2.5 1.2 3.9 1.2v-2.2c-.6 0-1.2-.2-1.7-.5z"
+        d="M68.5 35.5c-4.4-1.2-8-4.4-9.2-8.8h-8.4v38c0 5.6-4.4 10-10 10s-10-4.4-10-10 4.4-10 10-10c1.2 0 2.4.4 3.6.8V26.3c-1.2-.4-2.4-.4-3.6-.4-10.4 0-18.8 8.4-18.8 18.8s8.4 18.8 18.8 18.8 18.8-8.4 18.8-18.8V41.5c4.4 3.2 10 4.8 15.6 4.8V37.5c-2.4 0-4.8-.8-6.8-2z"
       />
+      {/* 3D Red Layer */}
       <path
         fill="#FE2C55"
-        d="M16.9 8c-1.1-.3-2-1.1-2.3-2.2h-1.8v9.5c0 1.4-1.1 2.5-2.5 2.5-1.4 0-2.5-1.1-2.5-2.5 0-1.4 1.1-2.5 2.5-2.5.3 0 .6.1.9.2v-2c-.3 0-.6-.1-.9-.1-2.6 0-4.7 2.1-4.7 4.7s2.1 4.7 4.7 4.7 4.7-2.1 4.7-4.7V9.5c1.1.8 2.5 1.2 3.9 1.2V8.3c-.6 0-1.2-.1-1.7-.3z"
+        d="M69.7 34.7c-4.4-1.2-8-4.4-9.2-8.8h-7.2v38c0 5.6-4.4 10-10 10s-10-4.4-10-10 4.4-10 10-10c1.2 0 2.4.4 3.6.8v-8.8c-1.2-.4-2.4-.4-3.6-.4-10.4 0-18.8 8.4-18.8 18.8s8.4 18.8 18.8 18.8 18.8-8.4 18.8-18.8V40.7c4.4 3.2 10 4.8 15.6 4.8v-8.8c-2.4 0-4.8-.8-6.8-2z"
       />
+      {/* White Core */}
       <path
         fill="#FFFFFF"
-        d="M16.6 8.1c-1.1-.3-2-1.1-2.3-2.2h-2v9.5c0 1.4-1.1 2.5-2.5 2.5-1.4 0-2.5-1.1-2.5-2.5 0-1.4 1.1-2.5 2.5-2.5.3 0 .6.1.9.2v-2.2c-.3 0-.6-.1-.9-.1-2.6 0-4.7 2.1-4.7 4.7s2.1 4.7 4.7 4.7 4.7-2.1 4.7-4.7V9.6c1.1.8 2.5 1.2 3.9 1.2V8.5c-.6 0-1.2-.1-1.7-.4z"
+        d="M68.5 35.1c-4.4-1.2-8-4.4-9.2-8.8h-8v38c0 5.6-4.4 10-10 10s-10-4.4-10-10 4.4-10 10-10c1.2 0 2.4.4 3.6.8v-8.8c-1.2-.4-2.4-.4-3.6-.4-10.4 0-18.8 8.4-18.8 18.8s8.4 18.8 18.8 18.8 18.8-8.4 18.8-18.8V41.1c4.4 3.2 10 4.8 15.6 4.8v-8.8c-2.4 0-4.8-.8-6.8-2z"
       />
     </svg>
   );
 }
 
 /**
- * Official Telegram Brand SVG Icon
+ * 7. Official Telegram App Squircle Icon
  */
 export function TelegramIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 100 100"
       width={size}
       height={size}
-      className={className}
-      fill="currentColor"
+      className={`${className} select-none drop-shadow-sm`}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
     >
-      <circle cx="12" cy="12" r="11" fill="#229ED9" />
+      <defs>
+        <linearGradient id="tg_squircle_grad" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#2CB5E8" />
+          <stop offset="1" stopColor="#1D96D2" />
+        </linearGradient>
+        <linearGradient id="tg_glass_sheen" x1="0" y1="0" x2="100" y2="50" gradientUnits="userSpaceOnUse">
+          <stop stopColor="white" stopOpacity="0.25" />
+          <stop offset="1" stopColor="white" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* Squircle Base */}
+      <rect width="100" height="100" rx="22" fill="url(#tg_squircle_grad)" />
+      <path d="M0 22C0 9.85 9.85 0 22 0h56c12.15 0 22 9.85 22 22v12C68 38 32 38 0 32V22z" fill="url(#tg_glass_sheen)" />
+      {/* Origami Paper Plane */}
       <path
-        d="M5.4 11.8l10.9-4.5c.5-.2 1 .1.8.7l-1.9 8.8c-.1.6-.5.8-1 .5l-2.8-2.1-1.4 1.3c-.2.2-.3.3-.6.3l.2-2.9 5.3-4.8c.2-.2 0-.3-.3-.1l-6.6 4.1-2.8-.9c-.6-.2-.6-.6.2-.9z"
+        d="M23 49.5L69 31C71.1 30.1 73.1 31.5 72.5 33.7L64.5 71.5C64 74 61.8 74.8 59.8 73.5L48 64.6L42 70.3C41.2 71.1 40.5 71.8 39 71.8L40 59.2L63 38.5C64 37.6 62.8 37.1 61.5 38L33 55.8L21.2 52.1C18.6 51.3 18.5 49.6 21.3 48.5L23 49.5Z"
         fill="white"
       />
     </svg>
@@ -158,101 +282,119 @@ export function TelegramIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
 }
 
 /**
- * Vodafone Cash / Smart Wallet Icon
+ * 8. Vodafone Cash / Smart Wallet Squircle Icon
  */
 export function WalletCashIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 100 100"
       width={size}
       height={size}
-      className={className}
+      className={`${className} select-none drop-shadow-sm`}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <rect width="24" height="24" rx="6" fill="#E60000" />
-      {/* Wallet body */}
-      <path
-        d="M4 8.5C4 7.12 5.12 6 6.5 6H17.5C18.88 6 20 7.12 20 8.5V16.5C20 17.88 18.88 19 17.5 19H6.5C5.12 19 4 17.88 4 16.5V8.5Z"
-        fill="white"
-      />
-      {/* Pocket flap with gold coin/card badge */}
-      <path
-        d="M15 10.5C15 9.67 15.67 9 16.5 9H20V15H16.5C15.67 15 15 14.33 15 13.5V10.5Z"
-        fill="#FFCC00"
-      />
-      <circle cx="17.5" cy="12" r="1" fill="#E60000" />
+      <defs>
+        <linearGradient id="wallet_squircle_grad" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#EA1D25" />
+          <stop offset="1" stopColor="#B30D14" />
+        </linearGradient>
+        <linearGradient id="wallet_gold_crest" x1="0" y1="0" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FDE047" />
+          <stop offset="1" stopColor="#CA8A04" />
+        </linearGradient>
+      </defs>
+      {/* Squircle Base */}
+      <rect width="100" height="100" rx="22" fill="url(#wallet_squircle_grad)" />
+      {/* Wallet Body */}
+      <rect x="20" y="30" width="60" height="42" rx="8" fill="white" />
+      {/* Inner Pocket Flap */}
+      <path d="M58 41C58 37.7 60.7 35 64 35H80V67H64C60.7 67 58 64.3 58 61V41Z" fill="url(#wallet_gold_crest)" />
+      {/* Gold Coin / Currency Lock */}
+      <circle cx="69" cy="51" r="4.5" fill="#B30D14" />
+      <circle cx="69" cy="51" r="2.5" fill="#FDE047" />
+      {/* Vodafone Cash subtle waveform bars */}
+      <rect x="27" y="42" width="18" height="3" rx="1.5" fill="#E2E8F0" />
+      <rect x="27" y="49" width="24" height="3" rx="1.5" fill="#E2E8F0" />
+      <rect x="27" y="56" width="14" height="3" rx="1.5" fill="#E2E8F0" />
     </svg>
   );
 }
 
 /**
- * Bank Account Brand Icon (Classic Columns with Gold Accents)
+ * 9. Luxury Bank Account Squircle Icon (24K Gold & Obsidian Pillars)
  */
 export function BankAccountIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 100 100"
       width={size}
       height={size}
-      className={className}
+      className={`${className} select-none drop-shadow-sm`}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <rect width="24" height="24" rx="6" fill="#0F172A" stroke="#EAB308" strokeWidth="1" />
-      {/* Roof */}
-      <path d="M12 4.5L4.5 8H19.5L12 4.5Z" fill="#FACC15" />
-      {/* Pillars */}
-      <rect x="6" y="9.5" width="2" height="6.5" rx="0.5" fill="#E2E8F0" />
-      <rect x="9.5" y="9.5" width="2" height="6.5" rx="0.5" fill="#E2E8F0" />
-      <rect x="13" y="9.5" width="2" height="6.5" rx="0.5" fill="#E2E8F0" />
-      <rect x="16.5" y="9.5" width="2" height="6.5" rx="0.5" fill="#E2E8F0" />
-      {/* Base */}
-      <rect x="4" y="17" width="16" height="2" rx="0.5" fill="#FACC15" />
+      <defs>
+        <linearGradient id="bank_obsidian_grad" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#1E2330" />
+          <stop offset="1" stopColor="#0B0E14" />
+        </linearGradient>
+        <linearGradient id="bank_gold_grad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FDE047" />
+          <stop offset="0.5" stopColor="#EAB308" />
+          <stop offset="1" stopColor="#CA8A04" />
+        </linearGradient>
+      </defs>
+      {/* Obsidian Squircle with Gold Border */}
+      <rect width="100" height="100" rx="22" fill="url(#bank_obsidian_grad)" stroke="url(#bank_gold_grad)" strokeWidth="1.5" />
+      {/* Classical Temple Pediment / Roof */}
+      <path d="M50 22L22 36H78L50 22Z" fill="url(#bank_gold_grad)" />
+      {/* Architrave */}
+      <rect x="22" y="38" width="56" height="4" rx="1" fill="#FEF08A" />
+      {/* 4 Majestic Pillars */}
+      <rect x="27" y="45" width="7" height="24" rx="2" fill="#F8FAFC" />
+      <rect x="39" y="45" width="7" height="24" rx="2" fill="#F8FAFC" />
+      <rect x="54" y="45" width="7" height="24" rx="2" fill="#F8FAFC" />
+      <rect x="66" y="45" width="7" height="24" rx="2" fill="#F8FAFC" />
+      {/* Base Steps */}
+      <rect x="20" y="71" width="60" height="4" rx="1" fill="#FEF08A" />
+      <rect x="16" y="77" width="68" height="5" rx="1.5" fill="url(#bank_gold_grad)" />
     </svg>
   );
 }
 
 /**
- * Phone Call Icon (Green dialer badge)
- */
-export function PhoneCallIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      className={className}
-      fill="currentColor"
-    >
-      <circle cx="12" cy="12" r="11" fill="#10B981" />
-      <path
-        d="M15.4 13.8c-.3-.2-1.6-.8-1.9-.9-.2-.1-.4-.1-.6.1-.2.3-.7.9-.9 1-.1.2-.3.2-.6.1-.3-.1-1.1-.4-2.1-1.3-.8-.7-1.3-1.6-1.5-1.9-.2-.3 0-.4.1-.6.1-.1.3-.3.4-.5.1-.2.2-.3.3-.5.1-.2 0-.3 0-.5-.1-.1-.6-1.5-.8-2-.2-.5-.4-.5-.6-.5h-.5c-.2 0-.5.1-.7.3-.3.3-1 1-1 2.3 0 1.4 1 2.7 1.1 2.9.2.2 2 3 4.8 4.2.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.5-.1 1.6-.7 1.9-1.3.2-.6.2-1.2.2-1.3-.1-.2-.3-.3-.6-.4z"
-        fill="white"
-      />
-    </svg>
-  );
-}
-
-/**
- * Website / Domain Icon
+ * 10. Website / Web Domain Squircle Icon
  */
 export function WebsiteGlobeIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 100 100"
       width={size}
       height={size}
-      className={className}
+      className={`${className} select-none drop-shadow-sm`}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <circle cx="12" cy="12" r="11" fill="#3B82F6" />
-      <circle cx="12" cy="12" r="8" stroke="white" strokeWidth="1.2" />
-      <ellipse cx="12" cy="12" rx="4" ry="8" stroke="white" strokeWidth="1.2" />
-      <line x1="4" y1="12" x2="20" y2="12" stroke="white" strokeWidth="1.2" />
-      <line x1="6" y1="7.5" x2="18" y2="7.5" stroke="white" strokeWidth="1" strokeDasharray="1 1" />
-      <line x1="6" y1="16.5" x2="18" y2="16.5" stroke="white" strokeWidth="1" strokeDasharray="1 1" />
+      <defs>
+        <linearGradient id="web_squircle_grad" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#2563EB" />
+          <stop offset="1" stopColor="#1D4ED8" />
+        </linearGradient>
+        <linearGradient id="web_glass_sheen" x1="0" y1="0" x2="100" y2="50" gradientUnits="userSpaceOnUse">
+          <stop stopColor="white" stopOpacity="0.25" />
+          <stop offset="1" stopColor="white" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* Deep Royal Sapphire Squircle */}
+      <rect width="100" height="100" rx="22" fill="url(#web_squircle_grad)" />
+      <path d="M0 22C0 9.85 9.85 0 22 0h56c12.15 0 22 9.85 22 22v12C68 38 32 38 0 32V22z" fill="url(#web_glass_sheen)" />
+      {/* Globe Wireframe */}
+      <circle cx="50" cy="50" r="26" stroke="white" strokeWidth="4" />
+      <ellipse cx="50" cy="50" rx="13" ry="26" stroke="white" strokeWidth="3.5" />
+      <line x1="24" y1="50" x2="76" y2="50" stroke="white" strokeWidth="3.5" />
+      <line x1="30" y1="36" x2="70" y2="36" stroke="white" strokeWidth="2.5" strokeDasharray="3 2" />
+      <line x1="30" y1="64" x2="70" y2="64" stroke="white" strokeWidth="2.5" strokeDasharray="3 2" />
     </svg>
   );
 }
@@ -260,7 +402,15 @@ export function WebsiteGlobeIcon({ className = 'w-6 h-6', size }: BrandIconProps
 /**
  * Universal Brand Icon Dispatcher
  */
-export function PlatformBrandIcon({ type, className = 'w-6 h-6', size }: { type: AppType; className?: string; size?: number }) {
+export function PlatformBrandIcon({
+  type,
+  className = 'w-6 h-6',
+  size,
+}: {
+  type: AppType;
+  className?: string;
+  size?: number;
+}) {
   switch (type) {
     case 'whatsapp':
       return <WhatsAppIcon className={className} size={size} />;
