@@ -188,7 +188,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                 <label className="text-xs font-black text-amber-200 block">
                   1. اختر المنصة أو البنك:
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 [perspective:1000px]">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                   {platforms.map((p) => {
                      const isSelected = selectedType === p.type;
                      return (
@@ -196,51 +196,32 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                          key={p.type}
                          type="button"
                          onClick={() => setSelectedType(p.type)}
-                         className={`group relative flex flex-col items-center justify-center p-3 rounded-2xl border text-xs font-bold transition-all duration-300 gap-2 cursor-pointer select-none active:scale-95 ${
+                         className={`relative flex flex-col items-center justify-center p-3 rounded-2xl border text-xs font-bold transition-all duration-200 gap-2 cursor-pointer select-none ${
                            isSelected
-                             ? 'animate-3d-alive z-20 bg-gradient-to-b from-[#2a2310] via-[#1c180b] to-[#12110a] border-2 border-amber-400 ring-2 ring-amber-400/40 text-amber-300'
-                             : 'bg-[#14141a]/90 text-slate-300 border-white/10 hover:bg-[#1a1a24] hover:border-amber-400/40 hover:text-white hover:-translate-y-1'
+                             ? 'bg-[#181822] border-amber-500/30'
+                             : 'bg-[#14141a] text-slate-300 border-white/10 hover:bg-[#1a1a24] hover:border-white/20'
                          }`}
                        >
-                         {/* 3D Gold Sheen Sweep when selected */}
-                         {isSelected && (
-                           <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none z-10">
-                             <div className="w-1/2 h-full bg-gradient-to-r from-transparent via-amber-300/20 to-transparent skew-x-12 animate-gold-sheen" />
-                           </div>
-                         )}
-
-                         {/* Alive Indicator Badge (Pulsing Check Dot) */}
-                         {isSelected && (
-                           <div className="absolute -top-1.5 -right-1.5 flex items-center justify-center z-30">
-                             <span className="absolute w-4 h-4 bg-amber-400 rounded-full animate-ping opacity-60" />
-                             <span className="relative w-4 h-4 bg-gradient-to-tr from-amber-400 via-yellow-300 to-amber-500 rounded-full shadow-md shadow-amber-500/60 flex items-center justify-center border border-black/50">
-                               <Check className="w-2.5 h-2.5 text-black stroke-[3.5]" />
-                             </span>
-                           </div>
-                         )}
-
-                         {/* 3D Floating Icon Container with Parallax Depth */}
+                         {/* 3D Animated Icon (Movement applied strictly to logo) */}
                          <div
-                           className={`w-11 h-11 flex items-center justify-center rounded-xl p-1 transition-all duration-300 z-20 ${
+                           className={`w-11 h-11 flex items-center justify-center rounded-xl p-1 transition-all duration-300 ${
                              isSelected
-                               ? 'animate-icon-alive shadow-xl shadow-amber-500/40 bg-amber-400/10 border border-amber-400/40'
-                               : 'bg-black/40 group-hover:scale-105 border border-white/5'
+                               ? 'animate-icon-alive'
+                               : 'bg-black/40 hover:scale-105'
                            }`}
                          >
                            <PlatformBrandIcon
                              type={p.type}
-                             className={`w-9 h-9 transition-transform duration-300 ${
-                               isSelected ? 'drop-shadow-[0_4px_10px_rgba(251,191,36,0.5)]' : ''
-                             }`}
+                             className="w-9 h-9"
                            />
                          </div>
 
-                         {/* Platform Label */}
+                         {/* 3D Animated Platform Label (Movement applied strictly to name) */}
                          <span
-                           className={`text-[11px] font-black truncate w-full text-center tracking-tight transition-colors z-20 ${
+                           className={`text-[11px] font-black truncate w-full text-center transition-all ${
                              isSelected
-                               ? 'text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-300 to-yellow-400 drop-shadow-[0_1px_4px_rgba(250,204,21,0.5)]'
-                               : 'text-slate-300 group-hover:text-white'
+                               ? 'animate-name-alive text-amber-300 drop-shadow-[0_1px_4px_rgba(250,204,21,0.5)]'
+                               : 'text-slate-300'
                            }`}
                          >
                            {p.label}

@@ -6,63 +6,36 @@
   }
 }
 
-/* 3D Lifelike Animations for Customer Selected Platform Button */
-@keyframes alive3DBreath {
-  0% {
-    transform: perspective(900px) translateZ(12px) translateY(-3px) rotateX(4deg) rotateY(-2deg) scale(1.05);
-    box-shadow: 0 16px 32px -4px rgba(245, 158, 11, 0.45), 0 0 20px rgba(251, 191, 36, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.3);
-  }
-  50% {
-    transform: perspective(900px) translateZ(24px) translateY(-8px) rotateX(2deg) rotateY(2deg) scale(1.08);
-    box-shadow: 0 24px 44px -4px rgba(245, 158, 11, 0.6), 0 0 30px rgba(251, 191, 36, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.5);
-  }
-  100% {
-    transform: perspective(900px) translateZ(12px) translateY(-3px) rotateX(4deg) rotateY(-2deg) scale(1.05);
-    box-shadow: 0 16px 32px -4px rgba(245, 158, 11, 0.45), 0 0 20px rgba(251, 191, 36, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.3);
-  }
-}
-
-@keyframes iconAliveBob {
+/* 3D Lifelike Animations for Customer Selected Platform: Logo & Name Only */
+@keyframes icon3DAlive {
   0%, 100% {
-    transform: translateZ(26px) translateY(0px) scale(1.12);
+    transform: perspective(600px) translateZ(16px) translateY(0px) rotateY(-4deg) scale(1.15);
+    filter: drop-shadow(0 8px 14px rgba(245, 158, 11, 0.45));
   }
   50% {
-    transform: translateZ(36px) translateY(-5px) scale(1.22);
+    transform: perspective(600px) translateZ(28px) translateY(-6px) rotateY(4deg) scale(1.25);
+    filter: drop-shadow(0 14px 22px rgba(245, 158, 11, 0.7));
   }
 }
 
-@keyframes goldSheenSweep {
-  0% {
-    transform: translateX(-150%) rotate(25deg);
-    opacity: 0;
+@keyframes name3DAlive {
+  0%, 100% {
+    transform: translateY(0px) scale(1.02);
   }
-  15% {
-    opacity: 0.7;
+  50% {
+    transform: translateY(-2px) scale(1.08);
   }
-  45% {
-    transform: translateX(160%) rotate(25deg);
-    opacity: 0;
-  }
-  100% {
-    transform: translateX(160%) rotate(25deg);
-    opacity: 0;
-  }
-}
-
-.animate-3d-alive {
-  animation: alive3DBreath 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-  transform-style: preserve-3d;
-  will-change: transform, box-shadow;
 }
 
 .animate-icon-alive {
-  animation: iconAliveBob 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: icon3DAlive 2.5s ease-in-out infinite;
   transform-style: preserve-3d;
-  will-change: transform;
+  will-change: transform, filter;
 }
 
-.animate-gold-sheen {
-  animation: goldSheenSweep 3.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+.animate-name-alive {
+  animation: name3DAlive 2.5s ease-in-out infinite;
+  will-change: transform;
 }
 
 @media print {

@@ -8,40 +8,19 @@ interface BrandIconProps {
 
 /**
  * 1. Official WhatsApp App Squircle Icon
- * Matches the official iOS/Android squircle app icon (user uploaded 1792666710853.jpg)
+ * Uses official squircle app icon asset provided by user (1792666710853_e8958abe.jpg)
  */
 export function WhatsAppIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
   return (
-    <svg
-      viewBox="0 0 100 100"
+    <img
+      src="/whatsapp-app-logo.png"
+      alt="WhatsApp"
       width={size}
       height={size}
-      className={`${className} select-none drop-shadow-sm`}
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <defs>
-        <linearGradient id="wa_squircle_grad" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#2ED76E" />
-          <stop offset="1" stopColor="#1DAE53" />
-        </linearGradient>
-        <linearGradient id="wa_glass_sheen" x1="0" y1="0" x2="100" y2="50" gradientUnits="userSpaceOnUse">
-          <stop stopColor="white" stopOpacity="0.25" />
-          <stop offset="1" stopColor="white" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {/* Squircle Base */}
-      <rect width="100" height="100" rx="22" fill="url(#wa_squircle_grad)" />
-      {/* Subtle 3D Glass Specular Highlight */}
-      <path d="M0 22C0 9.85 9.85 0 22 0h56c12.15 0 22 9.85 22 22v12C68 38 32 38 0 32V22z" fill="url(#wa_glass_sheen)" />
-      {/* WhatsApp Speech Bubble & Phone Handset */}
-      <path
-        fill="white"
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M50 20C33.43 20 20 33.43 20 50c0 5.62 1.55 10.87 4.24 15.36L21 80l15.09-3.2A29.83 29.83 0 0050 80c16.57 0 30-13.43 30-30s-13.43-30-30-30zm0 54.8c-4.64 0-9-.1.25-12.78-3.08l-.92-.58-8.9 1.89 1.91-8.63-.64-.98C26.34 59.8 25.2 55.05 25.2 50c0-13.68 11.12-24.8 24.8-24.8 13.68 0 24.8 11.12 24.8 24.8 0 13.68-11.12 24.8-24.8 24.8zm13.72-18.7c-.75-.38-4.44-2.19-5.13-2.44-.69-.25-1.19-.38-1.69.38-.5.75-1.94 2.44-2.38 2.94-.44.5-.88.56-1.63.19-.75-.38-3.17-1.17-6.04-3.73-2.23-1.99-3.74-4.45-4.18-5.2-.44-.75-.05-1.15.33-1.52.34-.34.75-.88 1.13-1.31.38-.44.5-.75.75-1.25.25-.5.13-.94-.06-1.31-.19-.38-1.69-4.07-2.32-5.57-.61-1.47-1.23-1.27-1.69-1.29h-1.44c-.5 0-1.31.19-2 .94-.69.75-2.63 2.57-2.63 6.27 0 3.7 2.69 7.27 3.07 7.78.38.5 5.29 8.08 12.82 11.33 1.79.78 3.19 1.24 4.28 1.59 1.8.58 3.44.5 4.74.3 1.45-.22 4.44-1.81 5.06-3.56.63-1.75.63-3.25.44-3.56-.19-.32-.69-.51-1.44-.89z"
-      />
-    </svg>
+      className={`${className} object-contain rounded-xl select-none drop-shadow-sm`}
+      loading="eager"
+      decoding="async"
+    />
   );
 }
 
