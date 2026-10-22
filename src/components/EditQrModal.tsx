@@ -593,21 +593,28 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                   <button
                     type="button"
                     onClick={() => handleExtendDays(30)}
-                    className="flex-1 py-2 px-2.5 bg-amber-400/15 hover:bg-amber-400 hover:text-black text-amber-300 border border-amber-400/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1"
+                    className="flex-1 py-1.5 px-2 bg-amber-400/15 hover:bg-amber-400 hover:text-black text-amber-300 border border-amber-400/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1"
                   >
                     <span>+1 شهر</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleExtendDays(90)}
-                    className="flex-1 py-2 px-2.5 bg-amber-400/15 hover:bg-amber-400 hover:text-black text-amber-300 border border-amber-400/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1"
+                    className="flex-1 py-1.5 px-2 bg-amber-400/15 hover:bg-amber-400 hover:text-black text-amber-300 border border-amber-400/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1"
                   >
                     <span>+3 شهور</span>
                   </button>
                   <button
                     type="button"
+                    onClick={() => handleExtendDays(180)}
+                    className="flex-1 py-1.5 px-2 bg-amber-400/15 hover:bg-amber-400 hover:text-black text-amber-300 border border-amber-400/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1"
+                  >
+                    <span>+6 شهور</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setExpiresAt(null)}
-                    className={`py-2 px-2.5 rounded-xl text-xs font-bold transition border ${
+                    className={`py-1.5 px-2.5 rounded-xl text-xs font-bold transition border ${
                       expiresAt === null
                         ? 'bg-cyan-500/30 text-cyan-200 border-cyan-400'
                         : 'bg-black/40 text-slate-400 border-white/10 hover:text-white'

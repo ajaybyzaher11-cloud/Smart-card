@@ -13,7 +13,8 @@ interface BulkGenerateModalProps {
 export function BulkGenerateModal({ isOpen, onClose, onGenerated, domainUrl }: BulkGenerateModalProps) {
   // Direct editable number input (defaults to 10 or empty for easy typing)
   const [countInput, setCountInput] = useState<string>('10');
-  const [subscriptionMonths, setSubscriptionMonths] = useState<number>(1);
+  const [monthsInput, setMonthsInput] = useState<string>('1');
+  const [isPermanent, setIsPermanent] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [generatedCodes, setGeneratedCodes] = useState<Array<{ record: QrCodeRecord; qrDataUrl: string }>>([]);
@@ -22,10 +23,11 @@ export function BulkGenerateModal({ isOpen, onClose, onGenerated, domainUrl }: B
   if (!isOpen) return null;
 
   const parsedCount = parseInt(countInput, 10);
+  const parsedMonths = isPermanent ? 0 : parseInt(monthsInput, 10);
 
   const handleGenerate = async () => {
     if (isNaN(parsedCount) || parsedCount < 1) {
-      setErrorMsg('يرجى كتابة رقم صحيح أكبر من صفر في الخانة.');
+      setErrorMsg('يرجى كتابة عدد صحيح للأكواد أكبر من صفر.');
       return;
     }
 
@@ -34,11 +36,17 @@ export function BulkGenerateModal({ isOpen, onClose, onGenerated, domainUrl }: B
       return;
     }
 
+    if (!isPermanent && (isNaN(parsedMonths) || parsedMonths < 1)) {
+      setErrorMsg('يرجى كتابة عدد شهور صحيح أكبر من صفر، أو اختيار "دائم".');
+      return;
+    }
+
     setLoading(true);
     setErrorMsg(null);
 
     try {
-      const records = await generateBulkQrCodes(parsedCount, subscriptionMonths);
+      const durationMonths = isPermanent ? 0 : Math.max(1, parsedMonths);
+      const records = await generateBulkQrCodes(parsedCount, durationMonths);
       const withDataUrls = await Promise.all(
         records.map(async (record) => {
           const fullScanUrl = `${domainUrl}/q/${record.id}`;
@@ -160,49 +168,108 @@ export function BulkGenerateModal({ isOpen, onClose, onGenerated, domainUrl }: B
                 </div>
               </div>
 
-              {/* Subscription Duration Selector */}
-              <div className="space-y-2 p-4 bg-black/40 border border-amber-500/20 rounded-2xl">
+              {/* Subscription Duration Selector with Free Typing Number Input */}
+              <div className="space-y-3 p-4 bg-black/40 border-2 border-amber-500/25 rounded-2xl">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-amber-200 flex items-center gap-2">
-                    <span>⏳ مدة صلاحية وتفعيل الكروت:</span>
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span>مدة تفعيل الرمز (كم شهر):</span>
                   </label>
-                  <span className="text-[11px] font-bold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
-                    {subscriptionMonths === 0 ? 'دائم / غير محدود' : `اشتراك لمدة ${subscriptionMonths} شهر`}
+                  <span className="text-[11px] font-black text-amber-300 bg-amber-400/15 border border-amber-400/30 px-2.5 py-0.5 rounded-full">
+                    حقل كتابة حر للشهور
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
-                  {[
-                    { label: 'شهر واحد (شهري)', months: 1, popular: true },
-                    { label: '3 شهور', months: 3 },
-                    { label: '6 شهور', months: 6 },
-                    { label: 'سنة كاملة', months: 12 },
-                    { label: 'دائم (غير محدود)', months: 0 },
-                  ].map((plan) => (
+                {/* Free Typing Input Box */}
+                <div className="relative flex items-center">
+                  <input
+                    type="number"
+                    min="1"
+                    max="120"
+                    value={isPermanent ? '' : monthsInput}
+                    disabled={isPermanent}
+                    onChange={(e) => {
+                      setIsPermanent(false);
+                      setMonthsInput(e.target.value);
+                      setErrorMsg(null);
+                    }}
+                    placeholder={isPermanent ? 'تم ضبطه: دائم / غير محدود' : 'اكتب عدد الشهور هنا مثلاً: 1'}
+                    className={`w-full text-center text-3xl font-black rounded-2xl py-3.5 px-6 shadow-inner focus:outline-none transition border-2 ${
+                      isPermanent
+                        ? 'bg-cyan-950/40 text-cyan-300 border-cyan-500/40 cursor-not-allowed'
+                        : 'text-amber-400 bg-black/60 border-amber-500/30 focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10'
+                    }`}
+                  />
+                  <span className="absolute left-6 text-sm font-bold text-slate-400 pointer-events-none">
+                    {isPermanent ? '✦ دائم' : 'شهر تفعيل'}
+                  </span>
+                </div>
+
+                {/* Quick Add Buttons for Duration */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-1">
+                  <span className="text-xs text-slate-400 font-semibold">تحديد سريع للشهر:</span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {[
+                      { label: '1 شهر', val: '1' },
+                      { label: '2 شهر', val: '2' },
+                      { label: '3 شهور', val: '3' },
+                      { label: '6 شهور', val: '6' },
+                      { label: '12 شهر (سنة)', val: '12' },
+                    ].map((item) => (
+                      <button
+                        key={item.val}
+                        type="button"
+                        onClick={() => {
+                          setIsPermanent(false);
+                          setMonthsInput(item.val);
+                          setErrorMsg(null);
+                        }}
+                        className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition shadow-inner border ${
+                          !isPermanent && monthsInput === item.val
+                            ? 'bg-amber-400 text-black border-amber-300 shadow-amber-400/20'
+                            : 'bg-black/40 hover:bg-amber-400/20 text-amber-200 border-amber-500/25'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+
+                    {/* Permanent Option */}
                     <button
-                      key={plan.months}
                       type="button"
-                      onClick={() => setSubscriptionMonths(plan.months)}
-                      className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center gap-1 border ${
-                        subscriptionMonths === plan.months
-                          ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-black border-amber-300 shadow-[0_0_15px_rgba(234,179,8,0.3)]'
-                          : 'bg-black/30 hover:bg-white/5 text-slate-300 border-white/10'
+                      onClick={() => {
+                        setIsPermanent(true);
+                        setErrorMsg(null);
+                      }}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-xl transition shadow-inner border ${
+                        isPermanent
+                          ? 'bg-cyan-500 text-black border-cyan-300 font-black'
+                          : 'bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
                       }`}
                     >
-                      <span>{plan.label}</span>
-                      {plan.popular && (
-                        <span className={`text-[9px] px-1.5 py-0.2 rounded-full ${
-                          subscriptionMonths === plan.months ? 'bg-black text-amber-300' : 'bg-amber-400/20 text-amber-300'
-                        }`}>
-                          الافتراضي
-                        </span>
-                      )}
+                      دائم (بدون انتهاء)
                     </button>
-                  ))}
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-400 pt-1 leading-normal">
-                  * يبدأ احتساب التاريخ من تاريخ اليوم، ويمكنك دائماً تمديده أو تجديده بضغطة زر من لوحة التحكم لكل كود على حدة.
-                </p>
+
+                <div className="p-2.5 bg-black/50 rounded-xl border border-white/5 flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-medium">النتيجة بعد التوليد:</span>
+                  <span className="font-bold text-amber-300">
+                    {isPermanent ? (
+                      <span className="text-cyan-300">يعمل باستمرار بدون انتهاء صلاحية ✦</span>
+                    ) : (
+                      <span>
+                        سيعمل لمدة <strong>{monthsInput || 1}</strong> شهر (ينتهي في {
+                          new Date(Date.now() + (parseInt(monthsInput || '1', 10) || 1) * 30 * 24 * 60 * 60 * 1000).toLocaleDateString('ar-EG', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          })
+                        })
+                      </span>
+                    )}
+                  </span>
+                </div>
               </div>
 
               {errorMsg && (

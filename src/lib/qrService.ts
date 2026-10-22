@@ -36,6 +36,9 @@ export async function generateBulkQrCodes(count: number, subscriptionMonths = 1)
     ? new Date(now.getTime() + subscriptionMonths * 30 * 24 * 60 * 60 * 1000).toISOString() 
     : null;
 
+  let generatedRecords: QrCodeRecord[] = [];
+
+  // Try Server API first if running on Node/Express full stack
   try {
     const res = await fetch('/api/qr/bulk', {
       method: 'POST',
@@ -43,54 +46,55 @@ export async function generateBulkQrCodes(count: number, subscriptionMonths = 1)
       body: JSON.stringify({ count: safeCount, subscription_months: subscriptionMonths, expires_at: expiresAt }),
     });
 
-    if (res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
       const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        const cache = getLocalCache();
-        json.data.forEach((r: QrCodeRecord) => {
-          cache[r.id] = r;
-        });
-        saveLocalCache(cache);
-        return json.data;
+      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        generatedRecords = json.data;
       }
     }
   } catch (err) {
-    console.warn('Server bulk generate failed, using local generation:', err);
+    console.warn('Server bulk generate failed, generating client-side:', err);
   }
 
-  // Fallback client-side generation if server temporarily unreachable
-  const { nanoid } = await import('nanoid');
-  const fallbackList: QrCodeRecord[] = [];
+  // Fallback client-side generation if server temporarily unreachable or running on static host
+  if (generatedRecords.length === 0) {
+    const { nanoid } = await import('nanoid');
+    for (let i = 0; i < safeCount; i++) {
+      const id = nanoid(10).replace(/[^a-zA-Z0-9_-]/g, 'x');
+      const record: QrCodeRecord = {
+        id,
+        is_active: false,
+        target_url: null,
+        created_at: now.toISOString(),
+        total_scans: 0,
+        subscription_months: subscriptionMonths,
+        expires_at: expiresAt,
+      };
+      generatedRecords.push(record);
+    }
+  }
+
+  // 1. ALWAYS Save to Local Cache immediately
   const cache = getLocalCache();
-
-  for (let i = 0; i < safeCount; i++) {
-    const id = nanoid(10).replace(/[^a-zA-Z0-9_-]/g, 'x');
-    const record: QrCodeRecord = {
-      id,
-      is_active: false,
-      target_url: null,
-      created_at: now.toISOString(),
-      total_scans: 0,
-      subscription_months: subscriptionMonths,
-      expires_at: expiresAt,
-    };
-    fallbackList.push(record);
-    cache[record.id] = record;
-  }
+  generatedRecords.forEach((r) => {
+    cache[r.id] = r;
+  });
   saveLocalCache(cache);
 
-  // Sync to Firestore Cloud DB
+  // 2. CRITICAL: ALWAYS Save EVERY generated code to Cloud Firestore!
+  // This guarantees persistence across reloads, live polling, and all phones!
   try {
     const batch = writeBatch(db);
-    for (const item of fallbackList) {
+    for (const item of generatedRecords) {
       batch.set(doc(db, 'qr_codes', item.id), item);
     }
     await batch.commit();
   } catch (fsErr) {
-    console.warn('Firestore batch save warning:', fsErr);
+    console.error('Firestore batch save error:', fsErr);
   }
 
-  return fallbackList;
+  return generatedRecords;
 }
 
 /**
@@ -152,21 +156,16 @@ export async function getQrCode(id: string): Promise<QrCodeRecord | null> {
  * Fetch all QR codes for Admin view (Firestore + API + Local cache)
  */
 export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
+  const mergedMap: Record<string, QrCodeRecord> = { ...getLocalCache() };
+
   // 1. Primary: Direct Cloud Firestore fetch
   try {
     const snap = await getDocs(collection(db, 'qr_codes'));
     if (!snap.empty) {
-      const list: QrCodeRecord[] = [];
-      const syncedCache: Record<string, QrCodeRecord> = {};
       snap.forEach((d) => {
         const item = d.data() as QrCodeRecord;
-        list.push(item);
-        syncedCache[item.id] = item;
+        mergedMap[item.id] = item;
       });
-      saveLocalCache(syncedCache);
-      return list.sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
     }
   } catch (fsErr) {
     console.warn('Firestore fetchAll warning:', fsErr);
@@ -179,20 +178,20 @@ export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
     if (res.ok && contentType.includes('application/json')) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        const syncedCache: Record<string, QrCodeRecord> = {};
         json.data.forEach((r: QrCodeRecord) => {
-          syncedCache[r.id] = r;
+          if (!mergedMap[r.id] || new Date(r.updated_at || r.created_at).getTime() >= new Date(mergedMap[r.id].updated_at || mergedMap[r.id].created_at).getTime()) {
+            mergedMap[r.id] = r;
+          }
         });
-        saveLocalCache(syncedCache);
-        return json.data;
       }
     }
   } catch {
     // API unreachable
   }
 
-  const cache = getLocalCache();
-  return Object.values(cache).sort(
+  saveLocalCache(mergedMap);
+
+  return Object.values(mergedMap).sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 }

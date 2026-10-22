@@ -922,7 +922,16 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         onClose={() => setIsBulkOpen(false)}
         domainUrl={domainUrl}
         onGenerated={(newRecords) => {
-          setRecords((prev) => [...newRecords, ...prev]);
+          setRecords((prev) => {
+            const existingIds = new Set(prev.map((r) => r.id));
+            const fresh = newRecords.filter((r) => !existingIds.has(r.id));
+            return [...fresh, ...prev];
+          });
+          newRecords.forEach((item) => {
+            generateQrDataUrl(`${domainUrl}/q/${item.id}`, 200).then((url) => {
+              setQrThumbs((prev) => ({ ...prev, [item.id]: url }));
+            });
+          });
         }}
       />
 
