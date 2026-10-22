@@ -184,14 +184,9 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
             <form onSubmit={handleActivate} className="space-y-6">
               {/* Step 1: Platform Selection (Strict Single Select) */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-black text-amber-200">
-                    1. اختر المنصة أو البنك:
-                  </label>
-                  <span className="text-[11px] text-amber-400 font-semibold">
-                    (المحدد حالياً: {currentPlatformInfo.label})
-                  </span>
-                </div>
+                <label className="text-xs font-black text-amber-200 block">
+                  1. اختر المنصة أو البنك:
+                </label>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                   {platforms.map((p) => {
                     const isSelected = selectedType === p.type;

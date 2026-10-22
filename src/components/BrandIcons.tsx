@@ -27,37 +27,20 @@ export function WhatsAppIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
 }
 
 /**
- * Official InstaPay Brand SVG Icon (Egyptian Instant Payment Network)
+ * Official InstaPay Brand Icon (Egyptian Instant Payment Network)
+ * Uses high-resolution squircle app icon asset provided by user
  */
 export function InstaPayIcon({ className = 'w-6 h-6', size }: BrandIconProps) {
   return (
-    <svg
-      viewBox="0 0 100 100"
+    <img
+      src="/instapay-app-logo.png"
+      alt="InstaPay"
       width={size}
       height={size}
-      className={className}
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <rect width="100" height="100" rx="22" fill="#4B0082" />
-      {/* Dynamic InstaPay Stylized Bolt / 'i' Accent */}
-      <path
-        d="M26 68L48 26H74L52 68H26Z"
-        fill="url(#instapay_grad_1)"
-      />
-      <circle cx="68" cy="34" r="8" fill="#00D2FF" />
-      <path
-        d="M38 74L46 58H68L60 74H38Z"
-        fill="#FF007A"
-      />
-      <defs>
-        <linearGradient id="instapay_grad_1" x1="26" y1="26" x2="74" y2="68" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FF007A" />
-          <stop offset="0.5" stopColor="#9B51E0" />
-          <stop offset="1" stopColor="#00D2FF" />
-        </linearGradient>
-      </defs>
-    </svg>
+      className={`${className} object-contain rounded-lg select-none`}
+      loading="eager"
+      decoding="async"
+    />
   );
 }
 
