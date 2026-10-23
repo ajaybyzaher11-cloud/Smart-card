@@ -80,11 +80,12 @@ export default function App() {
             if (record.is_active && !hasRecordedScanRef.current) {
               hasRecordedScanRef.current = true;
 
-              // Check if not expired and direct link (YouTube, WhatsApp, Instagram, Facebook, TikTok, Website, Phone, etc.):
+              // Check if not expired and direct link (YouTube, WhatsApp, Instagram, Facebook, TikTok, Website, Phone, Wallet payment link):
               const isExpired = record.expires_at && new Date(record.expires_at).getTime() < Date.now();
-              if (!isExpired && record.app_type !== 'bank' && record.app_type !== 'wallet' && record.target_url) {
+              if (!isExpired && record.target_url) {
                 const linkInfo = processSmartLink(record.target_url, record.app_type);
-                if (!linkInfo.isInstaPayCard) {
+                const isDirectRedirect = !linkInfo.isBankCard && !linkInfo.isInstaPayCard && !linkInfo.isWalletCard;
+                if (isDirectRedirect) {
                   const target = linkInfo.schemeUrl || linkInfo.fallbackUrl;
                   if (target && target !== '#') {
                     // Record scan count in Firestore and wait max 250ms so browser doesn't drop the packet

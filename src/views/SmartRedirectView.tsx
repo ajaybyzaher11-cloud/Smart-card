@@ -43,8 +43,8 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     const isIframe = isRunningInIframe();
     setInIframe(isIframe);
 
-    // If it is NOT a bank card, wallet, or instapay card: instant auto-redirect!
-    if (!linkInfo.isBankCard && linkInfo.appType !== 'bank' && linkInfo.appType !== 'wallet' && !linkInfo.isInstaPayCard) {
+    // If it is NOT a bank card, wallet card, or instapay card: instant auto-redirect!
+    if (!linkInfo.isBankCard && linkInfo.appType !== 'bank' && !linkInfo.isWalletCard && !linkInfo.isInstaPayCard) {
       if (!isIframe) {
         triggerSmartRedirect(linkInfo);
         setHasAttemptedRedirect(true);
@@ -186,47 +186,77 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     );
   }
 
-  // 2. WALLET VIEW (Vodafone Cash, etc.)
-  if (linkInfo.appType === 'wallet') {
-    const phone = linkInfo.displayUrl;
+  // 2. WALLET VIEW (Vodafone Cash, Etisalat Cash, Orange Cash, WE Pay)
+  if (linkInfo.isWalletCard || (record.app_type === 'wallet' && linkInfo.isWalletCard !== false)) {
+    const phone = linkInfo.walletPhone || linkInfo.displayUrl;
+    const provider = linkInfo.walletProvider || 'vodafone';
+    const appTitle = linkInfo.appTitleAr || 'محفظة كاش الإلكترونية';
+    const appIntent = linkInfo.walletIntentUrl || 'intent://#Intent;package=com.vodafone.vodafoneegypt;end';
+    const ussdCode = linkInfo.walletUssdCode || `*9*7*${phone}#`;
+
+    let appLaunchLabel = 'فتح تطبيق أنا فودافون (Ana Vodafone) 🚀';
+    if (provider === 'etisalat') appLaunchLabel = 'فتح تطبيق My Etisalat 🚀';
+    else if (provider === 'orange') appLaunchLabel = 'فتح تطبيق My Orange 🚀';
+    else if (provider === 'we') appLaunchLabel = 'فتح تطبيق WE 🚀';
+    else if (provider === 'generic') appLaunchLabel = 'فتح تطبيق المحفظة 🚀';
+
     return (
       <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
         <div className="w-full max-w-md bg-[#121216] border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.15)] space-y-6 text-center animate-in zoom-in-95 backdrop-blur-2xl">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 via-yellow-500 to-amber-600 text-black flex items-center justify-center mx-auto shadow-lg shadow-amber-500/30 font-black">
-            <Wallet className="w-8 h-8 text-black" />
+          <div className="w-18 h-18 rounded-2xl bg-black/60 border border-amber-500/40 p-2 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/20">
+            <PlatformBrandIcon type="wallet" className="w-12 h-12" />
           </div>
+
           <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400/15 border border-amber-400/30 rounded-full text-[11px] font-black text-amber-300 mb-2">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              الدفع والتحويل اللحظي عبر المحفظة
+            </div>
             <h1 className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-500">
-              محفظة إلكترونية (كاش)
+              {appTitle}
             </h1>
-            <p className="text-xs text-amber-200/70 mt-1">فودافون كاش / اتصالات / أورنج / وي باي</p>
+            <p className="text-xs text-amber-200/70 mt-1">انقر لنسخ رقم المحفظة والتحويل السريع في ثوانٍ</p>
           </div>
 
           <div className="bg-black/50 border border-amber-500/20 rounded-2xl p-4 space-y-2">
             <span className="text-xs text-slate-400">رقم المحفظة للتحويل:</span>
             <div className="flex items-center justify-between bg-black/60 border border-amber-500/30 rounded-xl p-3">
-              <span className="font-mono text-xl font-black text-amber-300 tracking-wider" dir="ltr">
+              <span className="font-mono text-xl sm:text-2xl font-black text-amber-300 tracking-wider" dir="ltr">
                 {phone}
               </span>
               <button
                 type="button"
                 onClick={() => handleCopy(phone, 'wallet')}
-                className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-amber-400 text-black text-xs font-black rounded-lg transition"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-amber-400 text-black text-xs font-black rounded-lg transition shadow-md shadow-amber-500/20 cursor-pointer"
               >
-                {copiedField === 'wallet' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                <span>نسخ</span>
+                {copiedField === 'wallet' ? <Check className="w-4 h-4 text-black" /> : <Copy className="w-4 h-4 text-black" />}
+                <span>{copiedField === 'wallet' ? 'تم النسخ!' : 'نسخ الرقم'}</span>
               </button>
             </div>
           </div>
 
-          <div className="pt-2">
+          <div className="space-y-3 pt-1">
+            {/* Primary Action Button: Open Wallet App */}
             <a
-              href={`tel:*9*7*${phone}#`}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-black text-xs rounded-xl shadow-lg shadow-amber-500/25 transition flex items-center justify-center gap-2"
+              href={appIntent}
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-black text-xs rounded-xl shadow-lg shadow-amber-500/25 transition flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Phone className="w-4 h-4 text-black" />
-              <span>كود تحويل فودافون كاش (*9*7*)</span>
+              <Smartphone className="w-4 h-4 text-black" />
+              <span>{appLaunchLabel}</span>
             </a>
+
+            {/* Secondary Action Button: Quick USSD Dial Code */}
+            <a
+              href={`tel:${encodeURIComponent(ussdCode)}`}
+              className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2"
+            >
+              <Phone className="w-4 h-4 text-amber-400" />
+              <span>كود الاتصال والتحويل السريع ({ussdCode})</span>
+            </a>
+
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              💡 انسخ رقم المحفظة وافتح التطبيق للتحويل الفوري.
+            </p>
           </div>
         </div>
       </div>

@@ -455,6 +455,15 @@ app.get('/q/:id', (req, res, next) => {
   if (record.is_active && record.target_url && record.app_type !== 'bank' && !record.target_url.startsWith('bank://')) {
     let target = record.target_url.trim();
 
+    // For wallet: only 302 redirect if it is an actual web payment link!
+    // If it's a phone number, let React render the dedicated luxury wallet card!
+    if (record.app_type === 'wallet') {
+      const isWebUrl = /^https?:\/\//i.test(target) || target.includes('.eg') || target.includes('.com') || target.includes('/');
+      if (!isWebUrl) {
+        return next();
+      }
+    }
+
     // Normalize common schemes
     if (target.startsWith('instapay://send?to=')) {
       const handle = decodeURIComponent(target.replace('instapay://send?to=', ''));

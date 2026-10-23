@@ -46,6 +46,11 @@ export interface DeepLinkInfo {
   bankDetails?: BankDetails;
   isInstaPayCard?: boolean;
   instaPayHandle?: string;
+  isWalletCard?: boolean;
+  walletProvider?: 'vodafone' | 'etisalat' | 'orange' | 'we' | 'generic';
+  walletPhone?: string;
+  walletIntentUrl?: string;
+  walletUssdCode?: string;
 }
 
 export interface PlatformSettings {

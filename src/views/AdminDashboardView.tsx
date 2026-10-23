@@ -51,6 +51,23 @@ interface AdminDashboardViewProps {
   onSimulateScan: (id: string) => void;
 }
 
+function formatDisplayTarget(url: string | null | undefined, appType?: string): string {
+  if (!url) return '— (غير معين بعد)';
+  if (appType === 'wallet') {
+    if (url.startsWith('tel:*9*7*')) {
+      const num = url.replace('tel:*9*7*', '').replace('#', '').replace('%23', '');
+      return num ? `محفظة: ${num}` : 'محفظة كاش';
+    }
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return `محفظة: ${url}`;
+    }
+  }
+  if (url.startsWith('bank://')) {
+    return 'بيانات حساب بنكي';
+  }
+  return url;
+}
+
 export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: AdminDashboardViewProps) {
   const [records, setRecords] = useState<QrCodeRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -644,7 +661,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         )}
 
                         <p className="text-[11px] text-slate-400 truncate" dir="ltr">
-                          {record.target_url || '— (غير معين بعد)'}
+                          {formatDisplayTarget(record.target_url, record.app_type)}
                         </p>
 
                         {/* Prominent Eye details banner */}
@@ -867,7 +884,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         </div>
                       </td>
                       <td className="py-2.5 px-4 font-mono text-slate-400 max-w-xs truncate" dir="ltr">
-                        {record.target_url || '—'}
+                        {formatDisplayTarget(record.target_url, record.app_type)}
                       </td>
                       <td className="py-2.5 px-4 text-slate-400 text-[11px]">
                         {new Date(record.created_at).toLocaleDateString('ar-EG')}

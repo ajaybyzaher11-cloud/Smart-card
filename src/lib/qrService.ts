@@ -218,10 +218,14 @@ export async function activateQrCode(
     ? existing.subscription_months
     : 1;
 
+  const effectiveTargetUrl = (smartLink.isWalletCard && smartLink.walletPhone)
+    ? smartLink.walletPhone
+    : (smartLink.schemeUrl || smartLink.fallbackUrl);
+
   const updatedRecord: QrCodeRecord = {
     id,
     is_active: true,
-    target_url: smartLink.schemeUrl || smartLink.fallbackUrl,
+    target_url: effectiveTargetUrl,
     app_type: smartLink.appType,
     updated_at: now.toISOString(),
     created_at: existing?.created_at || now.toISOString(),
@@ -272,13 +276,16 @@ export async function adminUpdateQrCode(
   subscriptionMonths?: number
 ): Promise<{ success: boolean; record?: QrCodeRecord }> {
   const smartLink = processSmartLink(rawTargetUrl, preferredType);
+  const effectiveTargetUrl = (smartLink.isWalletCard && smartLink.walletPhone)
+    ? smartLink.walletPhone
+    : (smartLink.schemeUrl || smartLink.fallbackUrl || rawTargetUrl.trim());
 
   try {
     const res = await fetch(`/api/qr/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        target_url: smartLink.schemeUrl,
+        target_url: effectiveTargetUrl,
         app_type: smartLink.appType,
         label,
         expires_at: expiresAt,
@@ -302,7 +309,7 @@ export async function adminUpdateQrCode(
 
   const updatedRecord: QrCodeRecord = {
     ...current,
-    target_url: smartLink.schemeUrl,
+    target_url: effectiveTargetUrl,
     app_type: smartLink.appType,
     is_active: true,
     label: label !== undefined ? label : current.label,
@@ -313,7 +320,7 @@ export async function adminUpdateQrCode(
 
   try {
     const updateData: any = {
-      target_url: smartLink.schemeUrl,
+      target_url: effectiveTargetUrl,
       app_type: smartLink.appType,
       is_active: true,
       updated_at: updatedRecord.updated_at,

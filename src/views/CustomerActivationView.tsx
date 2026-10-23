@@ -124,8 +124,8 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
     try {
       const res = await activateQrCode(qrId, valueToSave, selectedType);
 
-      // 1. If bank, wallet, or InstaPay IPA card: immediately open the dedicated copy card view
-      if (selectedType === 'bank' || selectedType === 'wallet' || smartLink.isInstaPayCard) {
+      // 1. If bank, wallet (phone number copy card), or InstaPay IPA card: open dedicated card view
+      if (selectedType === 'bank' || smartLink.isWalletCard || smartLink.isInstaPayCard) {
         if (res.record) {
           onActivated(res.record);
         }

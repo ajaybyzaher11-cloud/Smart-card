@@ -142,15 +142,84 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
     };
   }
 
-  // Handle Smart Wallet (Vodafone Cash, Etisalat, Orange, WE)
+  // Handle Smart Wallet (Vodafone Cash, Etisalat, Orange, WE Pay)
   if (preferredType === 'wallet') {
-    const cleanNumber = trimmed.replace(/[^\d+]/g, '');
+    // If it was stored previously as tel:*9*7*...#, extract the inner value
+    let cleanTrimmed = trimmed;
+    if (cleanTrimmed.startsWith('tel:*9*7*')) {
+      cleanTrimmed = cleanTrimmed.replace('tel:*9*7*', '').replace('#', '').replace('%23', '');
+    }
+
+    // 1. Check if input is a Web URL or Quick Payment Link (e.g. https://... or vf.eg or web.vodafone.com.eg/...)
+    const isUrl = /^https?:\/\//i.test(cleanTrimmed) || 
+                  cleanTrimmed.includes('.eg') || 
+                  cleanTrimmed.includes('.com') || 
+                  cleanTrimmed.includes('/') || 
+                  cleanTrimmed.startsWith('www.');
+
+    if (isUrl) {
+      let fullUrl = cleanTrimmed;
+      if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+        fullUrl = `https://${fullUrl}`;
+      }
+      return {
+        appType: 'wallet',
+        appTitleAr: 'محفظة كاش (رابط الدفع السريع)',
+        schemeUrl: fullUrl,
+        fallbackUrl: fullUrl,
+        displayUrl: fullUrl.replace(/^https?:\/\//, ''),
+        isWalletCard: false, // Direct redirect to payment link!
+      };
+    }
+
+    // 2. Otherwise, input is a wallet phone number (e.g. 010..., 011..., 012..., 015..., +20...)
+    let cleanPhone = cleanTrimmed.replace(/[^\d]/g, '');
+    if (cleanPhone.startsWith('20') && cleanPhone.length === 12) {
+      cleanPhone = cleanPhone.slice(2);
+    }
+    if (cleanPhone.length === 10 && cleanPhone.startsWith('1')) {
+      cleanPhone = '0' + cleanPhone;
+    }
+
+    // Provider detection & deep linking
+    let provider: 'vodafone' | 'etisalat' | 'orange' | 'we' | 'generic' = 'generic';
+    let appTitle = 'محفظة كاش الإلكترونية';
+    let appIntent = 'intent://#Intent;action=android.intent.action.VIEW;end';
+    let ussdCode = `*9*7*${cleanPhone}#`;
+
+    if (cleanPhone.startsWith('010')) {
+      provider = 'vodafone';
+      appTitle = 'فودافون كاش Vodafone Cash';
+      appIntent = 'intent://#Intent;package=com.vodafone.vodafoneegypt;end';
+      ussdCode = `*9*7*${cleanPhone}#`;
+    } else if (cleanPhone.startsWith('011')) {
+      provider = 'etisalat';
+      appTitle = 'اتصالات كاش Etisalat Cash';
+      appIntent = 'intent://#Intent;package=com.telecom.etisalat.myetisalat;end';
+      ussdCode = `*777#`;
+    } else if (cleanPhone.startsWith('012')) {
+      provider = 'orange';
+      appTitle = 'أورنج كاش Orange Cash';
+      appIntent = 'intent://#Intent;package=com.orange.myorangeet;end';
+      ussdCode = `*115#`;
+    } else if (cleanPhone.startsWith('015')) {
+      provider = 'we';
+      appTitle = 'وي باي WE Pay';
+      appIntent = 'intent://#Intent;package=prod.we.telecomegypt;end';
+      ussdCode = `*322#`;
+    }
+
     return {
       appType: 'wallet',
-      appTitleAr: 'محفظة إلكترونية (كاش)',
-      schemeUrl: `tel:*9*7*${cleanNumber}#`,
-      fallbackUrl: `tel:${cleanNumber}`,
-      displayUrl: cleanNumber || trimmed,
+      appTitleAr: appTitle,
+      schemeUrl: appIntent,
+      fallbackUrl: `tel:${encodeURIComponent(ussdCode)}`,
+      displayUrl: cleanPhone || cleanTrimmed,
+      isWalletCard: true,
+      walletProvider: provider,
+      walletPhone: cleanPhone || cleanTrimmed,
+      walletIntentUrl: appIntent,
+      walletUssdCode: ussdCode,
     };
   }
 

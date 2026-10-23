@@ -104,8 +104,11 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           setAccountNumber(rawUrl.replace(/^https?:\/\//, ''));
         }
       } else if (type === 'wallet') {
-        const cleanNumber = rawUrl.replace(/[^\d+]/g, '').replace(/^20/, '0');
-        setWalletPhone(cleanNumber);
+        let clean = rawUrl;
+        if (clean.startsWith('tel:*9*7*')) {
+          clean = clean.replace('tel:*9*7*', '').replace('#', '').replace('%23', '');
+        }
+        setWalletPhone(clean);
       }
 
       const fullScanUrl = `${domainUrl}/q/${record.id}`;
@@ -151,9 +154,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       };
       finalRawInput = encodeBankDetails(bankDetails);
     } else if (selectedType === 'wallet') {
-      let clean = walletPhone.trim().replace(/[^\d]/g, '');
-      if (clean.startsWith('01')) clean = '2' + clean;
-      finalRawInput = clean;
+      finalRawInput = walletPhone.trim();
     }
 
     try {
@@ -454,19 +455,19 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
             <div className="p-4 bg-gradient-to-br from-amber-500/10 via-yellow-500/5 to-transparent border border-amber-500/30 rounded-2xl space-y-3 animate-in fade-in">
               <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
                 <Wallet className="w-4 h-4 text-amber-400" />
-                <span>رقم المحفظة الإلكترونية (فودافون كاش / اتصالات كاش / أورنج كاش / وي باي):</span>
+                <span>رقم المحفظة أو رابط الدفع السريع (فودافون كاش / اتصالات / أورنج / وي):</span>
               </div>
               <input
                 type="text"
                 value={walletPhone}
                 onChange={(e) => setWalletPhone(e.target.value)}
-                placeholder="أدخل رقم الهاتف: 01012345678"
+                placeholder="رقم المحفظة: 01012345678 أو رابط الدفع https://..."
                 className="w-full px-3.5 py-2.5 bg-black/60 border border-amber-500/30 rounded-xl text-sm font-mono font-bold text-amber-300 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
                 dir="ltr"
                 required
               />
               <p className="text-[11px] text-amber-200/70">
-                💡 سيتم تمكين العميل من نسخ الرقم بلمسة واحدة أو فتح كود التحويل السريع.
+                💡 يدعم روابط الدفع السريع (يتم التوجيه الفوري لها) أو رقم الموبايل (يفتح تطبيق المحفظة مع كود التحويل والنسخ السريع).
               </p>
             </div>
           )}
