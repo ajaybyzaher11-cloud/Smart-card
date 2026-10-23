@@ -34,7 +34,7 @@ import {
   Edit3,
   Calendar
 } from 'lucide-react';
-import { fetchAllQrCodes, generateQrDataUrl, deleteQrCode, getQrCode, fetchPlatformSettings, updatePlatformSettings, renewQrSubscription } from '../lib/qrService';
+import { fetchAllQrCodes, generateQrDataUrl, deleteQrCode, getQrCode, fetchPlatformSettings, updatePlatformSettings, renewQrSubscription, subscribeToQrCodes } from '../lib/qrService';
 import { logoutAdmin, getAdminPassword, setAdminPassword } from '../lib/auth';
 import { BulkGenerateModal } from '../components/BulkGenerateModal';
 import { UploadQrModal } from '../components/UploadQrModal';
@@ -140,24 +140,17 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
     fetchPlatformSettings().then((s) => {
       if (s) setPlatformSettings(s);
     });
+
+    // Real-time Live Firestore onSnapshot: instant updates without refresh!
+    const unsubscribe = subscribeToQrCodes((liveRecords) => {
+      setRecords(liveRecords);
+      setLoading(false);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [domainUrl]);
-
-  // Real-time Live Polling: Keep scan counts and statuses synced live every 3 seconds
-  useEffect(() => {
-    const liveSyncInterval = setInterval(() => {
-      if (document.visibilityState === 'visible' && !isScannerOpen && !isBulkOpen) {
-        fetchAllQrCodes().then((latest) => {
-          setRecords((prev) => {
-            const hasChanged = latest.length !== prev.length || 
-              latest.some((r, idx) => prev[idx]?.total_scans !== r.total_scans || prev[idx]?.is_active !== r.is_active || prev[idx]?.expires_at !== r.expires_at);
-            return hasChanged ? latest : prev;
-          });
-        }).catch(() => {});
-      }
-    }, 3000);
-
-    return () => clearInterval(liveSyncInterval);
-  }, [isScannerOpen, isBulkOpen]);
 
   const handleCopyLink = (id: string) => {
     const fullUrl = `${domainUrl}/q/${id}`;

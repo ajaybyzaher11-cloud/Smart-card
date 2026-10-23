@@ -10,7 +10,7 @@ import {
   Check
 } from 'lucide-react';
 import { activateQrCode } from '../lib/qrService';
-import { encodeBankDetails, processSmartLink } from '../lib/deepLinks';
+import { encodeBankDetails, processSmartLink, triggerSmartRedirect } from '../lib/deepLinks';
 import { AppType, QrCodeRecord } from '../types/qr';
 import { PlatformBrandIcon } from '../components/BrandIcons';
 
@@ -124,28 +124,29 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
     try {
       const res = await activateQrCode(qrId, valueToSave, selectedType);
 
-      // 1. If bank or wallet: show the bank account / wallet details card
+      // 1. If bank or wallet: immediately open the bank/wallet view
       if (selectedType === 'bank' || selectedType === 'wallet') {
         if (res.record) {
-          setActivatedRecord(res.record);
-          setTimeout(() => {
-            onActivated(res.record!);
-          }, 400);
+          onActivated(res.record);
         }
         return;
       }
 
-      // 2. For WhatsApp, Instagram, Facebook, Phone, Website, Telegram, etc.:
-      // Direct instant redirection!
+      // 2. For WhatsApp, Instagram, Facebook, InstaPay, Phone, Website, Telegram, TikTok:
+      // Direct instant redirection to the app with zero intermediate screens!
       if (destinationUrl) {
-        window.location.href = destinationUrl;
+        triggerSmartRedirect(smartLink);
       } else if (res.record) {
         onActivated(res.record);
       }
     } catch (err) {
       console.error('Activation failed:', err);
       if (destinationUrl && selectedType !== 'bank' && selectedType !== 'wallet') {
-        window.location.href = destinationUrl;
+        try {
+          window.location.replace(destinationUrl);
+        } catch {
+          window.location.href = destinationUrl;
+        }
       } else {
         setErrorMsg('حدث خطأ أثناء تفعيل الكارت، يرجى المحاولة مرة أخرى.');
       }

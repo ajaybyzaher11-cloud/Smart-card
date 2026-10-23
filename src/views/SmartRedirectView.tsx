@@ -21,6 +21,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { processSmartLink, triggerSmartRedirect, isRunningInIframe } from '../lib/deepLinks';
+import { recordQrScan } from '../lib/qrService';
 import { QrCodeRecord } from '../types/qr';
 import { PlatformBrandIcon } from '../components/BrandIcons';
 
@@ -36,21 +37,18 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
   const linkInfo = processSmartLink(record.target_url || '', record.app_type);
 
   useEffect(() => {
-    // Scan is already authoritatively counted on the server route /q/:id
+    // Record scan count authoritatively in Firestore & local cache
+    recordQrScan(record.id);
+
     const isIframe = isRunningInIframe();
     setInIframe(isIframe);
 
-    // If it is NOT a bank card / wallet screen:
-    if (!linkInfo.isBankCard && linkInfo.appType !== 'bank') {
+    // If it is NOT a bank card or wallet screen: instant auto-redirect!
+    if (!linkInfo.isBankCard && linkInfo.appType !== 'bank' && linkInfo.appType !== 'wallet') {
       if (!isIframe) {
-        // On real mobile devices or standalone tabs: instant auto-redirect!
-        const timer = setTimeout(() => {
-          triggerSmartRedirect(linkInfo);
-          setHasAttemptedRedirect(true);
-        }, 80);
-        return () => clearTimeout(timer);
+        triggerSmartRedirect(linkInfo);
+        setHasAttemptedRedirect(true);
       } else {
-        // Inside AI Studio preview iframe:
         setHasAttemptedRedirect(true);
       }
     }

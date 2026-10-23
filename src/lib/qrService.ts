@@ -1,6 +1,6 @@
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, writeBatch, increment } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, writeBatch, increment, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { AppType, QrCodeRecord, PlatformSettings } from '../types/qr';
 import { processSmartLink } from './deepLinks';
@@ -431,24 +431,67 @@ export async function setQrExpiration(
 }
 
 /**
- * Record a scan count
+ * Real-time Live Firestore Subscription for QR Codes
+ * Pushes live updates whenever any scan or activation happens without page refresh!
+ */
+export function subscribeToQrCodes(
+  callback: (records: QrCodeRecord[]) => void
+): () => void {
+  try {
+    const qrCol = collection(db, 'qr_codes');
+    const unsubscribe = onSnapshot(
+      qrCol,
+      (snapshot) => {
+        const map: Record<string, QrCodeRecord> = { ...getLocalCache() };
+        snapshot.forEach((d) => {
+          const item = d.data() as QrCodeRecord;
+          map[item.id] = item;
+        });
+        const list = Object.values(map).sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+        saveLocalCache(map);
+        callback(list);
+      },
+      (err) => {
+        console.warn('Firestore onSnapshot subscription warning:', err);
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    console.warn('subscribeToQrCodes error:', err);
+    return () => {};
+  }
+}
+
+/**
+ * Record a scan count authoritatively in Firestore & local cache
  */
 export async function recordQrScan(id: string): Promise<void> {
+  const cleanId = id.trim();
+  if (!cleanId) return;
+
+  // 1. Direct Firestore atomic increment (Primary source of truth for Vercel)
   try {
-    await fetch(`/api/qr/${encodeURIComponent(id)}/scan`, { method: 'POST' });
-  } catch {
-    // Non-blocking
+    const qrRef = doc(db, 'qr_codes', cleanId);
+    await updateDoc(qrRef, {
+      total_scans: increment(1),
+      last_scanned_at: new Date().toISOString(),
+    });
+  } catch (fsErr) {
+    console.warn('Firestore scan increment warning:', fsErr);
   }
 
+  // 2. Also notify backend API if available
   try {
-    await updateDoc(doc(db, 'qr_codes', id), {
-      total_scans: increment(1),
-    });
+    fetch(`/api/qr/${encodeURIComponent(cleanId)}/scan`, { method: 'POST' }).catch(() => {});
   } catch {}
 
+  // 3. Update local cache
   const cache = getLocalCache();
-  if (cache[id]) {
-    cache[id].total_scans = (cache[id].total_scans || 0) + 1;
+  if (cache[cleanId]) {
+    cache[cleanId].total_scans = (cache[cleanId].total_scans || 0) + 1;
+    cache[cleanId].last_scanned_at = new Date().toISOString();
     saveLocalCache(cache);
   }
 }
