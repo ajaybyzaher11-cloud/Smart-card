@@ -135,10 +135,12 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
       // 2. For direct redirect (WhatsApp, YouTube, Instagram, Facebook, TikTok, Website, Phone, Full Payment Link):
       // Direct instant redirection to the app with zero intermediate screens!
       if (destinationUrl) {
-        triggerSmartRedirect(smartLink);
-        if (res.record) {
-          onActivated(res.record);
+        try {
+          window.location.replace(destinationUrl);
+        } catch {
+          window.location.href = destinationUrl;
         }
+        return;
       } else if (res.record) {
         onActivated(res.record);
       }
@@ -163,8 +165,9 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
       <div className="w-full max-w-lg relative z-10">
         {!activatedRecord ? (
           <div className="bg-[#121216] border border-amber-500/30 rounded-3xl p-5 sm:p-8 shadow-[0_0_40px_rgba(212,175,55,0.12)] space-y-6">
-            {/* Clean Header */}
+            {/* Clean Header with Logo */}
             <div className="text-center space-y-2">
+              <img src="/logo.png" alt="Smart Card" className="w-16 h-16 object-contain mx-auto mb-2 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)]" />
               <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400/15 text-amber-300 border border-amber-400/30 rounded-full text-xs font-bold mb-1">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 تفعيل الكارت الذكي الفاخر لأول مرة

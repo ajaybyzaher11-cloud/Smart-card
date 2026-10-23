@@ -147,8 +147,14 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
       setLoading(false);
     });
 
+    // Also periodic 4-second background refresh to guarantee live numbers
+    const pollInterval = setInterval(() => {
+      loadData();
+    }, 4000);
+
     return () => {
       unsubscribe();
+      clearInterval(pollInterval);
     };
   }, [domainUrl]);
 
@@ -213,9 +219,11 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
       <header className="sticky top-0 z-30 bg-[#0e0e12]/95 backdrop-blur-md border-b border-amber-500/20 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-400 via-yellow-500 to-amber-600 text-black flex items-center justify-center shadow-lg shadow-amber-500/20 flex-shrink-0 font-black">
-              <QrIcon className="w-5 h-5 text-black" />
-            </div>
+            <img 
+              src="/logo.png" 
+              alt="Smart Card Logo" 
+              className="w-10 h-10 object-contain rounded-2xl shadow-lg shadow-amber-500/20 flex-shrink-0 p-0.5 bg-[#121216] border border-amber-400/40" 
+            />
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-base sm:text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-500">

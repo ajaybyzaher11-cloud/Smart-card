@@ -471,20 +471,23 @@ export async function recordQrScan(id: string): Promise<void> {
   const cleanId = id.trim();
   if (!cleanId) return;
 
-  // 1. Direct Firestore atomic increment (Primary source of truth for Vercel)
+  // 1. Direct Firestore atomic increment with setDoc merge (bulletproof on Vercel)
   try {
     const qrRef = doc(db, 'qr_codes', cleanId);
-    await updateDoc(qrRef, {
+    await setDoc(qrRef, {
       total_scans: increment(1),
       last_scanned_at: new Date().toISOString(),
-    });
+    }, { merge: true });
   } catch (fsErr) {
     console.warn('Firestore scan increment warning:', fsErr);
   }
 
-  // 2. Also notify backend API if available
+  // 2. Also notify backend API if available (keepalive preserves request during navigation)
   try {
-    fetch(`/api/qr/${encodeURIComponent(cleanId)}/scan`, { method: 'POST' }).catch(() => {});
+    fetch(`/api/qr/${encodeURIComponent(cleanId)}/scan`, { 
+      method: 'POST',
+      keepalive: true 
+    }).catch(() => {});
   } catch {}
 
   // 3. Update local cache

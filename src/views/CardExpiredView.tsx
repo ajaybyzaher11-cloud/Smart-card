@@ -39,9 +39,7 @@ export function CardExpiredView({ record, settings }: CardExpiredViewProps) {
       {/* Header */}
       <header className="w-full max-w-md pt-4 pb-2 flex items-center justify-between z-10">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center">
-            <span className="text-amber-400 font-black text-sm">✦</span>
-          </div>
+          <img src="/logo.png" alt="Smart Card" className="w-8 h-8 object-contain rounded-lg border border-amber-400/40 p-0.5" />
           <span className="text-xs font-black tracking-wider text-amber-200/80">SMART CARD VIP</span>
         </div>
         <span className="px-3 py-1 bg-rose-500/15 border border-rose-500/30 text-rose-400 rounded-full text-[11px] font-bold flex items-center gap-1.5 animate-pulse">

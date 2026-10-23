@@ -66,25 +66,48 @@ export default function App() {
   // Load QR record when accessing /q/:id, record scan count LIVE, and instant redirect
   useEffect(() => {
     if (qrIdFromPath) {
+      let isMounted = true;
       setIsResolvingQr(true);
+
       getQrCode(qrIdFromPath)
-        .then((record) => {
+        .then(async (record) => {
+          if (!isMounted) return;
+
           if (record) {
             setActiveRecord(record);
 
             // If active: increment scan count LIVE in Firestore!
             if (record.is_active && !hasRecordedScanRef.current) {
               hasRecordedScanRef.current = true;
-              recordQrScan(record.id);
 
-              // Check if not expired and not bank/wallet/instapay card: instant redirect to destination!
+              // Check if not expired and direct link (YouTube, WhatsApp, Instagram, Facebook, TikTok, Website, Phone, etc.):
               const isExpired = record.expires_at && new Date(record.expires_at).getTime() < Date.now();
               if (!isExpired && record.app_type !== 'bank' && record.app_type !== 'wallet' && record.target_url) {
                 const linkInfo = processSmartLink(record.target_url, record.app_type);
                 if (!linkInfo.isInstaPayCard) {
-                  triggerSmartRedirect(linkInfo);
+                  const target = linkInfo.schemeUrl || linkInfo.fallbackUrl;
+                  if (target && target !== '#') {
+                    // Record scan count in Firestore and wait max 250ms so browser doesn't drop the packet
+                    try {
+                      await Promise.race([
+                        recordQrScan(record.id),
+                        new Promise((resolve) => setTimeout(resolve, 250)),
+                      ]);
+                    } catch {}
+
+                    // DIRECT INSTANT NAVIGATION - zero extra pages!
+                    try {
+                      window.location.replace(target);
+                    } catch {
+                      window.location.href = target;
+                    }
+                    return;
+                  }
                 }
               }
+
+              // Otherwise record scan normally (for bank card, wallet, or expired)
+              recordQrScan(record.id);
             }
           }
         })
@@ -92,8 +115,12 @@ export default function App() {
           console.warn('QR resolution error:', err);
         })
         .finally(() => {
-          setIsResolvingQr(false);
+          if (isMounted) setIsResolvingQr(false);
         });
+
+      return () => {
+        isMounted = false;
+      };
     } else {
       setActiveRecord(null);
       setIsResolvingQr(false);
@@ -112,17 +139,13 @@ export default function App() {
 
   // Route 1: QR Scan path /q/:id
   if (isQrScanPath && qrIdFromPath) {
-    // 1. While loading from Firestore: show sleek instant loader
+    // 1. While loading from Firestore: sleek minimal loader (no distracting flash)
     if (isResolvingQr && !activeRecord) {
       return (
-        <div className="min-h-screen bg-[#09090b] text-white flex flex-col items-center justify-center p-6 text-center select-none">
-          <div className="w-16 h-16 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center mb-4">
-            <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
+        <div className="min-h-screen bg-[#09090b] flex flex-col items-center justify-center p-6 text-center select-none">
+          <div className="w-12 h-12 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center mb-3">
+            <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
           </div>
-          <h2 className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-500 mb-1">
-            جاري قراءة الكارت والتوجيه المباشر...
-          </h2>
-          <p className="text-xs text-slate-400 font-medium">لحظات قليلة وسيتم فتح التطبيق المطلوب ⚡</p>
         </div>
       );
     }
