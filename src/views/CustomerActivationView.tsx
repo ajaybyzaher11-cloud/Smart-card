@@ -39,8 +39,8 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
     { 
       type: 'instapay', 
       label: 'إنستاباي', 
-      placeholder: 'username@instapay أو رابط الدفع', 
-      example: 'رابط التحويل السريع أو المعرّف الخاص بك في InstaPay' 
+      placeholder: 'username@instapay أو اسم المستخدم أو رابط الدفع', 
+      example: 'عنوان الدفع اللحظي (IPA) أو رقم الموبايل أو رابط الدفع من التطبيق' 
     },
     { 
       type: 'wallet', 
@@ -124,18 +124,21 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
     try {
       const res = await activateQrCode(qrId, valueToSave, selectedType);
 
-      // 1. If bank or wallet: immediately open the bank/wallet view
-      if (selectedType === 'bank' || selectedType === 'wallet') {
+      // 1. If bank, wallet, or InstaPay IPA card: immediately open the dedicated copy card view
+      if (selectedType === 'bank' || selectedType === 'wallet' || smartLink.isInstaPayCard) {
         if (res.record) {
           onActivated(res.record);
         }
         return;
       }
 
-      // 2. For WhatsApp, Instagram, Facebook, InstaPay, Phone, Website, Telegram, TikTok:
+      // 2. For direct redirect (WhatsApp, YouTube, Instagram, Facebook, TikTok, Website, Phone, Full Payment Link):
       // Direct instant redirection to the app with zero intermediate screens!
       if (destinationUrl) {
         triggerSmartRedirect(smartLink);
+        if (res.record) {
+          onActivated(res.record);
+        }
       } else if (res.record) {
         onActivated(res.record);
       }

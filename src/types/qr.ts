@@ -44,6 +44,8 @@ export interface DeepLinkInfo {
   displayUrl: string;
   isBankCard?: boolean;
   bankDetails?: BankDetails;
+  isInstaPayCard?: boolean;
+  instaPayHandle?: string;
 }
 
 export interface PlatformSettings {

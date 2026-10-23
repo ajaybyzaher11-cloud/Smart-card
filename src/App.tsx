@@ -77,11 +77,13 @@ export default function App() {
               hasRecordedScanRef.current = true;
               recordQrScan(record.id);
 
-              // Check if not expired and not bank/wallet: instant redirect to destination!
+              // Check if not expired and not bank/wallet/instapay card: instant redirect to destination!
               const isExpired = record.expires_at && new Date(record.expires_at).getTime() < Date.now();
               if (!isExpired && record.app_type !== 'bank' && record.app_type !== 'wallet' && record.target_url) {
                 const linkInfo = processSmartLink(record.target_url, record.app_type);
-                triggerSmartRedirect(linkInfo);
+                if (!linkInfo.isInstaPayCard) {
+                  triggerSmartRedirect(linkInfo);
+                }
               }
             }
           }

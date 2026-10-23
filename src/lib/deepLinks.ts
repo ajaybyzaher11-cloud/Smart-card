@@ -110,7 +110,7 @@ export function cleanAndSanitizeUrl(input: string): string {
   // 6. Custom scheme like instapay://send?to=
   if (s.startsWith('instapay://send?to=')) {
     const handle = decodeURIComponent(s.replace('instapay://send?to=', ''));
-    return `https://ipn.eg/${encodeURIComponent(handle.replace('@instapay', ''))}`;
+    return handle.replace(/@instapay$/i, '').trim();
   }
 
   return s;
@@ -237,24 +237,42 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
     rawInput.trim().endsWith('@instapay');
 
   if (isInstaPay) {
-    let cleanUrl = trimmed;
-    let displayHandle = trimmed;
+    // Check if input is an actual full web payment link (e.g., https://ipn.eg/S/username/... or https://ipn.eg/s/...)
+    const isFullPaymentLink = 
+      (trimmed.includes('ipn.eg/S/') || trimmed.includes('ipn.eg/s/')) && 
+      (trimmed.startsWith('http://') || trimmed.startsWith('https://'));
 
-    if (trimmed.includes('ipn.eg/')) {
-      cleanUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
-      displayHandle = trimmed.replace(/^https?:\/\/(www\.)?ipn\.eg\/?/, 'ipn.eg/');
-    } else {
-      const cleanHandle = rawInput.trim().replace(/@instapay$/i, '').trim();
-      cleanUrl = `https://ipn.eg/${encodeURIComponent(cleanHandle)}`;
-      displayHandle = `${cleanHandle}@instapay`;
+    if (isFullPaymentLink) {
+      return {
+        appType: 'instapay',
+        appTitleAr: 'إنستاباي InstaPay',
+        schemeUrl: trimmed,
+        fallbackUrl: trimmed,
+        displayUrl: trimmed.replace(/^https?:\/\//, ''),
+        isInstaPayCard: false,
+      };
     }
+
+    // Otherwise, it is an Instant Payment Address (IPA handle) or phone number (e.g. shenoudazaher, shenoudazaher@instapay, 010...)
+    let cleanHandle = trimmed
+      .replace(/^https?:\/\/(www\.)?ipn\.eg\/?/i, '')
+      .replace(/^instapay:\/\/(send\?to=)?/i, '')
+      .replace(/@instapay$/i, '')
+      .trim();
+
+    if (!cleanHandle) cleanHandle = rawInput.trim().replace(/@instapay$/i, '').trim();
+
+    const formattedIpa = cleanHandle.includes('@') ? cleanHandle : `${cleanHandle}@instapay`;
+    const appLaunchIntent = 'intent://#Intent;package=com.instapay.app;end';
 
     return {
       appType: 'instapay',
       appTitleAr: 'إنستاباي InstaPay',
-      schemeUrl: cleanUrl,
-      fallbackUrl: cleanUrl,
-      displayUrl: displayHandle,
+      schemeUrl: appLaunchIntent,
+      fallbackUrl: 'https://play.google.com/store/apps/details?id=com.instapay.app',
+      displayUrl: formattedIpa,
+      isInstaPayCard: true,
+      instaPayHandle: formattedIpa,
     };
   }
 
