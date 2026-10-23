@@ -1,0 +1,105 @@
+const PROJECT_ID = 'clean-plateau-dv4kj';
+const DATABASE_ID = 'ai-studio-41f04a06-1999-41b9-b7be-e25b21dc1fd0';
+const API_KEY = 'AIzaSyAjyCP484AEQ52-9CDgp8TDkAw5woA1TFc';
+
+export default async function handler(req: any, res: any) {
+  // Always disable caching for QR scans
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  // Extract ID from query (?id=...) or path
+  const queryId = (req.query?.id || '').toString().trim();
+  const urlPath = req.url || '';
+  const pathMatch = urlPath.match(/\/q\/([a-zA-Z0-9_-]+)/);
+  const id = queryId || (pathMatch ? pathMatch[1] : '');
+
+  if (!id) {
+    return res.writeHead(302, { Location: '/' }).end();
+  }
+
+  try {
+    const docUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents/qr_codes/${encodeURIComponent(id)}?key=${API_KEY}`;
+    const response = await fetch(docUrl);
+
+    if (!response.ok) {
+      // Document not found or not in Firestore -> redirect to customer activation
+      return res.writeHead(302, { Location: `/?activate=${id}` }).end();
+    }
+
+    const data = await response.json();
+    const fields = data.fields || {};
+
+    const isActive = fields.is_active?.booleanValue ?? false;
+    const targetUrl = fields.target_url?.stringValue ?? '';
+    const appType = fields.app_type?.stringValue ?? 'website';
+    const expiresAtStr = fields.expires_at?.stringValue;
+
+    // 1. If not active yet -> redirect directly to customer activation screen
+    if (!isActive) {
+      return res.writeHead(302, { Location: `/?activate=${id}` }).end();
+    }
+
+    // 2. Check expiration
+    if (expiresAtStr) {
+      const expiresAt = new Date(expiresAtStr).getTime();
+      if (expiresAt < Date.now()) {
+        return res.writeHead(302, { Location: `/?expired=${id}` }).end();
+      }
+    }
+
+    // 3. Bank accounts always require copy screen
+    if (appType === 'bank' || targetUrl.startsWith('bank://')) {
+      return res.writeHead(302, { Location: `/?view=${id}` }).end();
+    }
+
+    // 4. Wallet: if it's a plain phone number (not a URL), show copy screen
+    const isWebUrl = /^https?:\/\//i.test(targetUrl) || targetUrl.includes('.eg') || targetUrl.includes('.com') || targetUrl.includes('/');
+    if (appType === 'wallet' && !isWebUrl) {
+      return res.writeHead(302, { Location: `/?view=${id}` }).end();
+    }
+
+    // 5. Direct Link (YouTube, WhatsApp, Instagram, Facebook, TikTok, Website, Phone, or Wallet Payment Link)
+    let destination = targetUrl.trim();
+    if (destination.startsWith('wa.me/')) {
+      destination = `https://${destination}`;
+    } else if (!destination.startsWith('http://') && !destination.startsWith('https://') && !destination.startsWith('tel:') && !destination.startsWith('intent:')) {
+      if (/^(?:\+?20|0)?1[0125]\d{8}$/.test(destination)) {
+        let num = destination.replace(/[^\d]/g, '');
+        if (num.startsWith('01')) num = '2' + num;
+        destination = `https://wa.me/${num}`;
+      } else {
+        destination = `https://${destination}`;
+      }
+    }
+
+    // Atomic increment scan counter in Firestore via REST API transform (non-blocking)
+    const commitUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents:commit?key=${API_KEY}`;
+    fetch(commitUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        writes: [
+          {
+            transform: {
+              document: `projects/${PROJECT_ID}/databases/${DATABASE_ID}/documents/qr_codes/${id}`,
+              fieldTransforms: [
+                {
+                  fieldPath: 'total_scans',
+                  increment: { integerValue: '1' }
+                }
+              ]
+            }
+          }
+        ]
+      })
+    }).catch(() => {});
+
+    // Send INSTANT HTTP 302 Redirection - 0.0 seconds delay!
+    return res.writeHead(302, { Location: destination }).end();
+  } catch (err) {
+    console.error('Serverless redirect error:', err);
+    // Fallback to client SPA
+    return res.writeHead(302, { Location: `/?scan=${id}` }).end();
+  }
+}

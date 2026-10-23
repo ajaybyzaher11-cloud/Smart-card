@@ -13,8 +13,16 @@ import { Loader2 } from 'lucide-react';
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname || '/');
-  const isQrScanPath = currentPath.startsWith('/q/');
-  const qrIdFromPath = isQrScanPath ? currentPath.replace('/q/', '').split('?')[0].split('/')[0] : null;
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const activateIdFromQuery = searchParams.get('activate');
+  const viewIdFromQuery = searchParams.get('view');
+  const expiredIdFromQuery = searchParams.get('expired');
+  const scanIdFromQuery = searchParams.get('scan');
+
+  const isQrScanPath = currentPath.startsWith('/q/') || Boolean(scanIdFromQuery || viewIdFromQuery || expiredIdFromQuery);
+  const qrIdFromPath = isQrScanPath 
+    ? (scanIdFromQuery || viewIdFromQuery || expiredIdFromQuery || currentPath.replace('/q/', '').split('?')[0].split('/')[0]) 
+    : null;
 
   const [activeRecord, setActiveRecord] = useState<QrCodeRecord | null>(null);
   const [domainUrl, setDomainUrl] = useState<string>(() => window.location.origin);
@@ -138,17 +146,22 @@ export default function App() {
     window.open(`${effectiveDomainUrl}/q/${id}`, '_blank');
   };
 
-  // Route 1: QR Scan path /q/:id
+  // Route 1: QR Scan path /q/:id or direct action query
+  if (activateIdFromQuery) {
+    return (
+      <CustomerActivationView
+        qrId={activateIdFromQuery}
+        onActivated={(updated) => {
+          setActiveRecord(updated);
+        }}
+      />
+    );
+  }
+
   if (isQrScanPath && qrIdFromPath) {
-    // 1. While loading from Firestore: sleek minimal loader (no distracting flash)
+    // 1. While resolving: pure dark screen (no spinner flash before redirect!)
     if (isResolvingQr && !activeRecord) {
-      return (
-        <div className="min-h-screen bg-[#09090b] flex flex-col items-center justify-center p-6 text-center select-none">
-          <div className="w-12 h-12 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center mb-3">
-            <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
-          </div>
-        </div>
-      );
+      return <div className="min-h-screen bg-[#09090b]" />;
     }
 
     // 2. If already active, check expiration
