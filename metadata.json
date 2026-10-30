@@ -1,0 +1,10 @@
+{
+  "name": "Smart Card",
+  "description": "منصة Smart Card لتوليد وإدارة رموز QR الديناميكية الذكية مع التوجيه المباشر للتطبيقات.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
