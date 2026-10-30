@@ -28,7 +28,17 @@ import {
   Calendar
 } from 'lucide-react';
 import { adminUpdateQrCode, generateQrDataUrl, resetQrScanCount } from '../lib/qrService';
-import { processSmartLink, encodeBankDetails, decodeBankDetails, detectWalletInfo, isQuickPayUrl } from '../lib/deepLinks';
+import { 
+  processSmartLink, 
+  encodeBankDetails, 
+  decodeBankDetails, 
+  detectWalletInfo, 
+  isQuickPayUrl,
+  formatTikTokTargetUrl,
+  formatInstagramTargetUrl,
+  formatTelegramTargetUrl,
+  formatSnapchatTargetUrl
+} from '../lib/deepLinks';
 import { AppType, QrCodeRecord, BankDetails } from '../types/qr';
 import { PlatformBrandIcon, WalletProviderIcon } from './BrandIcons';
 
@@ -288,7 +298,14 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       } else if (!ipnLink.startsWith('http://') && !ipnLink.startsWith('https://')) {
         ipnLink = `https://${ipnLink}`;
       }
-      finalRawInput = ipnLink;
+    } else if (selectedType === 'tiktok') {
+      finalRawInput = formatTikTokTargetUrl(targetUrl);
+    } else if (selectedType === 'instagram') {
+      finalRawInput = formatInstagramTargetUrl(targetUrl);
+    } else if (selectedType === 'telegram') {
+      finalRawInput = formatTelegramTargetUrl(targetUrl);
+    } else if (selectedType === 'snapchat') {
+      finalRawInput = formatSnapchatTargetUrl(targetUrl);
     }
 
     try {

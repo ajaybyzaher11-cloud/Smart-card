@@ -293,6 +293,101 @@ function isSafeUrlScheme(url: string): boolean {
   return !dangerous.test(sanitized);
 }
 
+function formatTikTokTargetUrl(input: string): string {
+  if (!input) return '';
+  let clean = input.trim().replace(/^["']|["']$/g, '').trim();
+  if (/^(?:https?:\/\/)?(?:vm|vt)\.tiktok\.com\//i.test(clean)) {
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      return `https://${clean}`;
+    }
+    return clean;
+  }
+  if (clean.includes('tiktok.com')) {
+    const match = clean.match(/tiktok\.com\/(?:@)?([a-zA-Z0-9_.-]+)/i);
+    if (match && match[1]) {
+      const segment = match[1].replace(/^@/, '');
+      const reservedRoutes = ['discover', 'explore', 'upload', 'live', 'tag', 'music', 'about', 'legal', 'business'];
+      if (!reservedRoutes.includes(segment.toLowerCase())) {
+        return `https://www.tiktok.com/@${segment}`;
+      }
+    }
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      return `https://${clean}`;
+    }
+    return clean;
+  }
+  let username = clean.replace(/^[/@]+/, '').split('?')[0].split('/')[0].trim();
+  username = username.replace(/[^\w.-]/g, '');
+  if (username) {
+    return `https://www.tiktok.com/@${username}`;
+  }
+  return clean;
+}
+
+function formatInstagramTargetUrl(input: string): string {
+  if (!input) return '';
+  let clean = input.trim().replace(/^["']|["']$/g, '').trim();
+  if (clean.includes('instagram.com/')) {
+    const match = clean.match(/instagram\.com\/([a-zA-Z0-9._]+)/i);
+    if (match && match[1]) {
+      const user = match[1].replace(/^@/, '');
+      return `https://www.instagram.com/${user}/`;
+    }
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      return `https://${clean}`;
+    }
+    return clean;
+  }
+  let username = clean.replace(/^[/@]+/, '').split('?')[0].split('/')[0].trim();
+  username = username.replace(/[^\w.]/g, '');
+  if (username) {
+    return `https://www.instagram.com/${username}/`;
+  }
+  return clean;
+}
+
+function formatTelegramTargetUrl(input: string): string {
+  if (!input) return '';
+  let clean = input.trim().replace(/^["']|["']$/g, '').trim();
+  if (clean.includes('t.me/') || clean.includes('telegram.me/')) {
+    const match = clean.match(/(?:t\.me|telegram\.me)\/([a-zA-Z0-9_]+)/i);
+    if (match && match[1]) {
+      return `https://t.me/${match[1].replace(/^@/, '')}`;
+    }
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      return `https://${clean}`;
+    }
+    return clean;
+  }
+  let username = clean.replace(/^[/@]+/, '').split('?')[0].split('/')[0].trim();
+  username = username.replace(/[^\w]/g, '');
+  if (username) {
+    return `https://t.me/${username}`;
+  }
+  return clean;
+}
+
+function formatSnapchatTargetUrl(input: string): string {
+  if (!input) return '';
+  let clean = input.trim().replace(/^["']|["']$/g, '').trim();
+  if (clean.includes('snapchat.com/add/')) {
+    const match = clean.match(/snapchat\.com\/add\/([a-zA-Z0-9_.-]+)/i);
+    if (match && match[1]) {
+      return `https://www.snapchat.com/add/${match[1].replace(/^@/, '')}`;
+    }
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      return `https://${clean}`;
+    }
+    return clean;
+  }
+  let username = clean.replace(/^[/@]+/, '').split('?')[0].split('/')[0].trim();
+  username = username.replace(/[^\w.-]/g, '');
+  if (username) {
+    return `https://www.snapchat.com/add/${username}`;
+  }
+  return clean;
+}
+
 // --- AUTH APIS ---
 
 // 1. Admin Login (Server authoritative verification & token generation)
@@ -566,7 +661,16 @@ app.put('/api/qr/:id', requireAdminAuth, (req, res) => {
     db[id] = current;
   }
 
-  if (target_url !== undefined) current.target_url = target_url;
+  let normalizedTarget = target_url;
+  const effectiveType = app_type || current?.app_type || 'website';
+  if (normalizedTarget && typeof normalizedTarget === 'string') {
+    if (effectiveType === 'tiktok') normalizedTarget = formatTikTokTargetUrl(normalizedTarget);
+    else if (effectiveType === 'instagram') normalizedTarget = formatInstagramTargetUrl(normalizedTarget);
+    else if (effectiveType === 'telegram') normalizedTarget = formatTelegramTargetUrl(normalizedTarget);
+    else if (effectiveType === 'snapchat') normalizedTarget = formatSnapchatTargetUrl(normalizedTarget);
+  }
+
+  if (target_url !== undefined) current.target_url = normalizedTarget;
   if (app_type !== undefined) current.app_type = app_type;
   if (label !== undefined) current.label = label;
   if (expires_at !== undefined) current.expires_at = expires_at;
@@ -755,8 +859,16 @@ app.get('/q/:id', async (req, res, next) => {
       }
     }
 
-    // Normalize schemes
-    if (target.startsWith('instapay://send?to=')) {
+    // Normalize schemes and platforms
+    if (record.app_type === 'tiktok' || target.includes('tiktok.com') || (!target.startsWith('http') && record.app_type === 'tiktok')) {
+      target = formatTikTokTargetUrl(target);
+    } else if (record.app_type === 'instagram' || target.includes('instagram.com') || (!target.startsWith('http') && record.app_type === 'instagram')) {
+      target = formatInstagramTargetUrl(target);
+    } else if (record.app_type === 'telegram' || target.includes('t.me') || (!target.startsWith('http') && record.app_type === 'telegram')) {
+      target = formatTelegramTargetUrl(target);
+    } else if (record.app_type === 'snapchat' || target.includes('snapchat.com') || (!target.startsWith('http') && record.app_type === 'snapchat')) {
+      target = formatSnapchatTargetUrl(target);
+    } else if (target.startsWith('instapay://send?to=')) {
       const handle = decodeURIComponent(target.replace('instapay://send?to=', ''));
       target = `https://ipn.eg/${encodeURIComponent(handle.replace('@instapay', ''))}`;
     } else if (target.startsWith('wa.me/')) {

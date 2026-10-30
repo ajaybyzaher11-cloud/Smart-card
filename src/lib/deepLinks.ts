@@ -265,6 +265,126 @@ export function detectWalletInfo(rawPhone: string): DetectedWalletInfo {
 }
 
 /**
+ * Formats and normalizes TikTok username or links to the standard Universal / App Link format:
+ * https://www.tiktok.com/@<clean_username>
+ * This guarantees the TikTok app opens directly to the profile on mobile devices,
+ * or cleanly loads the profile page on the web, preventing it from just opening the app's home feed.
+ */
+export function formatTikTokTargetUrl(input: string): string {
+  if (!input) return '';
+  let clean = normalizeArabicNumerals(input).trim().replace(/^["']|["']$/g, '').trim();
+
+  // 1. TikTok short video/profile share links (vm.tiktok.com / vt.tiktok.com)
+  if (/^(?:https?:\/\/)?(?:vm|vt)\.tiktok\.com\//i.test(clean)) {
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      return `https://${clean}`;
+    }
+    return clean;
+  }
+
+  // 2. Full or partial tiktok.com URL
+  if (clean.includes('tiktok.com')) {
+    // Check if it has a username: tiktok.com/@username or tiktok.com/username
+    const match = clean.match(/tiktok\.com\/(?:@)?([a-zA-Z0-9_.-]+)/i);
+    if (match && match[1]) {
+      const segment = match[1].replace(/^@/, '');
+      const reservedRoutes = ['discover', 'explore', 'upload', 'live', 'tag', 'music', 'about', 'legal', 'business'];
+      if (!reservedRoutes.includes(segment.toLowerCase())) {
+        return `https://www.tiktok.com/@${segment}`;
+      }
+    }
+    // If it's a specific link with video ID or something, just ensure https://
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      return `https://${clean}`;
+    }
+    return clean;
+  }
+
+  // 3. Raw username (e.g. foodhunteregypt, @foodhunteregypt, /@foodhunteregypt)
+  let username = clean.replace(/^[/@]+/, '').split('?')[0].split('/')[0].trim();
+  username = username.replace(/[^\w.-]/g, '');
+
+  if (username) {
+    return `https://www.tiktok.com/@${username}`;
+  }
+
+  return clean;
+}
+
+/**
+ * Normalizes Instagram usernames/URLs to https://www.instagram.com/<username>/
+ */
+export function formatInstagramTargetUrl(input: string): string {
+  if (!input) return '';
+  let clean = normalizeArabicNumerals(input).trim().replace(/^["']|["']$/g, '').trim();
+  if (clean.includes('instagram.com/')) {
+    const match = clean.match(/instagram\.com\/([a-zA-Z0-9._]+)/i);
+    if (match && match[1]) {
+      const user = match[1].replace(/^@/, '');
+      return `https://www.instagram.com/${user}/`;
+    }
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      return `https://${clean}`;
+    }
+    return clean;
+  }
+  let username = clean.replace(/^[/@]+/, '').split('?')[0].split('/')[0].trim();
+  username = username.replace(/[^\w.]/g, '');
+  if (username) {
+    return `https://www.instagram.com/${username}/`;
+  }
+  return clean;
+}
+
+/**
+ * Normalizes Telegram usernames/URLs to https://t.me/<username>
+ */
+export function formatTelegramTargetUrl(input: string): string {
+  if (!input) return '';
+  let clean = input.trim().replace(/^["']|["']$/g, '').trim();
+  if (clean.includes('t.me/') || clean.includes('telegram.me/')) {
+    const match = clean.match(/(?:t\.me|telegram\.me)\/([a-zA-Z0-9_]+)/i);
+    if (match && match[1]) {
+      return `https://t.me/${match[1].replace(/^@/, '')}`;
+    }
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      return `https://${clean}`;
+    }
+    return clean;
+  }
+  let username = clean.replace(/^[/@]+/, '').split('?')[0].split('/')[0].trim();
+  username = username.replace(/[^\w]/g, '');
+  if (username) {
+    return `https://t.me/${username}`;
+  }
+  return clean;
+}
+
+/**
+ * Normalizes Snapchat usernames/URLs to https://www.snapchat.com/add/<username>
+ */
+export function formatSnapchatTargetUrl(input: string): string {
+  if (!input) return '';
+  let clean = input.trim().replace(/^["']|["']$/g, '').trim();
+  if (clean.includes('snapchat.com/add/')) {
+    const match = clean.match(/snapchat\.com\/add\/([a-zA-Z0-9_.-]+)/i);
+    if (match && match[1]) {
+      return `https://www.snapchat.com/add/${match[1].replace(/^@/, '')}`;
+    }
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      return `https://${clean}`;
+    }
+    return clean;
+  }
+  let username = clean.replace(/^[/@]+/, '').split('?')[0].split('/')[0].trim();
+  username = username.replace(/[^\w.-]/g, '');
+  if (username) {
+    return `https://www.snapchat.com/add/${username}`;
+  }
+  return clean;
+}
+
+/**
  * Analyzes user input and produces clean, universal URLs, deep links,
  * or bank details that work flawlessly across mobile and desktop.
  */
@@ -436,6 +556,8 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
     };
   }
 
+
+
   // 4. Instagram
   const isInstagram =
     preferredType === 'instagram' ||
@@ -443,15 +565,10 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
     (preferredType === undefined && rawInput.trim().startsWith('@') && !trimmed.includes('instapay'));
 
   if (isInstagram) {
-    let username = '';
-    if (trimmed.includes('instagram.com/')) {
-      const match = trimmed.match(/instagram\.com\/([a-zA-Z0-9._]+)/);
-      username = match ? match[1] : '';
-    } else {
-      username = rawInput.trim().replace(/^@/, '').replace(/[^\w.]/g, '');
-    }
+    const universalUrl = formatInstagramTargetUrl(trimmed || rawInput);
+    const match = universalUrl.match(/instagram\.com\/([a-zA-Z0-9._]+)/);
+    const username = match ? match[1] : trimmed.replace(/^@/, '');
 
-    const universalUrl = `https://www.instagram.com/${username}/`;
     return {
       appType: 'instagram',
       appTitleAr: 'إنستجرام Instagram',
@@ -489,13 +606,10 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
     trimmed.includes('telegram.me');
 
   if (isTelegram) {
-    let handle = trimmed;
-    if (trimmed.includes('t.me/')) {
-      handle = trimmed.split('t.me/')[1]?.split('?')[0] || '';
-    } else {
-      handle = rawInput.trim().replace(/^@/, '');
-    }
-    const universalUrl = `https://t.me/${handle}`;
+    const universalUrl = formatTelegramTargetUrl(trimmed || rawInput);
+    const match = universalUrl.match(/(?:t\.me|telegram\.me)\/([a-zA-Z0-9_]+)/);
+    const handle = match ? match[1] : trimmed.replace(/^@/, '');
+
     return {
       appType: 'telegram',
       appTitleAr: 'تيليجرام Telegram',
@@ -505,25 +619,22 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
     };
   }
 
-  // 7. TikTok
+  // 7. TikTok (Direct App & Profile Universal Link)
   const isTikTok =
     preferredType === 'tiktok' ||
     trimmed.includes('tiktok.com');
 
   if (isTikTok) {
-    let user = trimmed;
-    if (trimmed.includes('tiktok.com/@')) {
-      user = trimmed.split('tiktok.com/@')[1]?.split('?')[0] || '';
-    } else {
-      user = rawInput.trim().replace(/^@/, '');
-    }
-    const universalUrl = `https://www.tiktok.com/@${user}`;
+    const universalUrl = formatTikTokTargetUrl(trimmed || rawInput);
+    const match = universalUrl.match(/tiktok\.com\/@([a-zA-Z0-9_.-]+)/i);
+    const displayUser = match ? match[1] : trimmed.replace(/^@/, '');
+
     return {
       appType: 'tiktok',
       appTitleAr: 'تيك توك TikTok',
       schemeUrl: universalUrl,
       fallbackUrl: universalUrl,
-      displayUrl: `tiktok.com/@${user}`,
+      displayUrl: `tiktok.com/@${displayUser}`,
     };
   }
 

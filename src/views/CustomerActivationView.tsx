@@ -10,7 +10,17 @@ import {
   Check
 } from 'lucide-react';
 import { activateQrCode } from '../lib/qrService';
-import { encodeBankDetails, processSmartLink, triggerSmartRedirect, detectWalletInfo, isQuickPayUrl } from '../lib/deepLinks';
+import { 
+  encodeBankDetails, 
+  processSmartLink, 
+  triggerSmartRedirect, 
+  detectWalletInfo, 
+  isQuickPayUrl,
+  formatTikTokTargetUrl,
+  formatInstagramTargetUrl,
+  formatTelegramTargetUrl,
+  formatSnapchatTargetUrl
+} from '../lib/deepLinks';
 import { AppType, QrCodeRecord } from '../types/qr';
 import { PlatformBrandIcon, WalletProviderIcon } from '../components/BrandIcons';
 
@@ -132,6 +142,30 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
         const detected = detectWalletInfo(valueToSave);
         valueToSave = detected.cleanPhone;
       }
+    } else if (selectedType === 'tiktok') {
+      if (!valueToSave) {
+        setErrorMsg('يرجى إدخال اسم المستخدم أو رابط حساب تيك توك.');
+        return;
+      }
+      valueToSave = formatTikTokTargetUrl(valueToSave);
+    } else if (selectedType === 'instagram') {
+      if (!valueToSave) {
+        setErrorMsg('يرجى إدخال اسم المستخدم أو رابط حساب إنستجرام.');
+        return;
+      }
+      valueToSave = formatInstagramTargetUrl(valueToSave);
+    } else if (selectedType === 'telegram') {
+      if (!valueToSave) {
+        setErrorMsg('يرجى إدخال اسم المستخدم أو رابط تيليجرام.');
+        return;
+      }
+      valueToSave = formatTelegramTargetUrl(valueToSave);
+    } else if (selectedType === 'snapchat') {
+      if (!valueToSave) {
+        setErrorMsg('يرجى إدخال اسم المستخدم أو رابط حساب سناب شات.');
+        return;
+      }
+      valueToSave = formatSnapchatTargetUrl(valueToSave);
     } else {
       if (!valueToSave) {
         setErrorMsg('يرجى إدخال الرابط أو البيانات المطلوبة لتفعيل الكارت.');
