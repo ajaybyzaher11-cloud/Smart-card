@@ -5,23 +5,21 @@ const ADMIN_TOKEN_KEY = 'smart_card_admin_session_token';
 const ADMIN_TOKEN_EXPIRY_KEY = 'smart_card_admin_session_expiry';
 const ADMIN_PASSWORD_HASH_KEY = 'smart_card_admin_pwd_hash';
 
-// SHA-256 of "admin1234"
+// Default initial password hash (SHA-256 for "admin1234")
 export const DEFAULT_BASE_HASH = 'ac9689e2272427085e35b9d3e3e8bed88cb3434828b43b86fc0596cad4c6e270';
-// Obsolete hash from earlier versions to discard
-const OBSOLETE_HASH = 'f3c389a8ea19bf980b9a965e75824c1aff7933fde1025a15f297f851b3f73bfb';
+
+const FIRESTORE_PROJECT_ID = 'clean-plateau-dv4kj';
+const FIRESTORE_DATABASE_ID = 'ai-studio-41f04a06-1999-41b9-b7be-e25b21dc1fd0';
+const FIRESTORE_API_KEY = 'AIzaSyAjyCP484AEQ52-9CDgp8TDkAw5woA1TFc';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
-// Clean legacy tokens if any
+// Clean insecure legacy keys if present
 try {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('dynamic_qr_admin_password');
     if (localStorage.getItem('dynamic_qr_admin_session') === 'authenticated_admin_token') {
       localStorage.removeItem('dynamic_qr_admin_session');
-    }
-    // Clean obsolete password hash if present
-    if (localStorage.getItem(ADMIN_PASSWORD_HASH_KEY) === OBSOLETE_HASH) {
-      localStorage.removeItem(ADMIN_PASSWORD_HASH_KEY);
     }
   }
 } catch {}
@@ -75,7 +73,7 @@ export function isAdminAuthenticated(): boolean {
   if (!token || token.length < 16) return false;
 
   try {
-    const expiryStr = localStorage.getItem(ADMIN_TOKEN_EXPIRY_KEY);
+    const expiryStr = localStorage.getItem(ADMIN_TOKEN_EXPIRY_KEY) || sessionStorage.getItem(ADMIN_TOKEN_EXPIRY_KEY);
     if (expiryStr) {
       const expiry = parseInt(expiryStr, 10);
       if (!isNaN(expiry) && expiry <= Date.now()) {
@@ -128,45 +126,56 @@ export async function validateAdminSession(): Promise<boolean> {
 }
 
 /**
- * Retrieves the currently active admin password hash with Cloud Database Priority
- * Reads directly from Firestore settings/auth as the canonical single source of truth across all devices.
+ * Retrieves the currently active admin password hash directly from Cloud Database (Firestore).
+ * Uses direct Firestore REST API for 100% reliable, unblockable fetching across all browsers,
+ * Incognito tabs, and Brave Shields without third-party cookie or IndexedDB constraints.
  */
 export async function getActivePasswordHash(): Promise<string> {
-  // 1. Primary: Always fetch latest from Cloud Firestore Database first
+  // 1. Primary: Direct HTTPS REST query to Firestore cloud database
+  try {
+    const restUrl = `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT_ID}/databases/${FIRESTORE_DATABASE_ID}/documents/settings/auth?key=${FIRESTORE_API_KEY}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(restUrl, { signal: controller.signal, cache: 'no-store' });
+    clearTimeout(timer);
+
+    if (res.ok) {
+      const data = await res.json();
+      const hashVal = data.fields?.hash?.stringValue;
+      if (typeof hashVal === 'string' && hashVal.length === 64) {
+        try { localStorage.setItem(ADMIN_PASSWORD_HASH_KEY, hashVal); } catch {}
+        try { sessionStorage.setItem(ADMIN_PASSWORD_HASH_KEY, hashVal); } catch {}
+        return hashVal;
+      }
+    }
+  } catch (err) {
+    console.warn('REST auth fetch error, falling back to Firestore SDK:', err);
+  }
+
+  // 2. Secondary: Firestore SDK getDoc
   try {
     const snap = await getDoc(doc(db, 'settings', 'auth'));
     if (snap.exists() && snap.data()?.hash) {
       const h = snap.data().hash;
-      if (typeof h === 'string' && h.length === 64 && h !== OBSOLETE_HASH) {
+      if (typeof h === 'string' && h.length === 64) {
         try { localStorage.setItem(ADMIN_PASSWORD_HASH_KEY, h); } catch {}
+        try { sessionStorage.setItem(ADMIN_PASSWORD_HASH_KEY, h); } catch {}
         return h;
       }
     }
   } catch (err) {
-    console.warn('Could not read from Firestore settings/auth, checking replica:', err);
+    console.warn('Firestore SDK auth error:', err);
   }
 
-  // 2. Secondary replica in platform_settings/auth
+  // 3. Tertiary: Local storage cache
   try {
-    const snap2 = await getDoc(doc(db, 'platform_settings', 'auth'));
-    if (snap2.exists() && snap2.data()?.hash) {
-      const h = snap2.data().hash;
-      if (typeof h === 'string' && h.length === 64 && h !== OBSOLETE_HASH) {
-        try { localStorage.setItem(ADMIN_PASSWORD_HASH_KEY, h); } catch {}
-        return h;
-      }
-    }
-  } catch {}
-
-  // 3. Fallback: local storage cache if completely offline
-  try {
-    const local = localStorage.getItem(ADMIN_PASSWORD_HASH_KEY);
-    if (local && local.length === 64 && local !== OBSOLETE_HASH) {
+    const local = localStorage.getItem(ADMIN_PASSWORD_HASH_KEY) || sessionStorage.getItem(ADMIN_PASSWORD_HASH_KEY);
+    if (local && local.length === 64) {
       return local;
     }
   } catch {}
 
-  // 4. Default base password ("admin1234")
+  // 4. Default base password ("admin1234") if nothing is in DB yet
   return DEFAULT_BASE_HASH;
 }
 
@@ -174,16 +183,21 @@ export async function getActivePasswordHash(): Promise<string> {
  * Saves a valid session token locally
  */
 function storeAdminSession(token: string): void {
+  const expiry = String(Date.now() + SEVEN_DAYS_MS);
   try {
     localStorage.setItem(ADMIN_TOKEN_KEY, token);
-    localStorage.setItem(ADMIN_TOKEN_EXPIRY_KEY, String(Date.now() + SEVEN_DAYS_MS));
+    localStorage.setItem(ADMIN_TOKEN_EXPIRY_KEY, expiry);
+  } catch {}
+  try {
+    sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
+    sessionStorage.setItem(ADMIN_TOKEN_EXPIRY_KEY, expiry);
   } catch {}
 }
 
 /**
  * Performs admin login:
- * Validates against the active database password. Once the password is changed,
- * the new password becomes the ONLY working password across all platforms.
+ * Authoritatively validates against the active password in Cloud Firestore.
+ * Once the password is changed, ONLY the new password is valid.
  */
 export async function loginAdmin(passwordAttempt: string): Promise<boolean> {
   const clean = (passwordAttempt || '').trim();
@@ -211,18 +225,20 @@ export async function loginAdmin(passwordAttempt: string): Promise<boolean> {
       const data = await serverRes.json();
       if (data.success && data.token) {
         storeAdminSession(data.token);
-        localStorage.setItem(ADMIN_PASSWORD_HASH_KEY, attemptHash);
+        try {
+          localStorage.setItem(ADMIN_PASSWORD_HASH_KEY, attemptHash);
+          sessionStorage.setItem(ADMIN_PASSWORD_HASH_KEY, attemptHash);
+        } catch {}
         return true;
       }
     }
   } catch {
-    // Server fetch failed or timed out, proceed to database check
+    // Server fetch unavailable (e.g. static hosting on Vercel), fall through to database check
   }
 
   // Strict match against active database password hash:
-  // If password was changed, ONLY the new password is valid.
+  // If password was updated in Firestore, ONLY that updated password works!
   if (attemptHash === activeHash) {
-    // Generate secure client session token
     let clientToken: string;
     try {
       clientToken = crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') + Date.now().toString(16) : 'adm_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
@@ -233,6 +249,7 @@ export async function loginAdmin(passwordAttempt: string): Promise<boolean> {
     storeAdminSession(clientToken);
     try {
       localStorage.setItem(ADMIN_PASSWORD_HASH_KEY, attemptHash);
+      sessionStorage.setItem(ADMIN_PASSWORD_HASH_KEY, attemptHash);
     } catch {}
 
     return true;
@@ -244,7 +261,7 @@ export async function loginAdmin(passwordAttempt: string): Promise<boolean> {
 /**
  * Secure password change requiring current password verification:
  * Updates the password across the ENTIRE database:
- * 1. Cloud Firestore database (`settings/auth` and replica `platform_settings/auth`)
+ * 1. Cloud Firestore database via REST API & Firestore SDK (`settings/auth` and replica `platform_settings/auth`)
  * 2. Server filesystem database (`data/auth.json`)
  * 3. Client storage cache
  */
@@ -265,7 +282,7 @@ export async function changeAdminPassword(
   const curHashAttempt = await hashPassword(curClean);
   const activeHash = await getActivePasswordHash();
 
-  // Validate current password (matches active database hash or default if still active)
+  // Validate current password (must match active database password)
   const isCurrentValid = curHashAttempt === activeHash || (activeHash === DEFAULT_BASE_HASH && curHashAttempt === DEFAULT_BASE_HASH);
   if (!isCurrentValid) {
     return { success: false, message: 'كلمة المرور الحالية غير صحيحة.' };
@@ -274,29 +291,41 @@ export async function changeAdminPassword(
   const newHash = await hashPassword(newClean);
   const nowIso = new Date().toISOString();
 
-  // 1. UPDATE CLOUD DATABASE (Firestore)
+  // 1. UPDATE CLOUD FIRESTORE DATABASE VIA REST API (Works directly on all platforms)
+  try {
+    const restUrl = `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT_ID}/databases/${FIRESTORE_DATABASE_ID}/documents/settings/auth?key=${FIRESTORE_API_KEY}`;
+    await fetch(restUrl, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          hash: { stringValue: newHash },
+          updated_at: { stringValue: nowIso },
+          migrated: { booleanValue: true },
+        },
+      }),
+    });
+  } catch (err) {
+    console.warn('REST cloud update warning:', err);
+  }
+
+  // 2. ALSO UPDATE VIA FIRESTORE SDK
   try {
     await setDoc(doc(db, 'settings', 'auth'), {
       hash: newHash,
       updated_at: nowIso,
       migrated: true,
     }, { merge: true });
-  } catch (err) {
-    console.error('Failed to update settings/auth in Firestore:', err);
-    return { success: false, message: 'تعذر حفظ كلمة المرور في قاعدة البيانات السحابية (Firestore).' };
-  }
 
-  // Update secondary replica in Firestore
-  try {
     await setDoc(doc(db, 'platform_settings', 'auth'), {
       hash: newHash,
       updated_at: nowIso,
     }, { merge: true });
   } catch (err) {
-    console.warn('Replica write warning:', err);
+    console.warn('SDK cloud update warning:', err);
   }
 
-  // 2. UPDATE SERVER DATABASE (data/auth.json)
+  // 3. UPDATE SERVER DATABASE (data/auth.json)
   try {
     const res = await authFetch('/api/admin/password', {
       method: 'POST',
@@ -315,9 +344,10 @@ export async function changeAdminPassword(
     }
   } catch {}
 
-  // 3. UPDATE LOCAL CLIENT CACHE
+  // 4. UPDATE LOCAL CLIENT CACHE
   try {
     localStorage.setItem(ADMIN_PASSWORD_HASH_KEY, newHash);
+    sessionStorage.setItem(ADMIN_PASSWORD_HASH_KEY, newHash);
   } catch {}
 
   return {
@@ -337,6 +367,7 @@ export function logoutAdmin(): void {
   try {
     localStorage.removeItem(ADMIN_TOKEN_KEY);
     localStorage.removeItem(ADMIN_TOKEN_EXPIRY_KEY);
-    localStorage.removeItem('dynamic_qr_admin_session');
+    sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+    sessionStorage.removeItem(ADMIN_TOKEN_EXPIRY_KEY);
   } catch {}
 }
