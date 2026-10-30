@@ -9,3 +9,4 @@ coverage/
 .aistudio/
 *.mp4
 public/assets/
+data/sessions.json
