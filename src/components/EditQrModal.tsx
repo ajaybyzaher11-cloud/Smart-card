@@ -749,6 +749,9 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                     value={targetUrl}
                     onChange={(e) => setTargetUrl(e.target.value)}
                     placeholder={currentMeta.placeholder}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     className="w-full pr-4 pl-10 py-3 bg-black/60 border border-amber-500/30 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400 shadow-inner transition font-mono font-bold"
                     dir="ltr"
                     required

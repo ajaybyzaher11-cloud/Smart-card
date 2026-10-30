@@ -266,15 +266,22 @@ export function detectWalletInfo(rawPhone: string): DetectedWalletInfo {
 
 /**
  * Formats and normalizes TikTok username or links to the standard Universal / App Link format:
- * https://www.tiktok.com/@<clean_username>
+ * https://www.tiktok.com/@<clean_lowercase_username>
  * This guarantees the TikTok app opens directly to the profile on mobile devices,
  * or cleanly loads the profile page on the web, preventing it from just opening the app's home feed.
  */
 export function formatTikTokTargetUrl(input: string): string {
   if (!input) return '';
-  let clean = normalizeArabicNumerals(input).trim().replace(/^["']|["']$/g, '').trim();
+  // 1. Remove all invisible zero-width and RTL/LTR formatting marks
+  let clean = normalizeArabicNumerals(input)
+    .replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u202A-\u202E]/g, '')
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .trim();
 
-  // 1. TikTok short video/profile share links (vm.tiktok.com / vt.tiktok.com)
+  if (!clean) return '';
+
+  // 2. TikTok short video/profile share links (vm.tiktok.com / vt.tiktok.com)
   if (/^(?:https?:\/\/)?(?:vm|vt)\.tiktok\.com\//i.test(clean)) {
     if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
       return `https://${clean}`;
@@ -282,15 +289,18 @@ export function formatTikTokTargetUrl(input: string): string {
     return clean;
   }
 
-  // 2. Full or partial tiktok.com URL
+  // 3. Full or partial tiktok.com URL
   if (clean.includes('tiktok.com')) {
-    // Check if it has a username: tiktok.com/@username or tiktok.com/username
-    const match = clean.match(/tiktok\.com\/(?:@)?([a-zA-Z0-9_.-]+)/i);
+    const parts = clean.split('?');
+    const pathPart = parts[0];
+    const queryPart = parts[1] ? `?${parts[1]}` : '';
+
+    const match = pathPart.match(/tiktok\.com\/(?:@)?([a-zA-Z0-9_.-]+)/i);
     if (match && match[1]) {
-      const segment = match[1].replace(/^@/, '');
-      const reservedRoutes = ['discover', 'explore', 'upload', 'live', 'tag', 'music', 'about', 'legal', 'business'];
-      if (!reservedRoutes.includes(segment.toLowerCase())) {
-        return `https://www.tiktok.com/@${segment}`;
+      const segment = match[1].replace(/^@/, '').toLowerCase().trim();
+      const reservedRoutes = ['discover', 'explore', 'upload', 'live', 'tag', 'music', 'about', 'legal', 'business', 'share', 'foryou'];
+      if (!reservedRoutes.includes(segment)) {
+        return `https://www.tiktok.com/@${segment}${queryPart}`;
       }
     }
     // If it's a specific link with video ID or something, just ensure https://
@@ -300,9 +310,9 @@ export function formatTikTokTargetUrl(input: string): string {
     return clean;
   }
 
-  // 3. Raw username (e.g. foodhunteregypt, @foodhunteregypt, /@foodhunteregypt)
+  // 4. Raw username (e.g. foodhunteregypt, @foodhunteregypt, FoodHunterEgypt, /@Foodhunteregypt)
   let username = clean.replace(/^[/@]+/, '').split('?')[0].split('/')[0].trim();
-  username = username.replace(/[^\w.-]/g, '');
+  username = username.replace(/[^\w.-]/g, '').toLowerCase().trim();
 
   if (username) {
     return `https://www.tiktok.com/@${username}`;
@@ -312,15 +322,20 @@ export function formatTikTokTargetUrl(input: string): string {
 }
 
 /**
- * Normalizes Instagram usernames/URLs to https://www.instagram.com/<username>/
+ * Normalizes Instagram usernames/URLs to https://www.instagram.com/<clean_lowercase_username>/
  */
 export function formatInstagramTargetUrl(input: string): string {
   if (!input) return '';
-  let clean = normalizeArabicNumerals(input).trim().replace(/^["']|["']$/g, '').trim();
+  let clean = normalizeArabicNumerals(input)
+    .replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u202A-\u202E]/g, '')
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .trim();
+
   if (clean.includes('instagram.com/')) {
     const match = clean.match(/instagram\.com\/([a-zA-Z0-9._]+)/i);
     if (match && match[1]) {
-      const user = match[1].replace(/^@/, '');
+      const user = match[1].replace(/^@/, '').toLowerCase().trim();
       return `https://www.instagram.com/${user}/`;
     }
     if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
@@ -329,7 +344,7 @@ export function formatInstagramTargetUrl(input: string): string {
     return clean;
   }
   let username = clean.replace(/^[/@]+/, '').split('?')[0].split('/')[0].trim();
-  username = username.replace(/[^\w.]/g, '');
+  username = username.replace(/[^\w.]/g, '').toLowerCase().trim();
   if (username) {
     return `https://www.instagram.com/${username}/`;
   }
@@ -337,15 +352,20 @@ export function formatInstagramTargetUrl(input: string): string {
 }
 
 /**
- * Normalizes Telegram usernames/URLs to https://t.me/<username>
+ * Normalizes Telegram usernames/URLs to https://t.me/<clean_lowercase_username>
  */
 export function formatTelegramTargetUrl(input: string): string {
   if (!input) return '';
-  let clean = input.trim().replace(/^["']|["']$/g, '').trim();
+  let clean = input
+    .replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u202A-\u202E]/g, '')
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .trim();
+
   if (clean.includes('t.me/') || clean.includes('telegram.me/')) {
     const match = clean.match(/(?:t\.me|telegram\.me)\/([a-zA-Z0-9_]+)/i);
     if (match && match[1]) {
-      return `https://t.me/${match[1].replace(/^@/, '')}`;
+      return `https://t.me/${match[1].replace(/^@/, '').toLowerCase().trim()}`;
     }
     if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
       return `https://${clean}`;
@@ -353,7 +373,7 @@ export function formatTelegramTargetUrl(input: string): string {
     return clean;
   }
   let username = clean.replace(/^[/@]+/, '').split('?')[0].split('/')[0].trim();
-  username = username.replace(/[^\w]/g, '');
+  username = username.replace(/[^\w]/g, '').toLowerCase().trim();
   if (username) {
     return `https://t.me/${username}`;
   }
@@ -361,15 +381,20 @@ export function formatTelegramTargetUrl(input: string): string {
 }
 
 /**
- * Normalizes Snapchat usernames/URLs to https://www.snapchat.com/add/<username>
+ * Normalizes Snapchat usernames/URLs to https://www.snapchat.com/add/<clean_lowercase_username>
  */
 export function formatSnapchatTargetUrl(input: string): string {
   if (!input) return '';
-  let clean = input.trim().replace(/^["']|["']$/g, '').trim();
+  let clean = input
+    .replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u202A-\u202E]/g, '')
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .trim();
+
   if (clean.includes('snapchat.com/add/')) {
     const match = clean.match(/snapchat\.com\/add\/([a-zA-Z0-9_.-]+)/i);
     if (match && match[1]) {
-      return `https://www.snapchat.com/add/${match[1].replace(/^@/, '')}`;
+      return `https://www.snapchat.com/add/${match[1].replace(/^@/, '').toLowerCase().trim()}`;
     }
     if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
       return `https://${clean}`;
@@ -377,7 +402,7 @@ export function formatSnapchatTargetUrl(input: string): string {
     return clean;
   }
   let username = clean.replace(/^[/@]+/, '').split('?')[0].split('/')[0].trim();
-  username = username.replace(/[^\w.-]/g, '');
+  username = username.replace(/[^\w.-]/g, '').toLowerCase().trim();
   if (username) {
     return `https://www.snapchat.com/add/${username}`;
   }

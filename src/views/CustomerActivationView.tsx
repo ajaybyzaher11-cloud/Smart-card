@@ -424,7 +424,10 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                       value={rawInput}
                       onChange={(e) => setRawInput(e.target.value)}
                       placeholder={currentPlatformInfo.placeholder}
-                      className="w-full px-4 py-3.5 bg-black/50 border border-amber-500/20 rounded-2xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      className="w-full px-4 py-3.5 bg-black/50 border border-amber-500/20 rounded-2xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition font-sans"
                       dir="ltr"
                       required
                       autoFocus
