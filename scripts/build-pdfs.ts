@@ -139,6 +139,12 @@ async function generateDocPdf() {
       titleEn: 'Universal Database Password Sync & Complete Credentials Superseding',
       titleAr: 'تحديث ومزامنة كلمة مرور الأدمن عبر قاعدة البيانات السحابية بالكامل',
       details: 'Configured seamless real-time password updates from the admin dashboard directly into Cloud Firestore (settings/auth and platform_settings/auth) and server filesystem (data/auth.json). Once changed, the new password immediately supersedes all previous credentials across all devices and sessions.'
+    },
+    {
+      num: '09',
+      titleEn: 'Admin Platform Switcher Auto-Clear & Instant Input Focus',
+      titleAr: 'تفريغ تلقائي فوري لبيانات المنصة القديمة عند تغيير المنصة في لوحة الأدمن',
+      details: 'Implemented handleSelectPlatform in EditQrModal to automatically purge and clear old URLs, phone numbers, and bank details when switching target platforms, dynamically updating labels and placeholders with direct clear shortcuts.'
     }
   ];
 

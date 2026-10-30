@@ -57,6 +57,81 @@ const EGYPTIAN_BANKS = [
   'بنك آخر / حساب دولي'
 ];
 
+export const PLATFORM_META: Record<AppType, { labelAr: string; labelEn: string; placeholder: string; hint: string }> = {
+  whatsapp: {
+    labelAr: 'واتساب',
+    labelEn: 'WhatsApp',
+    placeholder: '01012345678 أو wa.me/2010...',
+    hint: 'أدخل رقم الموبايل أو رابط محادثة واتساب',
+  },
+  instagram: {
+    labelAr: 'إنستغرام',
+    labelEn: 'Instagram',
+    placeholder: '@username أو رابط الحساب instagram.com/...',
+    hint: 'أدخل يوزر الحساب أو الرابط الكامل',
+  },
+  facebook: {
+    labelAr: 'فيسبوك',
+    labelEn: 'Facebook',
+    placeholder: 'facebook.com/yourpage أو رابط البروفايل أو ID',
+    hint: 'أدخل رابط الصفحة أو الحساب على فيسبوك',
+  },
+  telegram: {
+    labelAr: 'تيليجرام',
+    labelEn: 'Telegram',
+    placeholder: 't.me/username أو @channel',
+    hint: 'أدخل يوزر التليجرام أو رابط القناة/المحادثة',
+  },
+  tiktok: {
+    labelAr: 'تيك توك',
+    labelEn: 'TikTok',
+    placeholder: 'tiktok.com/@username أو @username',
+    hint: 'أدخل رابط أو يوزر حساب تيك توك',
+  },
+  phone: {
+    labelAr: 'اتصال هاتفي',
+    labelEn: 'Phone Call',
+    placeholder: '01012345678 أو +2010...',
+    hint: 'أدخل رقم الهاتف للاتصال المباشر',
+  },
+  website: {
+    labelAr: 'موقع ويب',
+    labelEn: 'Website',
+    placeholder: 'https://yourwebsite.com',
+    hint: 'أدخل رابط الموقع الإلكتروني المطلوب التوجيه إليه',
+  },
+  instapay: {
+    labelAr: 'إنستاباي',
+    labelEn: 'InstaPay',
+    placeholder: 'https://ipn.eg/S/... (رابط الدفع السريع)',
+    hint: 'الصق رابط الدفع السريع المباشر من تطبيق إنستاباي',
+  },
+  wallet: {
+    labelAr: 'محفظة كاش',
+    labelEn: 'Cash Wallet',
+    placeholder: '010... أو 012... أو رابط دفع',
+    hint: 'رقم محفظة فودافون/اتصالات/أورنج/وي كاش',
+  },
+  bank: {
+    labelAr: 'حساب بنكي',
+    labelEn: 'Bank Account',
+    placeholder: 'بيانات الحساب البنكي',
+    hint: 'إدخال بيانات الحساب البنكي للتحويل الفوري',
+  },
+  snapchat: {
+    labelAr: 'سناب شات',
+    labelEn: 'Snapchat',
+    placeholder: 'snapchat.com/add/... أو @username',
+    hint: 'أدخل رابط أو يوزر حساب سناب شات',
+  },
+  other: {
+    labelAr: 'رابط مخصص',
+    labelEn: 'Custom Link',
+    placeholder: 'https://...',
+    hint: 'أدخل أي رابط ويب مخصص أو صفحة خارجية',
+  },
+};
+
 export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDelete }: EditQrModalProps) {
   const [selectedType, setSelectedType] = useState<AppType>('website');
   const [targetUrl, setTargetUrl] = useState('');
@@ -134,6 +209,45 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       : Date.now();
     const nextDate = new Date(base + days * 24 * 60 * 60 * 1000).toISOString();
     setExpiresAt(nextDate);
+  };
+
+  const handleSelectPlatform = (newType: AppType) => {
+    if (newType === selectedType) return;
+
+    setSelectedType(newType);
+
+    // If switching back to the card's originally saved platform, restore its saved values.
+    // If switching to a new/different platform, completely purge and clear all fields clean!
+    if (record && newType === (record.app_type || 'website')) {
+      const origUrl = record.target_url || '';
+      setTargetUrl(origUrl);
+      if (newType === 'bank' || origUrl.startsWith('bank://')) {
+        const decoded = decodeBankDetails(origUrl);
+        if (decoded) {
+          setBankName(decoded.bankName || EGYPTIAN_BANKS[0]);
+          setAccountNumber(decoded.accountNumber || '');
+          setAccountName(decoded.accountName || '');
+          setIban(decoded.iban || '');
+          setBankNotes(decoded.notes || '');
+        } else {
+          setAccountNumber(origUrl.replace(/^https?:\/\//, ''));
+        }
+      } else if (newType === 'wallet') {
+        let clean = origUrl;
+        if (clean.startsWith('tel:*9*7*')) {
+          clean = clean.replace('tel:*9*7*', '').replace('#', '').replace('%23', '');
+        }
+        setWalletPhone(clean);
+      }
+    } else {
+      // Switching to a new/different platform -> PURGE ALL OLD VALUES
+      setTargetUrl('');
+      setWalletPhone('');
+      setAccountNumber('');
+      setAccountName('');
+      setIban('');
+      setBankNotes('');
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -338,9 +452,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                   <button
                     key={p.type}
                     type="button"
-                    onClick={() => {
-                      setSelectedType(p.type);
-                    }}
+                    onClick={() => handleSelectPlatform(p.type)}
                     className={`flex items-center gap-2.5 p-3 rounded-2xl border text-right transition cursor-pointer ${
                       isSelected
                         ? 'bg-[#1e1c12] text-amber-300 border-amber-400 shadow-[0_0_20px_rgba(250,204,21,0.25)] ring-2 ring-amber-400 font-black'
@@ -375,9 +487,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                   <button
                     key={p.type}
                     type="button"
-                    onClick={() => {
-                      setSelectedType(p.type);
-                    }}
+                    onClick={() => handleSelectPlatform(p.type)}
                     className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border text-xs font-semibold transition gap-1.5 cursor-pointer ${
                       isSelected
                         ? 'bg-[#1e1c12] text-amber-300 border-amber-400 shadow-[0_0_20px_rgba(250,204,21,0.25)] ring-2 ring-amber-400 font-black'
@@ -471,19 +581,44 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           {/* B. If WALLET selected */}
           {selectedType === 'wallet' && (
             <div className="p-4 bg-gradient-to-br from-amber-500/10 via-yellow-500/5 to-transparent border border-amber-500/30 rounded-2xl space-y-3.5 animate-in fade-in">
-              <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
-                <Wallet className="w-4 h-4 text-amber-400" />
-                <span>رقم المحفظة أو رابط الدفع السريع (فودافون كاش / اتصالات / أورنج / وي):</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
+                  <Wallet className="w-4 h-4 text-amber-400" />
+                  <span>رقم المحفظة أو رابط الدفع السريع (فودافون كاش / اتصالات / أورنج / وي):</span>
+                </div>
+                {walletPhone && (
+                  <button
+                    type="button"
+                    onClick={() => setWalletPhone('')}
+                    className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>مسح</span>
+                  </button>
+                )}
               </div>
-              <input
-                type="text"
-                value={walletPhone}
-                onChange={(e) => setWalletPhone(e.target.value)}
-                placeholder="010... أو 012... أو رابط الدفع https://..."
-                className="w-full px-3.5 py-2.5 bg-black/60 border border-amber-500/30 rounded-xl text-sm font-mono font-bold text-amber-300 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                dir="ltr"
-                required
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={walletPhone}
+                  onChange={(e) => setWalletPhone(e.target.value)}
+                  placeholder="010... أو 012... أو رابط الدفع https://..."
+                  className="w-full pr-3.5 pl-10 py-2.5 bg-black/60 border border-amber-500/30 rounded-xl text-sm font-mono font-bold text-amber-300 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  dir="ltr"
+                  required
+                  autoFocus
+                />
+                {walletPhone && (
+                  <button
+                    type="button"
+                    onClick={() => setWalletPhone('')}
+                    className="absolute left-3 top-3 text-slate-400 hover:text-amber-300 transition cursor-pointer"
+                    title="تفريغ الحقل"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
 
               {/* Real-time detection badge */}
               {walletPhone.trim() ? (
@@ -525,19 +660,44 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           {/* C. If INSTAPAY selected */}
           {selectedType === 'instapay' && (
             <div className="p-4 bg-gradient-to-br from-amber-500/10 via-yellow-500/5 to-transparent border border-amber-500/30 rounded-2xl space-y-3 animate-in fade-in">
-              <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
-                <CreditCard className="w-4 h-4 text-amber-400" />
-                <span>رابط الدفع السريع من إنستاباي InstaPay (إلزامي):</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
+                  <CreditCard className="w-4 h-4 text-amber-400" />
+                  <span>رابط الدفع السريع من إنستاباي InstaPay (إلزامي):</span>
+                </div>
+                {targetUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setTargetUrl('')}
+                    className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>مسح</span>
+                  </button>
+                )}
               </div>
-              <input
-                type="text"
-                value={targetUrl}
-                onChange={(e) => setTargetUrl(e.target.value)}
-                placeholder="https://ipn.eg/S/... (رابط الدفع السريع فقط)"
-                className="w-full px-3.5 py-2.5 bg-black/60 border border-amber-500/30 rounded-xl text-sm font-mono font-bold text-amber-300 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                dir="ltr"
-                required
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={targetUrl}
+                  onChange={(e) => setTargetUrl(e.target.value)}
+                  placeholder="https://ipn.eg/S/... (رابط الدفع السريع فقط)"
+                  className="w-full pr-3.5 pl-10 py-2.5 bg-black/60 border border-amber-500/30 rounded-xl text-sm font-mono font-bold text-amber-300 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  dir="ltr"
+                  required
+                  autoFocus
+                />
+                {targetUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setTargetUrl('')}
+                    className="absolute left-3 top-3 text-slate-400 hover:text-amber-300 transition cursor-pointer"
+                    title="تفريغ الحقل"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
               <p className="text-[11px] text-amber-200/80 leading-relaxed">
                 💡 <strong>طريقة الحصول على الرابط:</strong> افتح تطبيق إنستاباي &gt; اضغط &quot;اطلب دفع&quot; &gt; اضغط &quot;مشاركة الرابط&quot; والصقه هنا ليتم توجيه العميل للدفع في التطبيق فوراً.
               </p>
@@ -545,35 +705,55 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           )}
 
           {/* D. Standard Target URL for other platforms */}
-          {selectedType !== 'bank' && selectedType !== 'wallet' && selectedType !== 'instapay' && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-amber-200/90">
-                  الرابط المستهدف أو الحساب ({currentLinkInfo.appTitleAr}):
-                </label>
-                <span className="text-xs text-amber-400 font-bold">
-                  {currentLinkInfo.appTitleAr}
-                </span>
+          {selectedType !== 'bank' && selectedType !== 'wallet' && selectedType !== 'instapay' && (() => {
+            const currentMeta = PLATFORM_META[selectedType] || PLATFORM_META.website;
+            return (
+              <div className="space-y-2 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-amber-200/90 flex items-center gap-1.5">
+                    <span>الرابط المستهدف أو الحساب</span>
+                    <span className="text-amber-400 font-black">({currentMeta.labelAr} - {currentMeta.labelEn}):</span>
+                  </label>
+                  {targetUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setTargetUrl('')}
+                      className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer transition"
+                      title="مسح وتفريغ الحقل"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>مسح الرابط القديم</span>
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={targetUrl}
+                    onChange={(e) => setTargetUrl(e.target.value)}
+                    placeholder={currentMeta.placeholder}
+                    className="w-full pr-4 pl-10 py-3 bg-black/60 border border-amber-500/30 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400 shadow-inner transition font-mono font-bold"
+                    dir="ltr"
+                    required
+                    autoFocus
+                  />
+                  {targetUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setTargetUrl('')}
+                      className="absolute left-3 top-3.5 text-slate-400 hover:text-amber-300 transition cursor-pointer"
+                      title="تفريغ الحقل"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  {currentMeta.hint}
+                </p>
               </div>
-              <input
-                type="text"
-                value={targetUrl}
-                onChange={(e) => setTargetUrl(e.target.value)}
-                placeholder={
-                  selectedType === 'whatsapp' ? 'رقم الواتساب: 01012345678 أو رابط wa.me/2010...' :
-                  selectedType === 'instagram' ? '@username أو رابط الحساب instagram.com/...' :
-                  selectedType === 'facebook' ? 'facebook.com/yourpage أو رابط البروفايل' :
-                  selectedType === 'telegram' ? 't.me/username أو @channel' :
-                  selectedType === 'tiktok' ? 'tiktok.com/@username' :
-                  selectedType === 'phone' ? 'رقم الاتصال: 01012345678' :
-                  'https://yourwebsite.com'
-                }
-                className="w-full px-3.5 py-3 bg-black/60 border border-amber-500/30 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400 shadow-inner transition font-mono"
-                dir="ltr"
-                required
-              />
-            </div>
-          )}
+            );
+          })()}
 
           {/* Label / Description */}
           <div className="space-y-1.5">
