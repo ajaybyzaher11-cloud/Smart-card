@@ -8,6 +8,7 @@ import { CustomerActivationView } from './views/CustomerActivationView';
 import { SmartRedirectView } from './views/SmartRedirectView';
 import { CardExpiredView } from './views/CardExpiredView';
 import { HomeLandingView } from './views/HomeLandingView';
+import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { QrCodeRecord, PlatformSettings } from './types/qr';
 import { Loader2 } from 'lucide-react';
 
@@ -204,39 +205,48 @@ export default function App() {
   // Route 2: Admin Login
   if (isLoginPath) {
     return (
-      <AdminLoginView
-        onLoginSuccess={() => navigate('/admin')}
-        onNavigateHome={() => navigate('/')}
-      />
+      <>
+        <AdminLoginView
+          onLoginSuccess={() => navigate('/admin')}
+          onNavigateHome={() => navigate('/')}
+        />
+        <PWAInstallBanner />
+      </>
     );
   }
 
   // Route 3: Admin Dashboard (Protected)
   if (isAdminPath) {
     return (
-      <AdminDashboardView
-        onLogout={() => {
-          logoutAdmin();
-          navigate('/admin/login');
-        }}
-        domainUrl={effectiveDomainUrl}
-        onSimulateScan={handleSimulateScan}
-      />
+      <>
+        <AdminDashboardView
+          onLogout={() => {
+            logoutAdmin();
+            navigate('/admin/login');
+          }}
+          domainUrl={effectiveDomainUrl}
+          onSimulateScan={handleSimulateScan}
+        />
+        <PWAInstallBanner />
+      </>
     );
   }
 
   // Route 4: Home Landing View
   return (
-    <HomeLandingView
-      onGoToAdmin={() => {
-        if (isAdminAuthenticated()) {
-          navigate('/admin');
-        } else {
-          navigate('/admin/login');
-        }
-      }}
-      onSimulateScan={handleSimulateScan}
-      domainUrl={effectiveDomainUrl}
-    />
+    <>
+      <HomeLandingView
+        onGoToAdmin={() => {
+          if (isAdminAuthenticated()) {
+            navigate('/admin');
+          } else {
+            navigate('/admin/login');
+          }
+        }}
+        onSimulateScan={handleSimulateScan}
+        domainUrl={effectiveDomainUrl}
+      />
+      <PWAInstallBanner />
+    </>
   );
 }

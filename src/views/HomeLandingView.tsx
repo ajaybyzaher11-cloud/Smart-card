@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { decodeQrFromImageFile, extractQrIdFromUrl, getQrCode, fetchPlatformSettings } from '../lib/qrService';
 import { QrScannerModal } from '../components/QrScannerModal';
+import { PWAHeaderButton } from '../components/PWAInstallBanner';
 import { PlatformSettings } from '../types/qr';
 
 interface HomeLandingViewProps {
@@ -130,6 +131,8 @@ export function HomeLandingView({ onGoToAdmin, onSimulateScan }: HomeLandingView
           </div>
 
           <div className="flex items-center gap-2">
+            <PWAHeaderButton />
+
             <a
               href={getWaLink()}
               target="_blank"

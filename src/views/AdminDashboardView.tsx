@@ -45,6 +45,7 @@ import { EditQrModal } from '../components/EditQrModal';
 import { PrintSheetModal } from '../components/PrintSheetModal';
 import { QrScannerModal } from '../components/QrScannerModal';
 import { DeveloperSettingsModal } from '../components/DeveloperSettingsModal';
+import { PWAHeaderButton } from '../components/PWAInstallBanner';
 import { QrCodeRecord, PlatformSettings } from '../types/qr';
 import { PlatformBrandIcon } from '../components/BrandIcons';
 
@@ -320,6 +321,8 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
 
           {/* Top Actions */}
           <div className="flex items-center gap-2 flex-wrap">
+            <PWAHeaderButton />
+
             {/* Developer Contact & WhatsApp Settings Button */}
             <button
               onClick={() => setIsSettingsModalOpen(true)}
