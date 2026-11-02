@@ -10,6 +10,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+// Enable trust proxy for environments behind reverse proxies (Cloud Run, Vercel, Nginx)
+app.set('trust proxy', 1);
+
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'qr_codes.json');
@@ -37,6 +40,10 @@ const generalApiLimiter = rateLimit({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: {
+    xForwardedForHeader: false,
+    forwardedHeader: false,
+  },
   message: { success: false, error: 'Too many requests, please try again later.' },
 });
 
@@ -45,6 +52,10 @@ const authRateLimiter = rateLimit({
   max: 15,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: {
+    xForwardedForHeader: false,
+    forwardedHeader: false,
+  },
   message: { success: false, error: 'تم تجاوز الحد الأقصى لمحاولات تسجيل الدخول، يرجى المحاولة بعد 15 دقيقة.' },
 });
 
@@ -53,6 +64,10 @@ const bulkRateLimiter = rateLimit({
   max: 40,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: {
+    xForwardedForHeader: false,
+    forwardedHeader: false,
+  },
   message: { success: false, error: 'تم تجاوز الحد المسموح لتوليد الأكواد بالجملة، يرجى المحاولة لاحقاً.' },
 });
 
