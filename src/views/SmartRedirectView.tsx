@@ -21,7 +21,6 @@ import {
   Sparkles
 } from 'lucide-react';
 import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo } from '../lib/deepLinks';
-import { recordQrScan } from '../lib/qrService';
 import { QrCodeRecord } from '../types/qr';
 import { PlatformBrandIcon, WalletProviderIcon } from '../components/BrandIcons';
 
@@ -37,9 +36,6 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
   const linkInfo = processSmartLink(record.target_url || '', record.app_type);
 
   useEffect(() => {
-    // Record scan count authoritatively in Firestore & local cache
-    recordQrScan(record.id);
-
     const isIframe = isRunningInIframe();
     setInIframe(isIframe);
 

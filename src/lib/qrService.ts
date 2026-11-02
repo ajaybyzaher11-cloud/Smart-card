@@ -321,7 +321,9 @@ export async function activateQrCode(
     app_type: smartLink.appType,
     updated_at: now.toISOString(),
     created_at: existing?.created_at || now.toISOString(),
-    total_scans: 1,
+    total_scans: (existing && existing.is_active && existing.total_scans !== undefined) 
+      ? existing.total_scans 
+      : 0,
     expires_at,
     subscription_months,
   };
@@ -607,13 +609,48 @@ export function subscribeToSingleQrCode(
 }
 
 /**
- * Record a scan count authoritatively in Firestore & local cache
+ * Record a scan count authoritatively in Firestore & local cache.
+ * CRITICAL RULE: NEVER count scans before activation (is_active: false), even if scanned 1,000,000 times!
+ * Only counts once per scan event, debounced against duplicate reloads/renders.
  */
 export async function recordQrScan(id: string): Promise<void> {
   const cleanId = id.trim();
   if (!cleanId) return;
 
-  // 1. Direct Firestore atomic increment with setDoc merge (bulletproof on Vercel)
+  // 1. Session / navigation deduplication: prevent double-counting on browser reload or re-renders
+  if (typeof window !== 'undefined') {
+    const sessionKey = `scanned_session_${cleanId}`;
+    const lastScannedTime = sessionStorage.getItem(sessionKey);
+    const now = Date.now();
+    if (lastScannedTime && (now - parseInt(lastScannedTime, 10)) < 30000) {
+      // Debounce: already counted within 30 seconds on this device/session
+      return;
+    }
+    sessionStorage.setItem(sessionKey, now.toString());
+  }
+
+  // 2. Strict check: verify the card is actually active before incrementing!
+  const cache = getLocalCache();
+  const cached = cache[cleanId];
+  if (cached && !cached.is_active) {
+    // Card is not active yet: NEVER count scans before activation!
+    return;
+  }
+
+  // Check Firestore document state if not in cache or ambiguous
+  try {
+    const docSnap = await getDoc(doc(db, 'qr_codes', cleanId));
+    if (!docSnap.exists()) return;
+    const data = docSnap.data();
+    if (!data.is_active) {
+      // Card is not active: DO NOT count scan!
+      return;
+    }
+  } catch {
+    if (!cached || !cached.is_active) return;
+  }
+
+  // 3. Direct Firestore atomic increment with setDoc merge (bulletproof on Vercel)
   try {
     const qrRef = doc(db, 'qr_codes', cleanId);
     await setDoc(qrRef, {
@@ -624,7 +661,7 @@ export async function recordQrScan(id: string): Promise<void> {
     console.warn('Firestore scan increment warning:', fsErr);
   }
 
-  // 2. Also notify backend API if available (keepalive preserves request during navigation)
+  // 4. Also notify backend API if available (keepalive preserves request during navigation)
   try {
     fetch(`/api/qr/${encodeURIComponent(cleanId)}/scan`, { 
       method: 'POST',
@@ -632,8 +669,7 @@ export async function recordQrScan(id: string): Promise<void> {
     }).catch(() => {});
   } catch {}
 
-  // 3. Update local cache
-  const cache = getLocalCache();
+  // 5. Update local cache
   if (cache[cleanId]) {
     cache[cleanId].total_scans = (cache[cleanId].total_scans || 0) + 1;
     cache[cleanId].last_scanned_at = new Date().toISOString();

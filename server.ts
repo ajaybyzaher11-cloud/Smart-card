@@ -639,7 +639,7 @@ app.post('/api/qr/:id/activate', (req, res) => {
       app_type: app_type || 'website',
       created_at: now,
       updated_at: now,
-      total_scans: 1,
+      total_scans: 0,
       expires_at: expires_at !== undefined ? expires_at : null,
       subscription_months: subscription_months !== undefined ? subscription_months : 1,
     };

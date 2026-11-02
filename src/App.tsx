@@ -80,12 +80,18 @@ export default function App() {
 
   const [isResolvingQr, setIsResolvingQr] = useState<boolean>(Boolean(isQrScanPath && qrIdFromPath));
   const hasRecordedScanRef = useRef<boolean>(false);
+  const alreadyScannedOnServer = searchParams.get('scanned') === '1';
 
   // Load QR record when accessing /q/:id, record scan count LIVE, and instant redirect
   useEffect(() => {
     if (qrIdFromPath) {
       let isMounted = true;
       setIsResolvingQr(true);
+
+      // If already recorded on server (api/redirect.ts) or activation flow, do not double-record on client
+      if (alreadyScannedOnServer || activateIdFromQuery) {
+        hasRecordedScanRef.current = true;
+      }
 
       const fetchPromise = getQrCode(qrIdFromPath);
       const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
@@ -97,8 +103,9 @@ export default function App() {
           if (record) {
             setActiveRecord(record);
 
-            // If active: increment scan count LIVE in Firestore!
-            if (record.is_active && !hasRecordedScanRef.current) {
+            // CRITICAL RULE: NEVER count scans before activation (record.is_active must be true)
+            // AND only record if not already recorded by the serverless redirect handler
+            if (record.is_active && !hasRecordedScanRef.current && !alreadyScannedOnServer && !activateIdFromQuery) {
               hasRecordedScanRef.current = true;
 
               // Check if not expired and direct link:
