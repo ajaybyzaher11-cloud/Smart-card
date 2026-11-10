@@ -10,7 +10,8 @@ import {
   Check,
   User,
   Phone,
-  ShieldCheck
+  ShieldCheck,
+  X
 } from 'lucide-react';
 import { activateQrCode } from '../lib/qrService';
 import { 
@@ -516,43 +517,91 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                           </div>
 
                           {/* Field 1: Phone Number */}
-                          <div className="space-y-1">
+                          <div className="space-y-1.5">
                             <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                              <span className="flex items-center gap-1.5">
+                              <span className="flex items-center gap-1.5 text-amber-200">
                                 <Phone className="w-3.5 h-3.5 text-amber-400" />
                                 <span>رقم هاتف المحفظة (إلزامي):</span>
+                                <span className="text-amber-400 font-mono font-black">({activeMeta.prefix})</span>
                               </span>
-                              <span className="text-[10px] text-slate-500 font-mono">
-                                يبدأ بـ ({activeMeta.prefix})
-                              </span>
+                              {item.phone && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleWalletPhoneChange(index, '')}
+                                  className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer"
+                                >
+                                  <X className="w-3 h-3" />
+                                  <span>مسح</span>
+                                </button>
+                              )}
                             </div>
-                            <input
-                              type="tel"
-                              value={item.phone}
-                              onChange={(e) => handleWalletPhoneChange(index, e.target.value)}
-                              placeholder={`مثال: ${activeMeta.prefix}12345678`}
-                              className="w-full px-3.5 py-2.5 bg-black/70 border border-amber-500/20 rounded-xl text-xs font-mono font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
-                              dir="ltr"
-                              required
-                            />
+                            <div className="relative">
+                              <input
+                                type="tel"
+                                value={item.phone}
+                                onChange={(e) => handleWalletPhoneChange(index, e.target.value)}
+                                placeholder={`مثال: ${activeMeta.prefix}xxxxxxx`}
+                                className="w-full pr-3.5 pl-10 py-2.5 bg-black/70 border border-amber-500/30 rounded-xl text-xs font-mono font-black text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
+                                dir="ltr"
+                                required
+                              />
+                              {item.phone && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleWalletPhoneChange(index, '')}
+                                  className="absolute left-3 top-2.5 text-slate-400 hover:text-amber-300 transition"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Quick Prefix buttons */}
+                            <div className="flex items-center gap-1.5 pt-1">
+                              <span className="text-[10px] text-slate-400 font-bold">بادئات سريعة:</span>
+                              {['010', '011', '012', '015'].map((pfx) => (
+                                <button
+                                  key={pfx}
+                                  type="button"
+                                  onClick={() => {
+                                    const currentDigits = item.phone.replace(/^(010|011|012|015)/, '');
+                                    handleWalletPhoneChange(index, `${pfx}${currentDigits}`);
+                                  }}
+                                  className="px-2 py-0.5 bg-white/5 hover:bg-amber-400 hover:text-black rounded text-[10px] font-mono font-bold text-slate-300 border border-white/10 transition"
+                                >
+                                  {pfx}
+                                </button>
+                              ))}
+                            </div>
                           </div>
 
-                          {/* Field 2: Owner Name (As requested: works for 1, 2, 3, or 4 wallets!) */}
-                          <div className="space-y-1">
+                          {/* Field 2: Owner Name (Works for 1, 2, 3, or 4 wallets!) */}
+                          <div className="space-y-1.5 pt-1">
                             <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                              <span className="flex items-center gap-1.5">
+                              <span className="flex items-center gap-1.5 text-amber-200/90">
                                 <User className="w-3.5 h-3.5 text-amber-400" />
-                                <span>اسم صاحب المحفظة (يظهر للعميل عند التحويل):</span>
+                                <span>اسم صاحب المحفظة / المستفيد (يظهر للعميل عند التحويل):</span>
                               </span>
                               <span className="text-[10px] text-amber-300/80">اختياري</span>
                             </div>
-                            <input
-                              type="text"
-                              value={item.ownerName}
-                              onChange={(e) => handleWalletOwnerChange(index, e.target.value)}
-                              placeholder="مثال: أحمد محمد علي"
-                              className="w-full px-3.5 py-2.5 bg-black/70 border border-amber-500/20 rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
-                            />
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={item.ownerName}
+                                onChange={(e) => handleWalletOwnerChange(index, e.target.value)}
+                                placeholder={index === 0 ? 'مثال: أحمد محمد علي (فودافون كاش)' : `مثال: اسم صاحب محفظة ${activeMeta.nameAr}`}
+                                className="w-full pr-3.5 pl-8 py-2.5 bg-black/70 border border-amber-500/20 rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
+                              />
+                              {item.ownerName && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleWalletOwnerChange(index, '')}
+                                  className="absolute left-2.5 top-2.5 text-slate-400 hover:text-amber-300"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </div>
 
                           {/* Operator Visual Confirmation */}
