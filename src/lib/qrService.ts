@@ -2,7 +2,7 @@ import QRCode from 'qrcode';
 import jsQR from 'jsqr';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, writeBatch, increment, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
-import { AppType, QrCodeRecord, PlatformSettings } from '../types/qr';
+import { AppType, QrCodeRecord, PlatformSettings, WalletItem } from '../types/qr';
 import { processSmartLink } from './deepLinks';
 import { authFetch } from './auth';
 
@@ -295,7 +295,8 @@ export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
 export async function activateQrCode(
   id: string,
   rawInput: string,
-  preferredType?: AppType
+  preferredType?: AppType,
+  wallets?: WalletItem[]
 ): Promise<{ success: boolean; error?: string; record?: QrCodeRecord }> {
   const smartLink = processSmartLink(rawInput, preferredType);
   const now = new Date();
@@ -312,7 +313,7 @@ export async function activateQrCode(
 
   const effectiveTargetUrl = (smartLink.isWalletCard && smartLink.walletPhone)
     ? smartLink.walletPhone
-    : (smartLink.schemeUrl || smartLink.fallbackUrl);
+    : (smartLink.schemeUrl || smartLink.fallbackUrl || rawInput.trim());
 
   const updatedRecord: QrCodeRecord = {
     id,
@@ -326,6 +327,7 @@ export async function activateQrCode(
       : 0,
     expires_at,
     subscription_months,
+    ...(wallets && wallets.length > 0 ? { wallets } : {}),
   };
 
   // 1. Direct Cloud Firestore save with setDoc merge
@@ -345,6 +347,7 @@ export async function activateQrCode(
         app_type: smartLink.appType,
         expires_at,
         subscription_months,
+        wallets: wallets || [],
       }),
     }).catch(() => {});
   } catch {}
@@ -368,7 +371,8 @@ export async function adminUpdateQrCode(
   preferredType?: AppType,
   label?: string,
   expiresAt?: string | null,
-  subscriptionMonths?: number
+  subscriptionMonths?: number,
+  wallets?: WalletItem[]
 ): Promise<{ success: boolean; record?: QrCodeRecord }> {
   const smartLink = processSmartLink(rawTargetUrl, preferredType);
   const effectiveTargetUrl = (smartLink.isWalletCard && smartLink.walletPhone)
@@ -393,6 +397,7 @@ export async function adminUpdateQrCode(
     expires_at: expiresAt !== undefined ? expiresAt : current.expires_at,
     subscription_months: subscriptionMonths !== undefined ? subscriptionMonths : current.subscription_months,
     updated_at: new Date().toISOString(),
+    ...(wallets !== undefined ? { wallets } : (current.wallets ? { wallets: current.wallets } : {})),
   };
 
   // 1. ALWAYS write to Cloud Firestore with setDoc merge (Primary source of truth for Vercel & Production)
@@ -413,6 +418,7 @@ export async function adminUpdateQrCode(
         label,
         expires_at: expiresAt,
         subscription_months: subscriptionMonths,
+        wallets: wallets !== undefined ? wallets : current.wallets,
       }),
     });
   } catch (err) {

@@ -2,12 +2,15 @@ import { useState } from 'react';
 import { 
   Sparkles, 
   CheckCircle2, 
-  AlertTriangle,
+  AlertTriangle, 
   Loader2, 
   Building2, 
-  Wallet,
-  ArrowRight,
-  Check
+  Wallet, 
+  ArrowRight, 
+  Check,
+  User,
+  Phone,
+  ShieldCheck
 } from 'lucide-react';
 import { activateQrCode } from '../lib/qrService';
 import { 
@@ -21,13 +24,20 @@ import {
   formatTelegramTargetUrl,
   formatSnapchatTargetUrl
 } from '../lib/deepLinks';
-import { AppType, QrCodeRecord } from '../types/qr';
+import { AppType, QrCodeRecord, WalletItem, WalletProvider } from '../types/qr';
 import { PlatformBrandIcon, WalletProviderIcon } from '../components/BrandIcons';
 
 interface CustomerActivationViewProps {
   qrId: string;
   onActivated: (updatedRecord: QrCodeRecord) => void;
 }
+
+const WALLET_PROVIDERS: Array<{ id: WalletProvider; nameAr: string; nameEn: string; prefix: string; color: string }> = [
+  { id: 'vodafone', nameAr: 'فودافون كاش', nameEn: 'Vodafone Cash', prefix: '010', color: 'border-red-500/40 text-red-400 bg-red-500/10' },
+  { id: 'orange', nameAr: 'أورانج كاش', nameEn: 'Orange Cash', prefix: '012', color: 'border-orange-500/40 text-orange-400 bg-orange-500/10' },
+  { id: 'etisalat', nameAr: 'اتصالات كاش', nameEn: 'Etisalat Cash', prefix: '011', color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' },
+  { id: 'we', nameAr: 'وي باي (WE Pay)', nameEn: 'WE Pay', prefix: '015', color: 'border-purple-500/40 text-purple-400 bg-purple-500/10' },
+];
 
 export function CustomerActivationView({ qrId, onActivated }: CustomerActivationViewProps) {
   const [selectedType, setSelectedType] = useState<AppType>('whatsapp');
@@ -38,6 +48,45 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activatedRecord, setActivatedRecord] = useState<QrCodeRecord | null>(null);
+
+  // Multi-wallet state (1 to 4 wallets)
+  const [walletCount, setWalletCount] = useState<number>(1);
+  const [wallets, setWallets] = useState<Array<{ phone: string; provider: WalletProvider; ownerName: string }>>([
+    { phone: '', provider: 'vodafone', ownerName: '' },
+    { phone: '', provider: 'orange', ownerName: '' },
+    { phone: '', provider: 'etisalat', ownerName: '' },
+    { phone: '', provider: 'we', ownerName: '' },
+  ]);
+
+  const handleWalletPhoneChange = (index: number, val: string) => {
+    setWallets((prev) => {
+      const next = [...prev];
+      const detected = detectWalletInfo(val);
+      const newProvider = (detected.provider !== 'generic' ? detected.provider : next[index].provider) as WalletProvider;
+      next[index] = {
+        ...next[index],
+        phone: val,
+        provider: newProvider,
+      };
+      return next;
+    });
+  };
+
+  const handleWalletOwnerChange = (index: number, val: string) => {
+    setWallets((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ownerName: val };
+      return next;
+    });
+  };
+
+  const handleWalletProviderChange = (index: number, prov: WalletProvider) => {
+    setWallets((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], provider: prov };
+      return next;
+    });
+  };
 
   const platforms: Array<{ type: AppType; label: string; placeholder: string; example: string }> = [
     { 
@@ -56,7 +105,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
       type: 'wallet', 
       label: 'محفظة كاش', 
       placeholder: '010... أو 012... أو رابط الدفع السريع https://...', 
-      example: 'أدخل رابط الدفع السريع للتحويل الفوري، أو رقم هاتف المحفظة (فودافون، أورانج، اتصالات، وي) لعرض بطاقة التحويل الفاخرة مع اللوجو وزر النسخ.' 
+      example: 'أدخل رقم هاتف المحفظة (فودافون، أورانج، اتصالات، وي) مع إمكانية إضافة حتى 4 محافظ واسم صاحب كل محفظة.' 
     },
     { 
       type: 'bank', 
@@ -108,6 +157,8 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
     e.preventDefault();
 
     let valueToSave = rawInput.trim();
+    let activeWalletsToSave: WalletItem[] | undefined = undefined;
+
     if (selectedType === 'bank') {
       if (!accountNumber.trim()) {
         setErrorMsg('يرجى كتابة رقم الحساب البنكي.');
@@ -118,6 +169,35 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
         accountNumber: accountNumber.trim(),
         accountName: accountName.trim(),
       });
+    } else if (selectedType === 'wallet') {
+      const activeList: WalletItem[] = [];
+      for (let i = 0; i < walletCount; i++) {
+        const item = wallets[i];
+        const trimmedPhone = item.phone.trim();
+        if (!trimmedPhone) {
+          setErrorMsg(walletCount === 1 ? 'يرجى إدخال رقم هاتف المحفظة.' : `يرجى إدخال رقم المحفظة رقم ${i + 1}.`);
+          return;
+        }
+
+        // Check if quick pay url
+        if (isQuickPayUrl(trimmedPhone)) {
+          activeList.push({
+            phone: trimmedPhone,
+            provider: item.provider || 'generic',
+            ownerName: item.ownerName?.trim() || '',
+          });
+        } else {
+          const detected = detectWalletInfo(trimmedPhone);
+          activeList.push({
+            phone: detected.cleanPhone || trimmedPhone,
+            provider: item.provider || detected.provider,
+            ownerName: item.ownerName?.trim() || '',
+          });
+        }
+      }
+
+      activeWalletsToSave = activeList;
+      valueToSave = activeList[0].phone;
     } else if (selectedType === 'instapay') {
       if (!valueToSave) {
         setErrorMsg('يرجى إدخال رابط الدفع السريع من تطبيق إنستاباي.');
@@ -132,15 +212,6 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
         valueToSave = `https://${valueToSave}`;
       } else if (!valueToSave.startsWith('http://') && !valueToSave.startsWith('https://')) {
         valueToSave = `https://${valueToSave}`;
-      }
-    } else if (selectedType === 'wallet') {
-      if (!valueToSave) {
-        setErrorMsg('يرجى إدخال رقم هاتف المحفظة أو رابط الدفع السريع.');
-        return;
-      }
-      if (!isQuickPayUrl(valueToSave)) {
-        const detected = detectWalletInfo(valueToSave);
-        valueToSave = detected.cleanPhone;
       }
     } else if (selectedType === 'tiktok') {
       if (!valueToSave) {
@@ -180,22 +251,21 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
     const destinationUrl = smartLink.schemeUrl || smartLink.fallbackUrl;
 
     try {
-      const res = await activateQrCode(qrId, valueToSave, selectedType);
+      const res = await activateQrCode(qrId, valueToSave, selectedType, activeWalletsToSave);
 
       // 1. If bank or wallet phone number: open dedicated card view
-      if (selectedType === 'bank' || (selectedType === 'wallet' && smartLink.isWalletCard)) {
+      if (selectedType === 'bank' || selectedType === 'wallet') {
         if (res.record) {
           setActivatedRecord(res.record);
           onActivated(res.record);
         }
         setTimeout(() => {
-          window.location.href = `/q/${qrId}`;
+          window.location.href = `/?view=${qrId}`;
         }, 500);
         return;
       }
 
-      // 2. For direct redirect (WhatsApp, InstaPay Quick Pay Link, Wallet Payment Link, Instagram, etc.):
-      // Direct instant redirection with zero intermediate screens!
+      // 2. For direct redirect (WhatsApp, InstaPay Quick Pay Link, Instagram, etc.):
       if (destinationUrl) {
         try {
           window.location.replace(destinationUrl);
@@ -225,6 +295,15 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
       setLoading(false);
     }
   };
+
+  // Determine if submit button is disabled
+  const isSubmitDisabled = loading || (
+    selectedType === 'bank' 
+      ? !accountNumber.trim() 
+      : selectedType === 'wallet'
+        ? wallets.slice(0, walletCount).some((w) => !w.phone.trim())
+        : !rawInput.trim()
+  );
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
@@ -258,45 +337,37 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
             <form onSubmit={handleActivate} className="space-y-6">
               {/* Step 1: Platform Selection (Strict Single Select) */}
               <div className="space-y-3">
-                <label className="text-xs font-black text-amber-200 block">
-                  1. اختر المنصة أو البنك:
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-amber-200">1. اختر منصة أو تطبيق الربط (واحد فقط):</span>
+                  <span className="text-[11px] text-amber-400/80 font-bold bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
+                    محدد: {currentPlatformInfo.label}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {platforms.map((p) => {
                      const isSelected = selectedType === p.type;
                      return (
                        <button
                          key={p.type}
                          type="button"
-                         onClick={() => setSelectedType(p.type)}
-                         className={`relative flex flex-col items-center justify-center p-3 rounded-2xl border text-xs font-bold transition-all duration-200 gap-2 cursor-pointer select-none ${
+                         onClick={() => {
+                           setSelectedType(p.type);
+                           setErrorMsg(null);
+                         }}
+                         className={`p-3 rounded-2xl border transition flex flex-col items-center justify-center gap-2 cursor-pointer text-center relative ${
                            isSelected
-                             ? 'bg-[#181822] border-amber-500/30'
-                             : 'bg-[#14141a] text-slate-300 border-white/10 hover:bg-[#1a1a24] hover:border-white/20'
+                             ? 'bg-gradient-to-b from-amber-500/20 to-black border-amber-400 shadow-[0_0_20px_rgba(212,175,55,0.25)] ring-1 ring-amber-400/50'
+                             : 'bg-[#18181b]/70 border-white/10 hover:border-amber-400/40 hover:bg-[#18181b]'
                          }`}
                        >
-                         {/* 3D Animated Icon (Movement applied strictly to logo) */}
-                         <div
-                           className={`w-11 h-11 flex items-center justify-center rounded-xl p-1 transition-all duration-300 ${
-                             isSelected
-                               ? 'animate-icon-alive'
-                               : 'bg-black/40 hover:scale-105'
-                           }`}
-                         >
-                           <PlatformBrandIcon
-                             type={p.type}
-                             className="w-9 h-9"
-                           />
-                         </div>
-
-                         {/* 3D Animated Platform Label (Movement applied strictly to name) */}
-                         <span
-                           className={`text-[11px] font-black truncate w-full text-center transition-all ${
-                             isSelected
-                               ? 'animate-name-alive text-amber-300 drop-shadow-[0_1px_4px_rgba(250,204,21,0.5)]'
-                               : 'text-slate-300'
-                           }`}
-                         >
+                         {isSelected && (
+                           <div className="absolute top-2 left-2 w-4 h-4 rounded-full bg-amber-400 text-black flex items-center justify-center shadow">
+                             <Check className="w-2.5 h-2.5 stroke-[3]" />
+                           </div>
+                         )}
+                         <PlatformBrandIcon type={p.type} className="w-8 h-8" />
+                         <span className={`text-xs font-bold leading-tight ${isSelected ? 'text-amber-300' : 'text-slate-200'}`}>
                            {p.label}
                          </span>
                        </button>
@@ -355,62 +426,149 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                   </div>
                 </div>
               ) : selectedType === 'wallet' ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-xs font-black text-amber-200">
-                    <PlatformBrandIcon type="wallet" className="w-5 h-5" />
-                    <span>2. أدخل رقم المحفظة أو رابط الدفع السريع:</span>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={rawInput}
-                      onChange={(e) => setRawInput(e.target.value)}
-                      placeholder="010... أو 012... أو رابط الدفع https://..."
-                      className="w-full px-4 py-3.5 bg-black/50 border border-amber-500/20 rounded-2xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition font-mono"
-                      dir="ltr"
-                      required
-                      autoFocus
-                    />
+                /* MULTI-WALLET ACTIVATION SECTION */
+                <div className="space-y-4">
+                  {/* Step 2A: Wallet Count Selector */}
+                  <div className="p-4 bg-black/60 border border-amber-500/25 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-black text-amber-200">
+                        <Wallet className="w-4 h-4 text-amber-400" />
+                        <span>2. كم عدد المحافظ التي ترغب بربطها بالكارت؟</span>
+                      </div>
+                      <span className="text-[10px] text-amber-300 font-bold bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
+                        حتى 4 شركات
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      إذا كان لديك أكثر من رقم محفظة كاش (فودافون، أورانج، اتصالات، وي)، اختر العدد لعرض لوجو كل شركة واسم صاحب المحفظة بشكل منفصل:
+                    </p>
+
+                    {/* 4 Segmented Count Buttons */}
+                    <div className="grid grid-cols-4 gap-2 pt-1">
+                      {[1, 2, 3, 4].map((count) => {
+                        const isCountSelected = walletCount === count;
+                        return (
+                          <button
+                            key={count}
+                            type="button"
+                            onClick={() => setWalletCount(count)}
+                            className={`py-2.5 px-1.5 rounded-xl text-xs font-black transition flex flex-col items-center justify-center gap-1 border cursor-pointer ${
+                              isCountSelected
+                                ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-black border-amber-300 shadow-lg shadow-amber-500/25 font-black scale-[1.02]'
+                                : 'bg-[#18181b] text-slate-300 border-white/10 hover:border-amber-400/40 hover:text-white'
+                            }`}
+                          >
+                            <span className="text-sm font-mono font-black">{count}</span>
+                            <span className="text-[10px] opacity-90">
+                              {count === 1 ? 'محفظة واحدة' : count === 2 ? 'محفظتان' : `${count} محافظ`}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  {/* Real-time detection card for wallet */}
-                  {rawInput.trim() ? (
-                    isQuickPayUrl(rawInput) ? (
-                      <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-3 animate-in fade-in">
-                        <div className="w-10 h-10 rounded-xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center flex-shrink-0 text-amber-300">
-                          <Sparkles className="w-5 h-5" />
-                        </div>
-                        <div className="text-right text-xs">
-                          <p className="font-bold text-amber-300">رابط دفع سريع للمحفظة ⚡</p>
-                          <p className="text-[11px] text-slate-300">سيتم تحويل العميل تلقائياً وفورياً إلى هذا الرابط بمجرد مسح الكارت دون أي توقف.</p>
-                        </div>
-                      </div>
-                    ) : (() => {
-                      const detected = detectWalletInfo(rawInput);
+                  {/* Step 2B: Wallet Input Cards */}
+                  <div className="space-y-3.5">
+                    {Array.from({ length: walletCount }).map((_, index) => {
+                      const item = wallets[index];
+                      const detected = detectWalletInfo(item.phone);
+                      const activeProvider = item.provider || (detected.provider !== 'generic' ? detected.provider : 'vodafone');
+                      const activeMeta = WALLET_PROVIDERS.find(p => p.id === activeProvider) || WALLET_PROVIDERS[0];
+
                       return (
-                        <div className="p-3.5 bg-black/60 border border-white/10 rounded-2xl flex items-center gap-3 animate-in fade-in">
-                          <div className="w-18 h-12 rounded-xl bg-black/60 border border-white/10 p-1 flex items-center justify-center flex-shrink-0">
-                            <WalletProviderIcon provider={detected.provider} size={48} className="w-full h-full object-contain max-h-9" />
-                          </div>
-                          <div className="text-right text-xs min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-black text-amber-300 text-sm">{detected.nameAr}</span>
-                              <span className="text-[11px] font-bold text-slate-300">({detected.nameEn})</span>
+                        <div 
+                          key={index} 
+                          className={`p-4 rounded-2xl border transition-all space-y-3 bg-black/50 ${
+                            activeProvider === 'vodafone' ? 'border-red-500/35 shadow-[0_0_20px_rgba(230,0,0,0.1)]' :
+                            activeProvider === 'orange' ? 'border-orange-500/35 shadow-[0_0_20px_rgba(255,121,0,0.1)]' :
+                            activeProvider === 'etisalat' ? 'border-emerald-500/35 shadow-[0_0_20px_rgba(113,158,25,0.1)]' :
+                            'border-purple-500/35 shadow-[0_0_20px_rgba(102,45,145,0.15)]'
+                          }`}
+                        >
+                          {/* Card Header with Provider Logo & Title */}
+                          <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-10 h-10 rounded-xl bg-black/80 border border-white/15 p-1 flex items-center justify-center flex-shrink-0 shadow">
+                                <WalletProviderIcon provider={activeProvider} size={28} className="w-full h-full object-contain" />
+                              </div>
+                              <div>
+                                <span className="text-xs font-black text-white block">
+                                  {walletCount > 1 ? `المحفظة رقم ${index + 1}` : 'بيانات محفظة الكاش'}
+                                </span>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 ${activeMeta.color}`}>
+                                  {activeMeta.nameAr}
+                                </span>
+                              </div>
                             </div>
-                            <p className="text-[11px] text-slate-400 mt-0.5">
-                              سيتم عرض صفحة فاخرة مخصصة بشعار <strong>{detected.companyNameAr}</strong> مع رقمك ({detected.formattedPhone}) وزر لنسخ الرقم بنقرة واحدة.
-                            </p>
+
+                            {/* Provider Quick Switcher */}
+                            <select
+                              value={activeProvider}
+                              onChange={(e) => handleWalletProviderChange(index, e.target.value as WalletProvider)}
+                              className="px-2 py-1 bg-[#09090b] border border-white/15 rounded-lg text-[10px] font-bold text-slate-200 focus:outline-none focus:border-amber-400"
+                            >
+                              <option value="vodafone">فودافون كاش (010)</option>
+                              <option value="orange">أورانج كاش (012)</option>
+                              <option value="etisalat">اتصالات كاش (011)</option>
+                              <option value="we">وي باي (015)</option>
+                            </select>
                           </div>
+
+                          {/* Field 1: Phone Number */}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                              <span className="flex items-center gap-1.5">
+                                <Phone className="w-3.5 h-3.5 text-amber-400" />
+                                <span>رقم هاتف المحفظة (إلزامي):</span>
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                يبدأ بـ ({activeMeta.prefix})
+                              </span>
+                            </div>
+                            <input
+                              type="tel"
+                              value={item.phone}
+                              onChange={(e) => handleWalletPhoneChange(index, e.target.value)}
+                              placeholder={`مثال: ${activeMeta.prefix}12345678`}
+                              className="w-full px-3.5 py-2.5 bg-black/70 border border-amber-500/20 rounded-xl text-xs font-mono font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
+                              dir="ltr"
+                              required
+                            />
+                          </div>
+
+                          {/* Field 2: Owner Name (As requested: works for 1, 2, 3, or 4 wallets!) */}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                              <span className="flex items-center gap-1.5">
+                                <User className="w-3.5 h-3.5 text-amber-400" />
+                                <span>اسم صاحب المحفظة (يظهر للعميل عند التحويل):</span>
+                              </span>
+                              <span className="text-[10px] text-amber-300/80">اختياري</span>
+                            </div>
+                            <input
+                              type="text"
+                              value={item.ownerName}
+                              onChange={(e) => handleWalletOwnerChange(index, e.target.value)}
+                              placeholder="مثال: أحمد محمد علي"
+                              className="w-full px-3.5 py-2.5 bg-black/70 border border-amber-500/20 rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
+                            />
+                          </div>
+
+                          {/* Operator Visual Confirmation */}
+                          {item.phone.trim() && (
+                            <div className="p-2.5 bg-black/40 rounded-xl border border-white/5 flex items-center justify-between text-[11px]">
+                              <span className="text-slate-400">الشركة المحددة:</span>
+                              <span className="font-bold text-white flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                {activeMeta.nameAr} ({activeMeta.nameEn})
+                              </span>
+                            </div>
+                          )}
                         </div>
                       );
-                    })()
-                  ) : (
-                    <div className="p-3 bg-black/40 rounded-xl border border-white/5 text-[11px] text-amber-200/70 leading-relaxed">
-                      💡 <strong>خيارات المحفظة:</strong>
-                      <br />• لو حطيت <strong>رابط دفع سريع</strong> للمحفظة (https://...) هيحول العميل عليه فوراً.
-                      <br />• لو حطيت <strong>رقم الموبايل</strong> (010 فودافون كاش / 012 أورانج كاش / 011 اتصالات كاش / 015 وي باي)، هتظهر صفحة فاخرة فيها اسم المحفظة واللوجو وزرار لنسخ الرقم.
-                    </div>
-                  )}
+                    })}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -442,7 +600,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading || (selectedType === 'bank' ? !accountNumber.trim() : !rawInput.trim())}
+                disabled={isSubmitDisabled}
                 className="w-full py-4 px-6 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 disabled:opacity-40 text-black font-black text-base rounded-2xl shadow-xl shadow-amber-500/25 transition flex items-center justify-center gap-2.5 cursor-pointer"
               >
                 {loading ? (
@@ -453,7 +611,11 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                 ) : (
                   <>
                     <PlatformBrandIcon type={selectedType} className="w-6 h-6" />
-                    <span>تأكيد وتفعيل كارت ({currentPlatformInfo.label}) الآن 🚀</span>
+                    <span>
+                      {selectedType === 'wallet' && walletCount > 1
+                        ? `تأكيد وتفعيل الكارت بـ (${walletCount} محافظ كاش) 🚀`
+                        : `تأكيد وتفعيل كارت (${currentPlatformInfo.label}) الآن 🚀`}
+                    </span>
                   </>
                 )}
               </button>

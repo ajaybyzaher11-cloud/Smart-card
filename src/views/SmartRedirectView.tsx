@@ -18,10 +18,11 @@ import {
   Wallet,
   ArrowRight,
   ShieldCheck,
-  Sparkles
+  Sparkles,
+  User
 } from 'lucide-react';
 import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo } from '../lib/deepLinks';
-import { QrCodeRecord } from '../types/qr';
+import { QrCodeRecord, WalletItem, WalletProvider } from '../types/qr';
 import { PlatformBrandIcon, WalletProviderIcon } from '../components/BrandIcons';
 
 interface SmartRedirectViewProps {
@@ -182,43 +183,203 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     );
   }
 
-  // 2. WALLET VIEW (Vodafone Cash, Etisalat Cash, Orange Cash, WE Pay)
+  // 2. WALLET VIEW (Vodafone Cash, Etisalat Cash, Orange Cash, WE Pay - Single or Multiple Wallets)
   if (linkInfo.isWalletCard || (record.app_type === 'wallet' && linkInfo.isWalletCard !== false)) {
     const rawPhone = linkInfo.walletPhone || linkInfo.displayUrl || record.target_url || '';
-    const detected = detectWalletInfo(rawPhone);
-    const phone = detected.cleanPhone || rawPhone;
+    
+    // Normalize wallets list (fallback to single wallet from target_url if wallets array not present)
+    const activeWallets: WalletItem[] = (record.wallets && record.wallets.length > 0)
+      ? record.wallets
+      : [{
+          phone: rawPhone,
+          provider: (linkInfo.walletProvider || detectWalletInfo(rawPhone).provider || 'vodafone') as WalletProvider,
+          ownerName: '',
+        }];
+
+    const isMultiWallet = activeWallets.length > 1;
+
+    // Helper to get color/style meta per provider
+    const getProviderStyle = (provider: WalletProvider) => {
+      switch (provider) {
+        case 'orange':
+          return {
+            border: 'border-orange-500/40 shadow-[0_0_40px_rgba(255,121,0,0.2)]',
+            badge: 'bg-orange-500/15 text-orange-300 border-orange-500/30',
+            gradient: 'from-orange-200 via-orange-400 to-amber-500',
+            ring: 'ring-orange-400/30',
+          };
+        case 'etisalat':
+          return {
+            border: 'border-emerald-500/40 shadow-[0_0_40px_rgba(113,158,25,0.2)]',
+            badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+            gradient: 'from-emerald-200 via-emerald-400 to-green-500',
+            ring: 'ring-emerald-400/30',
+          };
+        case 'we':
+          return {
+            border: 'border-purple-500/40 shadow-[0_0_40px_rgba(102,45,145,0.25)]',
+            badge: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+            gradient: 'from-purple-200 via-purple-400 to-indigo-400',
+            ring: 'ring-purple-400/30',
+          };
+        case 'vodafone':
+        default:
+          return {
+            border: 'border-red-500/40 shadow-[0_0_40px_rgba(230,0,0,0.2)]',
+            badge: 'bg-red-500/15 text-red-300 border-red-500/30',
+            gradient: 'from-red-200 via-red-400 to-rose-500',
+            ring: 'ring-red-400/30',
+          };
+      }
+    };
+
+    // --- CASE A: MULTI-WALLET VIEW (2, 3, or 4 Wallets) ---
+    if (isMultiWallet) {
+      return (
+        <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
+          <div className="w-full max-w-lg bg-[#121216] border border-amber-500/30 rounded-3xl p-5 sm:p-7 space-y-5 text-center animate-in zoom-in-95 backdrop-blur-2xl shadow-[0_0_50px_rgba(212,175,55,0.12)]">
+            
+            {/* Header with Smart Card Logo */}
+            <div className="space-y-2">
+              <img src="/logo.png" alt="Smart Card" className="w-14 h-14 object-contain mx-auto mb-1 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)]" />
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-400/15 text-amber-300 border border-amber-400/30">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>متاح {activeWallets.length} محافظ كاش للدفع الفوري ⚡</span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-500">
+                محافظ الكاش المتاحة للتحويل
+              </h1>
+              <p className="text-xs text-slate-300">
+                اختر المحفظة التابعة لشبكتك وانسخ الرقم لإتمام عملية التحويل الفوري:
+              </p>
+            </div>
+
+            {/* List of Luxury Wallet Cards */}
+            <div className="space-y-4 text-right">
+              {activeWallets.map((walletItem, idx) => {
+                const detected = detectWalletInfo(walletItem.phone);
+                const prov = walletItem.provider || (detected.provider !== 'generic' ? detected.provider : 'vodafone');
+                const style = getProviderStyle(prov);
+                const isCopied = copiedField === `wallet_${idx}`;
+                const formatted = detected.formattedPhone || walletItem.phone;
+                const companyTitle = detected.companyNameAr || detected.nameAr;
+
+                return (
+                  <div
+                    key={idx}
+                    className={`bg-black/70 border rounded-2xl p-4 sm:p-5 space-y-3.5 transition-all relative overflow-hidden ${style.border}`}
+                  >
+                    {/* Top Row: Brand Logo + Operator Title */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-14 h-14 rounded-xl bg-black/80 border border-white/15 p-1.5 flex items-center justify-center flex-shrink-0 shadow-md">
+                          <WalletProviderIcon provider={prov} size={42} className="w-full h-full object-contain" />
+                        </div>
+                        <div>
+                          <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border mb-0.5 ${style.badge}`}>
+                            <span>{companyTitle}</span>
+                          </div>
+                          <h2 className={`text-base font-black text-transparent bg-clip-text bg-gradient-to-r ${style.gradient}`}>
+                            {detected.nameAr}
+                          </h2>
+                          <p className="text-[11px] font-mono font-bold text-slate-400">
+                            {detected.nameEn}
+                          </p>
+                        </div>
+                      </div>
+
+                      <span className="text-[11px] font-bold text-slate-400 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 font-mono">
+                        #{idx + 1}
+                      </span>
+                    </div>
+
+                    {/* Owner Name Badge (if set) */}
+                    {walletItem.ownerName && (
+                      <div className="flex items-center gap-2 p-2 px-3 bg-amber-400/10 border border-amber-400/25 rounded-xl text-xs text-amber-300">
+                        <User className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                        <span className="font-medium text-slate-300">اسم صاحب المحفظة:</span>
+                        <span className="font-black text-white">{walletItem.ownerName}</span>
+                      </div>
+                    )}
+
+                    {/* Phone Number Box */}
+                    <div className="flex items-center justify-between bg-black/80 border border-amber-500/25 rounded-xl p-3">
+                      <span className="font-mono text-lg sm:text-xl font-black text-amber-300 tracking-wider select-all" dir="ltr">
+                        {formatted}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(walletItem.phone, `wallet_${idx}`)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-black rounded-lg transition shadow-md cursor-pointer ${
+                          isCopied
+                            ? 'bg-emerald-500 text-black'
+                            : 'bg-gradient-to-r from-amber-400 to-yellow-500 text-black hover:from-amber-300 hover:to-amber-400'
+                        }`}
+                      >
+                        {isCopied ? <Check className="w-3.5 h-3.5 text-black" /> : <Copy className="w-3.5 h-3.5 text-black" />}
+                        <span>{isCopied ? 'تم النسخ!' : 'نسخ'}</span>
+                      </button>
+                    </div>
+
+                    {/* Full Primary Action Button for this wallet */}
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(walletItem.phone, `wallet_${idx}`)}
+                      className={`w-full py-3 px-4 text-xs sm:text-sm font-black rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                        isCopied
+                          ? 'bg-emerald-500 hover:bg-emerald-400 text-black ring-2 ring-emerald-300'
+                          : 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black'
+                      }`}
+                    >
+                      {isCopied ? (
+                        <>
+                          <Check className="w-4 h-4 text-black animate-bounce" />
+                          <span>تم نسخ رقم ({detected.nameAr}) بنجاح ✓ (جاهز للصق)</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 text-black" />
+                          <span>نسخ رقم محفظة ({detected.nameAr})</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Clear Transfer Instructions */}
+            <div className="p-3.5 bg-black/40 rounded-2xl border border-white/5 text-right space-y-1.5 text-xs text-slate-400 leading-relaxed">
+              <p className="font-bold text-amber-300 flex items-center gap-1.5">
+                <span>💡</span>
+                <span>طريقة التحويل:</span>
+              </p>
+              <ol className="list-decimal list-inside space-y-1 pr-1 text-slate-300">
+                <li>انسخ رقم المحفظة التابعة لشبكة خطك أعلاه.</li>
+                <li>افتح تطبيق المحفظة الخاص بشركتك (فودافون، أورانج، اتصالات، وي).</li>
+                <li>الصق الرقم وحدد المبلغ وأكّد التحويل.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- CASE B: SINGLE WALLET VIEW (1 Wallet) ---
+    const singleWallet = activeWallets[0];
+    const detected = detectWalletInfo(singleWallet.phone);
+    const phone = detected.cleanPhone || singleWallet.phone;
     const formattedPhone = detected.formattedPhone || phone;
-    const provider = detected.provider || 'vodafone';
+    const provider = singleWallet.provider || (detected.provider !== 'generic' ? detected.provider : 'vodafone');
     const providerNameAr = detected.nameAr;
     const providerNameEn = detected.nameEn;
     const companyName = detected.companyNameAr;
-    let brandBorder = 'border-red-500/40 shadow-[0_0_50px_rgba(230,0,0,0.22)]';
-    let badgeClass = 'bg-red-500/15 text-red-300 border-red-500/30';
-    let brandGradient = 'from-red-200 via-red-400 to-rose-500';
-
-    if (provider === 'orange') {
-      brandBorder = 'border-orange-500/40 shadow-[0_0_50px_rgba(255,121,0,0.22)]';
-      badgeClass = 'bg-orange-500/15 text-orange-300 border-orange-500/30';
-      brandGradient = 'from-orange-200 via-orange-400 to-amber-500';
-    } else if (provider === 'etisalat') {
-      brandBorder = 'border-emerald-500/40 shadow-[0_0_50px_rgba(113,158,25,0.22)]';
-      badgeClass = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
-      brandGradient = 'from-emerald-200 via-emerald-400 to-green-500';
-    } else if (provider === 'we') {
-      brandBorder = 'border-purple-500/40 shadow-[0_0_50px_rgba(102,45,145,0.28)]';
-      badgeClass = 'bg-purple-500/15 text-purple-300 border-purple-500/30';
-      brandGradient = 'from-purple-200 via-purple-400 to-indigo-400';
-    } else if (provider === 'generic') {
-      brandBorder = 'border-amber-500/40 shadow-[0_0_50px_rgba(212,175,55,0.2)]';
-      badgeClass = 'bg-amber-400/15 text-amber-300 border-amber-400/30';
-      brandGradient = 'from-amber-200 via-amber-400 to-yellow-500';
-    }
-
+    const style = getProviderStyle(provider);
     const isCopied = copiedField === 'wallet';
 
     return (
       <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
-        <div className={`w-full max-w-md bg-[#121216] border rounded-3xl p-6 sm:p-8 space-y-6 text-center animate-in zoom-in-95 backdrop-blur-2xl ${brandBorder}`}>
+        <div className={`w-full max-w-md bg-[#121216] border rounded-3xl p-6 sm:p-8 space-y-6 text-center animate-in zoom-in-95 backdrop-blur-2xl ${style.border}`}>
           
           {/* Official Company Logo */}
           <div className="relative inline-block mx-auto">
@@ -229,13 +390,13 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
 
           {/* Provider and Company Titles */}
           <div className="space-y-2">
-            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black border ${badgeClass}`}>
+            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black border ${style.badge}`}>
               <Sparkles className="w-3.5 h-3.5" />
               <span>{companyName}</span>
             </div>
 
             {/* Arabic Wallet Name */}
-            <h1 className={`text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r ${brandGradient}`}>
+            <h1 className={`text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r ${style.gradient}`}>
               {providerNameAr}
             </h1>
 
@@ -243,6 +404,15 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
             <p className="text-xs sm:text-sm font-bold text-slate-300 tracking-wider">
               {providerNameEn}
             </p>
+
+            {/* Owner Name Badge (if set on single wallet) */}
+            {singleWallet.ownerName && (
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-amber-400/15 border border-amber-400/35 rounded-xl text-xs font-bold text-amber-300 mx-auto mt-2">
+                <User className="w-4 h-4 text-amber-400" />
+                <span className="text-slate-300">اسم صاحب المحفظة:</span>
+                <span className="text-white font-black">{singleWallet.ownerName}</span>
+              </div>
+            )}
           </div>
 
           {/* Phone Number Display Box */}
@@ -274,7 +444,7 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
             </div>
           </div>
 
-          {/* Prominent Primary Copy Button - The ONLY action on this screen as requested */}
+          {/* Prominent Primary Copy Button */}
           <div className="space-y-4 pt-1">
             <button
               type="button"

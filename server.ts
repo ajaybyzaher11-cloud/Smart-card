@@ -274,6 +274,7 @@ interface QrRecord {
   total_scans: number;
   expires_at?: string | null;
   subscription_months?: number;
+  wallets?: any[];
 }
 
 function loadDatabase(): Record<string, QrRecord> {
@@ -631,7 +632,7 @@ app.post('/api/qr/bulk', requireAdminAuth, bulkRateLimiter, (req, res) => {
 // Customer First-Scan Activation (Public)
 app.post('/api/qr/:id/activate', (req, res) => {
   const { id } = req.params;
-  const { target_url, app_type, expires_at, subscription_months } = req.body;
+  const { target_url, app_type, expires_at, subscription_months, wallets } = req.body;
 
   if (!target_url) {
     return res.status(400).json({ success: false, error: 'الرجاء كتابة الرابط أو الرقم المطلوب' });
@@ -657,6 +658,7 @@ app.post('/api/qr/:id/activate', (req, res) => {
       total_scans: 0,
       expires_at: expires_at !== undefined ? expires_at : null,
       subscription_months: subscription_months !== undefined ? subscription_months : 1,
+      wallets: Array.isArray(wallets) ? wallets : undefined,
     };
     db[id] = current;
     saveDatabase(db);
@@ -676,6 +678,7 @@ app.post('/api/qr/:id/activate', (req, res) => {
   current.updated_at = now;
   if (expires_at !== undefined) current.expires_at = expires_at;
   if (subscription_months !== undefined) current.subscription_months = subscription_months;
+  if (Array.isArray(wallets)) current.wallets = wallets;
 
   saveDatabase(db);
   res.json({ success: true, data: current });
@@ -684,7 +687,7 @@ app.post('/api/qr/:id/activate', (req, res) => {
 // Admin Exclusive Quick Edit (PROTECTED with requireAdminAuth)
 app.put('/api/qr/:id', requireAdminAuth, (req, res) => {
   const { id } = req.params;
-  const { target_url, app_type, label, expires_at, subscription_months } = req.body;
+  const { target_url, app_type, label, expires_at, subscription_months, wallets } = req.body;
 
   if (target_url && !isSafeUrlScheme(target_url)) {
     return res.status(400).json({ success: false, error: 'الرابط يحتوي على بروتوكول غير آمن' });
@@ -702,6 +705,7 @@ app.put('/api/qr/:id', requireAdminAuth, (req, res) => {
       app_type: app_type || 'website',
       created_at: now,
       total_scans: 0,
+      wallets: Array.isArray(wallets) ? wallets : undefined,
     };
     db[id] = current;
   }
@@ -720,6 +724,7 @@ app.put('/api/qr/:id', requireAdminAuth, (req, res) => {
   if (label !== undefined) current.label = label;
   if (expires_at !== undefined) current.expires_at = expires_at;
   if (subscription_months !== undefined) current.subscription_months = subscription_months;
+  if (Array.isArray(wallets)) current.wallets = wallets;
   current.is_active = true;
   current.updated_at = now;
 

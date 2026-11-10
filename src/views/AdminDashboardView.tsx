@@ -55,9 +55,16 @@ interface AdminDashboardViewProps {
   onSimulateScan: (id: string) => void;
 }
 
-function formatDisplayTarget(url: string | null | undefined, appType?: string): string {
+function formatDisplayTarget(url: string | null | undefined, appType?: string, wallets?: any[]): string {
   if (!url) return '— (غير معين بعد)';
   if (appType === 'wallet') {
+    if (wallets && wallets.length > 1) {
+      const phones = wallets.map((w: any) => w.phone).filter(Boolean).join(' • ');
+      return `${wallets.length} محافظ كاش (${phones})`;
+    }
+    if (wallets && wallets.length === 1 && wallets[0]?.ownerName) {
+      return `محفظة: ${wallets[0].phone} (${wallets[0].ownerName})`;
+    }
     if (url.startsWith('tel:*9*7*')) {
       const num = url.replace('tel:*9*7*', '').replace('#', '').replace('%23', '');
       return num ? `محفظة: ${num}` : 'محفظة كاش';
@@ -782,7 +789,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         )}
 
                         <p className="text-[11px] text-slate-400 truncate" dir="ltr">
-                          {formatDisplayTarget(record.target_url, record.app_type)}
+                          {formatDisplayTarget(record.target_url, record.app_type, record.wallets)}
                         </p>
 
                         {/* Prominent Eye details banner */}
@@ -1005,7 +1012,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         </div>
                       </td>
                       <td className="py-2.5 px-4 font-mono text-slate-400 max-w-xs truncate" dir="ltr">
-                        {formatDisplayTarget(record.target_url, record.app_type)}
+                        {formatDisplayTarget(record.target_url, record.app_type, record.wallets)}
                       </td>
                       <td className="py-2.5 px-4 text-slate-400 text-[11px]">
                         {new Date(record.created_at).toLocaleDateString('ar-EG')}

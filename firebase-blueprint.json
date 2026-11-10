@@ -37,6 +37,10 @@
         "total_scans": {
           "type": "number",
           "description": "Counter of scans"
+        },
+        "wallets": {
+          "type": "array",
+          "description": "List of electronic wallet accounts (phone, provider, ownerName)"
         }
       },
       "required": ["id", "is_active"]
