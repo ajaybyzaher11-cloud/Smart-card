@@ -23,6 +23,20 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
     <script>
+      // Ignore benign Vite dev server WebSocket disconnect notices in iFrame/proxy environments
+      window.addEventListener('error', function(e) {
+        if (e && e.message && (e.message.indexOf('WebSocket') !== -1 || e.message.indexOf('vite') !== -1)) {
+          e.preventDefault && e.preventDefault();
+          e.stopImmediatePropagation && e.stopImmediatePropagation();
+          return true;
+        }
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        if (e && e.reason && e.reason.message && e.reason.message.indexOf('WebSocket') !== -1) {
+          e.preventDefault && e.preventDefault();
+          e.stopImmediatePropagation && e.stopImmediatePropagation();
+        }
+      });
       (function() {
         try {
           var p = window.location.pathname || '';
