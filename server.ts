@@ -899,14 +899,9 @@ app.get('/q/:id', async (req, res, next) => {
       return next();
     }
 
-    if (record.app_type === 'wallet') {
-      const isWebPaymentLink = (/^https?:\/\//i.test(target) || target.startsWith('www.') || target.includes('.eg/') || target.includes('.com/')) && !target.startsWith('intent:');
-      if (!isWebPaymentLink) {
-        return next();
-      }
-      if (!target.startsWith('http://') && !target.startsWith('https://')) {
-        target = `https://${target}`;
-      }
+    // Wallet: ALWAYS route to frontend SPA so customer sees luxury card screen with company logos & quick pay buttons
+    if (record.app_type === 'wallet' || record.app_type === 'bank') {
+      return next();
     }
 
     // Normalize schemes and platforms

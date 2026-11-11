@@ -21,7 +21,7 @@ import {
   Sparkles,
   User
 } from 'lucide-react';
-import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo } from '../lib/deepLinks';
+import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo, isQuickPayUrl } from '../lib/deepLinks';
 import { QrCodeRecord, WalletItem, WalletProvider } from '../types/qr';
 import { PlatformBrandIcon, WalletProviderIcon } from '../components/BrandIcons';
 
@@ -257,12 +257,34 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
             {/* List of Luxury Wallet Cards */}
             <div className="space-y-4 text-right">
               {activeWallets.map((walletItem, idx) => {
-                const detected = detectWalletInfo(walletItem.phone);
-                const prov = walletItem.provider || (detected.provider !== 'generic' ? detected.provider : 'vodafone');
+                const isUrl = isQuickPayUrl(walletItem.phone);
+                const detected = isUrl ? null : detectWalletInfo(walletItem.phone);
+                const prov = walletItem.provider || (detected ? detected.provider : 'vodafone');
                 const style = getProviderStyle(prov);
                 const isCopied = copiedField === `wallet_${idx}`;
-                const formatted = detected.formattedPhone || walletItem.phone;
-                const companyTitle = detected.companyNameAr || detected.nameAr;
+                const formatted = detected?.formattedPhone || walletItem.phone;
+                const companyTitle = detected?.companyNameAr || (
+                  prov === 'vodafone' ? 'فودافون مصر - Vodafone Egypt' :
+                  prov === 'orange' ? 'أورانج مصر - Orange Egypt' :
+                  prov === 'etisalat' ? 'إي آند مصر (اتصالات) - e& Egypt' :
+                  prov === 'we' ? 'المصرية للاتصالات (WE Pay)' : 'محفظة كاش'
+                );
+                const providerNameAr = detected?.nameAr || (
+                  prov === 'vodafone' ? 'ڨودافون كاش' :
+                  prov === 'orange' ? 'أورانج كاش' :
+                  prov === 'etisalat' ? 'اتصالات كاش' :
+                  prov === 'we' ? 'وي باي (WE Pay)' : 'محفظة كاش'
+                );
+                const providerNameEn = detected?.nameEn || (
+                  prov === 'vodafone' ? 'Vodafone Cash' :
+                  prov === 'orange' ? 'Orange Cash' :
+                  prov === 'etisalat' ? 'Etisalat Cash' :
+                  prov === 'we' ? 'WE Pay' : 'Cash Wallet'
+                );
+                let cleanTargetUrl = walletItem.phone.trim();
+                if (isUrl && !cleanTargetUrl.startsWith('http://') && !cleanTargetUrl.startsWith('https://')) {
+                  cleanTargetUrl = `https://${cleanTargetUrl}`;
+                }
 
                 return (
                   <div
@@ -280,10 +302,10 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                             <span>{companyTitle}</span>
                           </div>
                           <h2 className={`text-base font-black text-transparent bg-clip-text bg-gradient-to-r ${style.gradient}`}>
-                            {detected.nameAr}
+                            {providerNameAr}
                           </h2>
                           <p className="text-[11px] font-mono font-bold text-slate-400">
-                            {detected.nameEn}
+                            {providerNameEn}
                           </p>
                         </div>
                       </div>
@@ -302,47 +324,85 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                       </div>
                     )}
 
-                    {/* Phone Number Box */}
-                    <div className="flex items-center justify-between bg-black/80 border border-amber-500/25 rounded-xl p-3">
-                      <span className="font-mono text-lg sm:text-xl font-black text-amber-300 tracking-wider select-all" dir="ltr">
-                        {formatted}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(walletItem.phone, `wallet_${idx}`)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-black rounded-lg transition shadow-md cursor-pointer ${
-                          isCopied
-                            ? 'bg-emerald-500 text-black'
-                            : 'bg-gradient-to-r from-amber-400 to-yellow-500 text-black hover:from-amber-300 hover:to-amber-400'
-                        }`}
-                      >
-                        {isCopied ? <Check className="w-3.5 h-3.5 text-black" /> : <Copy className="w-3.5 h-3.5 text-black" />}
-                        <span>{isCopied ? 'تم النسخ!' : 'نسخ'}</span>
-                      </button>
-                    </div>
+                    {isUrl ? (
+                      /* Quick Pay Link Case */
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between bg-black/80 border border-amber-500/25 rounded-xl p-3">
+                          <div className="flex items-center gap-2 min-w-0 flex-1 pl-2">
+                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                            <span className="font-mono text-xs sm:text-sm font-bold text-amber-300 truncate" dir="ltr">
+                              {cleanTargetUrl.replace(/^https?:\/\//, '')}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(cleanTargetUrl, `wallet_${idx}`)}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-black rounded-lg transition shadow-md cursor-pointer flex-shrink-0 mr-2 ${
+                              isCopied
+                                ? 'bg-emerald-500 text-black'
+                                : 'bg-white/10 hover:bg-white/20 text-amber-300 border border-amber-400/30'
+                            }`}
+                          >
+                            {isCopied ? <Check className="w-3.5 h-3.5 text-black" /> : <Copy className="w-3.5 h-3.5 text-amber-400" />}
+                            <span>{isCopied ? 'تم النسخ!' : 'نسخ الرابط'}</span>
+                          </button>
+                        </div>
 
-                    {/* Full Primary Action Button for this wallet */}
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(walletItem.phone, `wallet_${idx}`)}
-                      className={`w-full py-3 px-4 text-xs sm:text-sm font-black rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                        isCopied
-                          ? 'bg-emerald-500 hover:bg-emerald-400 text-black ring-2 ring-emerald-300'
-                          : 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black'
-                      }`}
-                    >
-                      {isCopied ? (
-                        <>
-                          <Check className="w-4 h-4 text-black animate-bounce" />
-                          <span>تم نسخ رقم ({detected.nameAr}) بنجاح ✓ (جاهز للصق)</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4 text-black" />
-                          <span>نسخ رقم محفظة ({detected.nameAr})</span>
-                        </>
-                      )}
-                    </button>
+                        {/* Big Action Button to Open Payment Link */}
+                        <a
+                          href={cleanTargetUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full py-3.5 px-4 text-xs sm:text-sm font-black rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/20"
+                        >
+                          <ExternalLink className="w-4 h-4 text-black" />
+                          <span>الانتقال للدفع السريع الآن بـ ({providerNameAr}) ⚡</span>
+                        </a>
+                      </div>
+                    ) : (
+                      /* Phone Number Case */
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between bg-black/80 border border-amber-500/25 rounded-xl p-3">
+                          <span className="font-mono text-lg sm:text-xl font-black text-amber-300 tracking-wider select-all" dir="ltr">
+                            {formatted}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(walletItem.phone, `wallet_${idx}`)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-black rounded-lg transition shadow-md cursor-pointer ${
+                              isCopied
+                                ? 'bg-emerald-500 text-black'
+                                : 'bg-gradient-to-r from-amber-400 to-yellow-500 text-black hover:from-amber-300 hover:to-amber-400'
+                            }`}
+                          >
+                            {isCopied ? <Check className="w-3.5 h-3.5 text-black" /> : <Copy className="w-3.5 h-3.5 text-black" />}
+                            <span>{isCopied ? 'تم النسخ!' : 'نسخ'}</span>
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(walletItem.phone, `wallet_${idx}`)}
+                          className={`w-full py-3 px-4 text-xs sm:text-sm font-black rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                            isCopied
+                              ? 'bg-emerald-500 hover:bg-emerald-400 text-black ring-2 ring-emerald-300'
+                              : 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black'
+                          }`}
+                        >
+                          {isCopied ? (
+                            <>
+                              <Check className="w-4 h-4 text-black animate-bounce" />
+                              <span>تم نسخ رقم ({providerNameAr}) بنجاح ✓ (جاهز للصق)</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4 text-black" />
+                              <span>نسخ رقم محفظة ({providerNameAr})</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -352,12 +412,12 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
             <div className="p-3.5 bg-black/40 rounded-2xl border border-white/5 text-right space-y-1.5 text-xs text-slate-400 leading-relaxed">
               <p className="font-bold text-amber-300 flex items-center gap-1.5">
                 <span>💡</span>
-                <span>طريقة التحويل:</span>
+                <span>طريقة التحويل والدفع:</span>
               </p>
               <ol className="list-decimal list-inside space-y-1 pr-1 text-slate-300">
-                <li>انسخ رقم المحفظة التابعة لشبكة خطك أعلاه.</li>
-                <li>افتح تطبيق المحفظة الخاص بشركتك (فودافون، أورانج، اتصالات، وي).</li>
-                <li>الصق الرقم وحدد المبلغ وأكّد التحويل.</li>
+                <li>اختر المحفظة التابعة لشبكة خطك أعلاه.</li>
+                <li>إذا كانت رابط دفع سريع: اضغط على زر <strong>الانتقال للدفع السريع</strong> ليفتح لك صفحة الدفع فوراً.</li>
+                <li>إذا كانت رقم هاتف: اضغط على <strong>نسخ الرقم</strong> ثم افتح تطبيق المحفظة وأتم التحويل.</li>
               </ol>
             </div>
           </div>
@@ -367,15 +427,35 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
 
     // --- CASE B: SINGLE WALLET VIEW (1 Wallet) ---
     const singleWallet = activeWallets[0];
-    const detected = detectWalletInfo(singleWallet.phone);
-    const phone = detected.cleanPhone || singleWallet.phone;
-    const formattedPhone = detected.formattedPhone || phone;
-    const provider = singleWallet.provider || (detected.provider !== 'generic' ? detected.provider : 'vodafone');
-    const providerNameAr = detected.nameAr;
-    const providerNameEn = detected.nameEn;
-    const companyName = detected.companyNameAr;
+    const isUrl = isQuickPayUrl(singleWallet.phone);
+    const detected = isUrl ? null : detectWalletInfo(singleWallet.phone);
+    const phone = detected?.cleanPhone || singleWallet.phone;
+    const formattedPhone = detected?.formattedPhone || phone;
+    const provider = singleWallet.provider || (detected?.provider !== 'generic' ? detected?.provider : 'vodafone');
+    const providerNameAr = detected?.nameAr || (
+      provider === 'vodafone' ? 'ڨودافون كاش' :
+      provider === 'orange' ? 'أورانج كاش' :
+      provider === 'etisalat' ? 'اتصالات كاش' :
+      provider === 'we' ? 'وي باي (WE Pay)' : 'محفظة كاش'
+    );
+    const providerNameEn = detected?.nameEn || (
+      provider === 'vodafone' ? 'Vodafone Cash' :
+      provider === 'orange' ? 'Orange Cash' :
+      provider === 'etisalat' ? 'Etisalat Cash' :
+      provider === 'we' ? 'WE Pay' : 'Cash Wallet'
+    );
+    const companyName = detected?.companyNameAr || (
+      provider === 'vodafone' ? 'فودافون مصر - Vodafone Egypt' :
+      provider === 'orange' ? 'أورانج مصر - Orange Egypt' :
+      provider === 'etisalat' ? 'إي آند مصر (اتصالات) - e& Egypt' :
+      provider === 'we' ? 'المصرية للاتصالات (WE Pay)' : 'محفظة كاش'
+    );
     const style = getProviderStyle(provider);
     const isCopied = copiedField === 'wallet';
+    let cleanTargetUrl = singleWallet.phone.trim();
+    if (isUrl && !cleanTargetUrl.startsWith('http://') && !cleanTargetUrl.startsWith('https://')) {
+      cleanTargetUrl = `https://${cleanTargetUrl}`;
+    }
 
     return (
       <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
@@ -415,72 +495,119 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
             )}
           </div>
 
-          {/* Phone Number Display Box */}
-          <div className="bg-black/60 border border-white/10 rounded-2xl p-4 sm:p-5 space-y-3">
-            <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-              <span>رقم المحفظة لتحويل الأموال:</span>
-              <span className="text-[10px] text-amber-400/90 font-bold">جاهز للتحويل الفوري</span>
-            </div>
+          {isUrl ? (
+            /* Quick Pay Link Case */
+            <div className="space-y-4">
+              <div className="bg-black/60 border border-white/10 rounded-2xl p-4 sm:p-5 space-y-3">
+                <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
+                  <span>رابط الدفع السريع المباشر:</span>
+                  <span className="text-[10px] text-amber-400/90 font-bold">تحويل فوري ⚡</span>
+                </div>
 
-            <div className="flex items-center justify-between bg-black/80 border border-amber-500/30 rounded-xl p-3 sm:p-3.5">
-              <span className="font-mono text-xl sm:text-2xl font-black text-amber-300 tracking-wider select-all" dir="ltr">
-                {formattedPhone}
-              </span>
+                <div className="flex items-center justify-between bg-black/80 border border-amber-500/30 rounded-xl p-3 sm:p-3.5">
+                  <div className="flex items-center gap-2 min-w-0 flex-1 pl-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                    <span className="font-mono text-xs sm:text-sm font-bold text-amber-300 truncate" dir="ltr">
+                      {cleanTargetUrl.replace(/^https?:\/\//, '')}
+                    </span>
+                  </div>
 
-              {/* Compact Inline Copy Button */}
-              <button
-                type="button"
-                onClick={() => handleCopy(phone, 'wallet')}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-black rounded-lg transition shadow-md cursor-pointer ${
-                  isCopied
-                    ? 'bg-emerald-500 text-black hover:bg-emerald-400'
-                    : 'bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-amber-400 text-black'
-                }`}
-                title="نسخ الرقم"
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(cleanTargetUrl, 'wallet')}
+                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-black rounded-lg transition shadow-md cursor-pointer flex-shrink-0 ${
+                      isCopied
+                        ? 'bg-emerald-500 text-black hover:bg-emerald-400'
+                        : 'bg-white/10 hover:bg-white/20 text-amber-300 border border-amber-400/30'
+                    }`}
+                  >
+                    {isCopied ? <Check className="w-4 h-4 text-black" /> : <Copy className="w-4 h-4 text-black" />}
+                    <span>{isCopied ? 'تم النسخ!' : 'نسخ الرابط'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Big Action Button to Open Payment Link */}
+              <a
+                href={cleanTargetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-4 px-6 text-sm sm:text-base font-black rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/30"
               >
-                {isCopied ? <Check className="w-4 h-4 text-black" /> : <Copy className="w-4 h-4 text-black" />}
-                <span>{isCopied ? 'تم النسخ!' : 'نسخ'}</span>
-              </button>
+                <ExternalLink className="w-5 h-5 text-black" />
+                <span>الانتقال للدفع السريع الآن بـ ({providerNameAr}) ⚡</span>
+              </a>
             </div>
-          </div>
+          ) : (
+            /* Phone Number Display Box */
+            <div className="space-y-4">
+              <div className="bg-black/60 border border-white/10 rounded-2xl p-4 sm:p-5 space-y-3">
+                <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
+                  <span>رقم المحفظة لتحويل الأموال:</span>
+                  <span className="text-[10px] text-amber-400/90 font-bold">جاهز للتحويل الفوري</span>
+                </div>
 
-          {/* Prominent Primary Copy Button */}
-          <div className="space-y-4 pt-1">
-            <button
-              type="button"
-              onClick={() => handleCopy(phone, 'wallet')}
-              className={`w-full py-4 px-6 text-sm sm:text-base font-black rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${
-                isCopied
-                  ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/25 ring-2 ring-emerald-300'
-                  : 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/25'
-              }`}
-            >
-              {isCopied ? (
-                <>
-                  <Check className="w-5 h-5 text-black animate-bounce" />
-                  <span>تم نسخ رقم المحفظة بنجاح ✓ (جاهز للصق)</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-5 h-5 text-black" />
-                  <span>نسخ رقم محفظة ({providerNameAr})</span>
-                </>
-              )}
-            </button>
+                <div className="flex items-center justify-between bg-black/80 border border-amber-500/30 rounded-xl p-3 sm:p-3.5">
+                  <span className="font-mono text-xl sm:text-2xl font-black text-amber-300 tracking-wider select-all" dir="ltr">
+                    {formattedPhone}
+                  </span>
 
-            {/* Clear, simple instructions */}
-            <div className="p-3.5 bg-black/40 rounded-2xl border border-white/5 text-right space-y-2 text-xs text-slate-400 leading-relaxed">
-              <p className="font-bold text-amber-300 flex items-center gap-1.5">
-                <span>💡</span>
-                <span>طريقة التحويل:</span>
-              </p>
-              <ol className="list-decimal list-inside space-y-1 pr-1 text-slate-300">
-                <li>اضغط على زر <strong>نسخ رقم المحفظة</strong> أعلاه.</li>
-                <li>افتح تطبيق محفظتك الخاصة ({providerNameAr}).</li>
-                <li>الصق الرقم وحدد المبلغ المطلوب وأكّد عملية التحويل.</li>
-              </ol>
+                  {/* Compact Inline Copy Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(phone, 'wallet')}
+                    className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-black rounded-lg transition shadow-md cursor-pointer ${
+                      isCopied
+                        ? 'bg-emerald-500 text-black hover:bg-emerald-400'
+                        : 'bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-amber-400 text-black'
+                    }`}
+                    title="نسخ الرقم"
+                  >
+                    {isCopied ? <Check className="w-4 h-4 text-black" /> : <Copy className="w-4 h-4 text-black" />}
+                    <span>{isCopied ? 'تم النسخ!' : 'نسخ'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Prominent Primary Copy Button */}
+              <div className="space-y-4 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleCopy(phone, 'wallet')}
+                  className={`w-full py-4 px-6 text-sm sm:text-base font-black rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${
+                    isCopied
+                      ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/25 ring-2 ring-emerald-300'
+                      : 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/25'
+                  }`}
+                >
+                  {isCopied ? (
+                    <>
+                      <Check className="w-5 h-5 text-black animate-bounce" />
+                      <span>تم نسخ رقم المحفظة بنجاح ✓ (جاهز للصق)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-5 h-5 text-black" />
+                      <span>نسخ رقم محفظة ({providerNameAr})</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Clear, simple instructions */}
+                <div className="p-3.5 bg-black/40 rounded-2xl border border-white/5 text-right space-y-2 text-xs text-slate-400 leading-relaxed">
+                  <p className="font-bold text-amber-300 flex items-center gap-1.5">
+                    <span>💡</span>
+                    <span>طريقة التحويل:</span>
+                  </p>
+                  <ol className="list-decimal list-inside space-y-1 pr-1 text-slate-300">
+                    <li>اضغط على زر <strong>نسخ رقم المحفظة</strong> أعلاه.</li>
+                    <li>افتح تطبيق محفظتك الخاصة ({providerNameAr}).</li>
+                    <li>الصق الرقم وحدد المبلغ المطلوب وأكّد عملية التحويل.</li>
+                  </ol>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     );

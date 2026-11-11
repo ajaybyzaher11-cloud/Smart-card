@@ -101,10 +101,9 @@ export default async function handler(req: any, res: any) {
       return res.writeHead(302, { Location: `/?view=${id}&scanned=1` }).end();
     }
 
-    // 5. Wallet: ONLY redirect directly if it is an actual HTTP/HTTPS payment web link!
-    // If it's a phone number (010, 012, 011, 015), redirect to dedicated luxury copy view screen!
-    const isWebPaymentLink = (/^https?:\/\//i.test(targetUrl) || targetUrl.startsWith('www.') || targetUrl.includes('.eg/') || targetUrl.includes('.com/')) && !targetUrl.startsWith('intent:');
-    if (appType === 'wallet' && !isWebPaymentLink) {
+    // 5. Wallet: ALWAYS route to dedicated luxury card screen (/?view=${id}&scanned=1)
+    // so customer sees company logos, owner names, phone numbers, and quick pay transfer buttons!
+    if (appType === 'wallet') {
       return res.writeHead(302, { Location: `/?view=${id}&scanned=1` }).end();
     }
 

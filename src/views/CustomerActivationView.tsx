@@ -62,8 +62,18 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
   const handleWalletPhoneChange = (index: number, val: string) => {
     setWallets((prev) => {
       const next = [...prev];
-      const detected = detectWalletInfo(val);
-      const newProvider = (detected.provider !== 'generic' ? detected.provider : next[index].provider) as WalletProvider;
+      const isUrl = isQuickPayUrl(val);
+      let newProvider = next[index].provider;
+      if (isUrl) {
+        const lower = val.toLowerCase();
+        if (lower.includes('vodafone') || lower.includes('vfcash')) newProvider = 'vodafone';
+        else if (lower.includes('orange')) newProvider = 'orange';
+        else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
+        else if (lower.includes('we') || lower.includes('te.eg')) newProvider = 'we';
+      } else {
+        const detected = detectWalletInfo(val);
+        if (detected.provider !== 'generic') newProvider = detected.provider as WalletProvider;
+      }
       next[index] = {
         ...next[index],
         phone: val,
@@ -176,15 +186,19 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
         const item = wallets[i];
         const trimmedPhone = item.phone.trim();
         if (!trimmedPhone) {
-          setErrorMsg(walletCount === 1 ? 'يرجى إدخال رقم هاتف المحفظة.' : `يرجى إدخال رقم المحفظة رقم ${i + 1}.`);
+          setErrorMsg(walletCount === 1 ? 'يرجى إدخال رقم هاتف المحفظة أو رابط الدفع السريع.' : `يرجى إدخال بيانات المحفظة رقم ${i + 1}.`);
           return;
         }
 
         // Check if quick pay url
         if (isQuickPayUrl(trimmedPhone)) {
+          let fullUrl = trimmedPhone;
+          if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+            fullUrl = `https://${fullUrl}`;
+          }
           activeList.push({
-            phone: trimmedPhone,
-            provider: item.provider || 'generic',
+            phone: fullUrl,
+            provider: item.provider || 'vodafone',
             ownerName: item.ownerName?.trim() || '',
           });
         } else {
@@ -516,13 +530,19 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                             </select>
                           </div>
 
-                          {/* Field 1: Phone Number */}
+                          {/* Field 1: Phone Number OR Quick Pay Link */}
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                               <span className="flex items-center gap-1.5 text-amber-200">
                                 <Phone className="w-3.5 h-3.5 text-amber-400" />
-                                <span>رقم هاتف المحفظة (إلزامي):</span>
-                                <span className="text-amber-400 font-mono font-black">({activeMeta.prefix})</span>
+                                {isQuickPayUrl(item.phone) ? (
+                                  <span>رابط الدفع السريع المباشر (Quick Pay Link):</span>
+                                ) : (
+                                  <>
+                                    <span>رقم هاتف المحفظة أو رابط الدفع السريع:</span>
+                                    <span className="text-amber-400 font-mono font-black">({activeMeta.prefix})</span>
+                                  </>
+                                )}
                               </span>
                               {item.phone && (
                                 <button
@@ -537,10 +557,10 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                             </div>
                             <div className="relative">
                               <input
-                                type="tel"
+                                type="text"
                                 value={item.phone}
                                 onChange={(e) => handleWalletPhoneChange(index, e.target.value)}
-                                placeholder={`مثال: ${activeMeta.prefix}xxxxxxx`}
+                                placeholder="010... أو رابط الدفع السريع https://..."
                                 className="w-full pr-3.5 pl-10 py-2.5 bg-black/70 border border-amber-500/30 rounded-xl text-xs font-mono font-black text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
                                 dir="ltr"
                                 required
@@ -556,23 +576,30 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                               )}
                             </div>
 
-                            {/* Quick Prefix buttons */}
-                            <div className="flex items-center gap-1.5 pt-1">
-                              <span className="text-[10px] text-slate-400 font-bold">بادئات سريعة:</span>
-                              {['010', '011', '012', '015'].map((pfx) => (
-                                <button
-                                  key={pfx}
-                                  type="button"
-                                  onClick={() => {
-                                    const currentDigits = item.phone.replace(/^(010|011|012|015)/, '');
-                                    handleWalletPhoneChange(index, `${pfx}${currentDigits}`);
-                                  }}
-                                  className="px-2 py-0.5 bg-white/5 hover:bg-amber-400 hover:text-black rounded text-[10px] font-mono font-bold text-slate-300 border border-white/10 transition"
-                                >
-                                  {pfx}
-                                </button>
-                              ))}
-                            </div>
+                            {/* Show Quick prefix buttons if not a quick pay URL */}
+                            {!isQuickPayUrl(item.phone) ? (
+                              <div className="flex items-center gap-1.5 pt-1">
+                                <span className="text-[10px] text-slate-400 font-bold">بادئات سريعة:</span>
+                                {['010', '011', '012', '015'].map((pfx) => (
+                                  <button
+                                    key={pfx}
+                                    type="button"
+                                    onClick={() => {
+                                      const currentDigits = item.phone.replace(/^(010|011|012|015)/, '');
+                                      handleWalletPhoneChange(index, `${pfx}${currentDigits}`);
+                                    }}
+                                    className="px-2 py-0.5 bg-white/5 hover:bg-amber-400 hover:text-black rounded text-[10px] font-mono font-bold text-slate-300 border border-white/10 transition"
+                                  >
+                                    {pfx}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="p-1.5 px-2.5 bg-amber-400/10 border border-amber-400/20 rounded-lg flex items-center gap-1.5 text-[11px] text-amber-300 font-bold">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                                <span>سيظهر زر فاخر للدفع السريع والتحويل المباشر لـ ({activeMeta.nameAr}) ⚡</span>
+                              </div>
+                            )}
                           </div>
 
                           {/* Field 2: Owner Name (Works for 1, 2, 3, or 4 wallets!) */}
@@ -611,6 +638,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                               <span className="font-bold text-white flex items-center gap-1.5">
                                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                                 {activeMeta.nameAr} ({activeMeta.nameEn})
+                                {isQuickPayUrl(item.phone) ? ' • رابط دفع سريع ⚡' : ' • رقم هاتف محفظة'}
                               </span>
                             </div>
                           )}

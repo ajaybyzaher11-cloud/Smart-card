@@ -182,7 +182,15 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
     setWallets((prev) => {
       const next = [...prev];
       const detected = detectWalletInfo(val);
-      const newProvider = (detected.provider !== 'generic' ? detected.provider : next[index].provider) as WalletProvider;
+      let newProvider = (detected.provider !== 'generic' ? detected.provider : next[index].provider) as WalletProvider;
+
+      // Smart operator detection from quick pay URLs
+      const lower = val.toLowerCase();
+      if (lower.includes('vodafone') || lower.includes('voda')) newProvider = 'vodafone';
+      else if (lower.includes('orange')) newProvider = 'orange';
+      else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
+      else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) newProvider = 'we';
+
       next[index] = {
         ...next[index],
         phone: val,
@@ -375,23 +383,27 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       const activeList: WalletItem[] = [];
       for (let i = 0; i < walletCount; i++) {
         const item = wallets[i];
-        const trimmedPhone = item.phone.trim();
-        if (!trimmedPhone) {
-          alert(walletCount === 1 ? 'يرجى إدخال رقم هاتف المحفظة.' : `يرجى إدخال رقم المحفظة رقم ${i + 1}.`);
+        const trimmedVal = item.phone.trim();
+        if (!trimmedVal) {
+          alert(walletCount === 1 ? 'يرجى إدخال رقم هاتف المحفظة أو رابط الدفع السريع.' : `يرجى إدخال بيانات المحفظة رقم ${i + 1} (رقم هاتف أو رابط دفع سريع).`);
           setLoading(false);
           return;
         }
 
-        if (isQuickPayUrl(trimmedPhone)) {
+        if (isQuickPayUrl(trimmedVal)) {
+          let normalizedUrl = trimmedVal;
+          if (!/^https?:\/\//i.test(normalizedUrl)) {
+            normalizedUrl = `https://${normalizedUrl}`;
+          }
           activeList.push({
-            phone: trimmedPhone,
+            phone: normalizedUrl,
             provider: item.provider || 'generic',
             ownerName: item.ownerName?.trim() || '',
           });
         } else {
-          const detected = detectWalletInfo(trimmedPhone);
+          const detected = detectWalletInfo(trimmedVal);
           activeList.push({
-            phone: detected.cleanPhone || trimmedPhone,
+            phone: detected.cleanPhone || trimmedVal,
             provider: item.provider || detected.provider,
             ownerName: item.ownerName?.trim() || '',
           });
@@ -809,11 +821,11 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                         </select>
                       </div>
 
-                      {/* Input 1: Phone Number */}
-                      <div className="space-y-1">
+                      {/* Input 1: Phone Number or Quick Pay Link */}
+                      <div className="space-y-1.5">
                         <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                           <label className="flex items-center gap-1 text-amber-200/90">
-                            <span>رقم هاتف المحفظة:</span>
+                            <span>رقم هاتف المحفظة أو رابط الدفع السريع:</span>
                             <span className="text-amber-400 font-mono font-black">({activeMeta.prefix})</span>
                           </label>
                           {item.phone && (
@@ -823,18 +835,18 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                               className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer"
                             >
                               <X className="w-3 h-3" />
-                              <span>مسح الرقم</span>
+                              <span>مسح</span>
                             </button>
                           )}
                         </div>
 
                         <div className="relative">
                           <input
-                            type="tel"
+                            type="text"
                             value={item.phone}
                             onChange={(e) => handleWalletPhoneChange(index, e.target.value)}
-                            placeholder={`مثال: ${activeMeta.prefix}xxxxxxx`}
-                            className="w-full pr-3.5 pl-10 py-2.5 bg-black/70 border border-amber-500/30 rounded-xl text-xs font-mono font-black text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                            placeholder={item.phone && isQuickPayUrl(item.phone) ? 'رابط الدفع السريع https://...' : `010... أو رابط الدفع السريع https://...`}
+                            className="w-full pr-3.5 pl-10 py-2.5 bg-black/70 border border-amber-500/30 rounded-xl text-xs font-mono font-bold text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
                             dir="ltr"
                             required
                           />
@@ -848,6 +860,14 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                             </button>
                           )}
                         </div>
+
+                        {/* Quick Pay URL Detected Badge */}
+                        {isQuickPayUrl(item.phone) && (
+                          <div className="flex items-center gap-1.5 p-2 bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-amber-500/15 border border-amber-500/30 rounded-xl text-[11px] font-bold text-amber-200">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+                            <span>رابط دفع سريع لماركة ({activeMeta.nameAr}) ⚡ سيظهر زر فاخر للدفع السريع والتحويل المباشر!</span>
+                          </div>
+                        )}
 
                         {/* Quick Prefix buttons */}
                         <div className="flex items-center gap-1.5 pt-1">

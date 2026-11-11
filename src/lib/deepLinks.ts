@@ -1,4 +1,4 @@
-import { AppType, BankDetails, DeepLinkInfo } from '../types/qr';
+import { AppType, BankDetails, DeepLinkInfo, WalletProvider } from '../types/qr';
 
 /**
  * Checks whether the current window is embedded within an iframe
@@ -449,13 +449,36 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
       if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://') && !fullUrl.startsWith('intent://')) {
         fullUrl = `https://${fullUrl}`;
       }
+
+      // Detect operator from URL domain / keywords
+      let detectedProv: WalletProvider = 'vodafone';
+      const lower = fullUrl.toLowerCase();
+      if (lower.includes('vodafone') || lower.includes('voda')) detectedProv = 'vodafone';
+      else if (lower.includes('orange')) detectedProv = 'orange';
+      else if (lower.includes('etisalat') || lower.includes('e&')) detectedProv = 'etisalat';
+      else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProv = 'we';
+
+      const provMeta: Record<WalletProvider, { nameAr: string; nameEn: string; companyNameAr: string }> = {
+        vodafone: { nameAr: 'ڨودافون كاش', nameEn: 'Vodafone Cash', companyNameAr: 'فودافون مصر - Vodafone Egypt' },
+        orange: { nameAr: 'أورانج كاش', nameEn: 'Orange Cash', companyNameAr: 'أورانج مصر - Orange Egypt' },
+        etisalat: { nameAr: 'اتصالات كاش', nameEn: 'Etisalat Cash (e&)', companyNameAr: 'إي آند مصر (اتصالات) - e& Egypt' },
+        we: { nameAr: 'وي باي', nameEn: 'WE Pay', companyNameAr: 'المصرية للاتصالات - Telecom Egypt (WE)' },
+        generic: { nameAr: 'محفظة كاش', nameEn: 'Cash Wallet', companyNameAr: 'محفظة كاش مصرية' },
+      };
+      const activeMeta = provMeta[detectedProv] || provMeta.vodafone;
+
       return {
         appType: 'wallet',
-        appTitleAr: 'محفظة كاش (رابط الدفع السريع)',
+        appTitleAr: `${activeMeta.nameAr} - ${activeMeta.nameEn}`,
         schemeUrl: fullUrl,
         fallbackUrl: fullUrl,
         displayUrl: fullUrl.replace(/^https?:\/\//, ''),
-        isWalletCard: false, // Direct instant redirect to payment link!
+        isWalletCard: true, // Show dedicated luxury card with logo, company name, and Quick Pay button!
+        walletProvider: detectedProv,
+        walletProviderNameAr: activeMeta.nameAr,
+        walletProviderNameEn: activeMeta.nameEn,
+        walletCompanyNameAr: activeMeta.companyNameAr,
+        walletPhone: fullUrl,
       };
     }
 
