@@ -5,10 +5,9 @@ import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// CRITICAL: Force HTTP long polling to eliminate WebChannel drops in cloud proxy / iframe environments
+// CRITICAL: The app requires firebaseConfig.firestoreDatabaseId with auto-detect long polling for iframe resilience
 export const db = initializeFirestore(app, {
   experimentalAutoDetectLongPolling: true,
-  experimentalForceLongPolling: true,
 }, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
