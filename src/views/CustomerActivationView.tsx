@@ -20,6 +20,7 @@ import {
   triggerSmartRedirect, 
   detectWalletInfo, 
   isQuickPayUrl,
+  sanitizeQuickPayUrl,
   formatTikTokTargetUrl,
   formatInstagramTargetUrl,
   formatTelegramTargetUrl,
@@ -50,30 +51,40 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activatedRecord, setActivatedRecord] = useState<QrCodeRecord | null>(null);
 
-  // Multi-wallet state (1 to 4 wallets)
+  // Multi-wallet state (1 to 4 wallets) - starts neutral without forcing any operator logo!
   const [walletCount, setWalletCount] = useState<number>(1);
   const [wallets, setWallets] = useState<Array<{ phone: string; provider: WalletProvider; ownerName: string }>>([
-    { phone: '', provider: 'vodafone', ownerName: '' },
-    { phone: '', provider: 'orange', ownerName: '' },
-    { phone: '', provider: 'etisalat', ownerName: '' },
-    { phone: '', provider: 'we', ownerName: '' },
+    { phone: '', provider: 'generic', ownerName: '' },
+    { phone: '', provider: 'generic', ownerName: '' },
+    { phone: '', provider: 'generic', ownerName: '' },
+    { phone: '', provider: 'generic', ownerName: '' },
   ]);
 
   const handleWalletPhoneChange = (index: number, val: string) => {
     setWallets((prev) => {
       const next = [...prev];
-      const isUrl = isQuickPayUrl(val);
-      let newProvider = next[index].provider;
-      if (isUrl) {
-        const lower = val.toLowerCase();
-        if (lower.includes('vodafone') || lower.includes('vfcash')) newProvider = 'vodafone';
-        else if (lower.includes('orange')) newProvider = 'orange';
-        else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
-        else if (lower.includes('we') || lower.includes('te.eg')) newProvider = 'we';
-      } else {
-        const detected = detectWalletInfo(val);
-        if (detected.provider !== 'generic') newProvider = detected.provider as WalletProvider;
+      const trimmed = val.trim();
+      let newProvider: WalletProvider = 'generic';
+
+      if (trimmed) {
+        const isUrl = isQuickPayUrl(trimmed);
+        if (isUrl) {
+          const lower = trimmed.toLowerCase();
+          if (lower.includes('vodafone') || lower.includes('vfcash') || lower.includes('voda')) newProvider = 'vodafone';
+          else if (lower.includes('orange')) newProvider = 'orange';
+          else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
+          else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) newProvider = 'we';
+          else newProvider = next[index].provider !== 'generic' ? next[index].provider : 'vodafone';
+        } else {
+          const detected = detectWalletInfo(trimmed);
+          if (detected.provider !== 'generic') {
+            newProvider = detected.provider as WalletProvider;
+          } else {
+            newProvider = next[index].provider !== 'generic' ? next[index].provider : 'generic';
+          }
+        }
       }
+
       next[index] = {
         ...next[index],
         phone: val,
@@ -186,27 +197,31 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
         const item = wallets[i];
         const trimmedPhone = item.phone.trim();
         if (!trimmedPhone) {
-          setErrorMsg(walletCount === 1 ? 'يرجى إدخال رقم هاتف المحفظة أو رابط الدفع السريع.' : `يرجى إدخال بيانات المحفظة رقم ${i + 1}.`);
+          setErrorMsg(walletCount === 1 ? 'يرجى إدخال رقم المحفظة أو رابط الدفع السريع.' : `يرجى إدخال بيانات المحفظة رقم ${i + 1} (رقم المحفظة أو رابط الدفع السريع).`);
+          return;
+        }
+
+        const trimmedOwner = item.ownerName?.trim() || '';
+        if (!trimmedOwner) {
+          setErrorMsg(walletCount === 1 ? 'يرجى كتابة اسم صاحب المحفظة (إلزامي).' : `يرجى كتابة اسم صاحب المحفظة رقم ${i + 1} (إلزامي).`);
           return;
         }
 
         // Check if quick pay url
         if (isQuickPayUrl(trimmedPhone)) {
-          let fullUrl = trimmedPhone;
-          if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
-            fullUrl = `https://${fullUrl}`;
-          }
+          const fullUrl = sanitizeQuickPayUrl(trimmedPhone, item.provider);
           activeList.push({
             phone: fullUrl,
-            provider: item.provider || 'vodafone',
-            ownerName: item.ownerName?.trim() || '',
+            provider: item.provider !== 'generic' ? item.provider : 'vodafone',
+            ownerName: trimmedOwner,
           });
         } else {
           const detected = detectWalletInfo(trimmedPhone);
+          const finalProv = item.provider !== 'generic' ? item.provider : (detected.provider !== 'generic' ? detected.provider : 'vodafone');
           activeList.push({
             phone: detected.cleanPhone || trimmedPhone,
-            provider: item.provider || detected.provider,
-            ownerName: item.ownerName?.trim() || '',
+            provider: finalProv,
+            ownerName: trimmedOwner,
           });
         }
       }
@@ -487,42 +502,56 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                   <div className="space-y-3.5">
                     {Array.from({ length: walletCount }).map((_, index) => {
                       const item = wallets[index];
-                      const detected = detectWalletInfo(item.phone);
-                      const activeProvider = item.provider || (detected.provider !== 'generic' ? detected.provider : 'vodafone');
-                      const activeMeta = WALLET_PROVIDERS.find(p => p.id === activeProvider) || WALLET_PROVIDERS[0];
+                      const hasInput = Boolean(item.phone && item.phone.trim());
+                      const detected = hasInput ? detectWalletInfo(item.phone) : null;
+                      const isUrl = hasInput ? isQuickPayUrl(item.phone) : false;
+                      const activeProvider: WalletProvider = (hasInput 
+                        ? (item.provider !== 'generic' ? item.provider : (detected && detected.provider !== 'generic' ? detected.provider : 'generic'))
+                        : (item.provider !== 'generic' ? item.provider : 'generic')
+                      ) as WalletProvider;
+                      const isKnownBrand = hasInput && activeProvider !== 'generic';
+                      const activeMeta = isKnownBrand ? WALLET_PROVIDERS.find(p => p.id === activeProvider) : null;
 
                       return (
                         <div 
                           key={index} 
                           className={`p-4 rounded-2xl border transition-all space-y-3 bg-black/50 ${
-                            activeProvider === 'vodafone' ? 'border-red-500/35 shadow-[0_0_20px_rgba(230,0,0,0.1)]' :
-                            activeProvider === 'orange' ? 'border-orange-500/35 shadow-[0_0_20px_rgba(255,121,0,0.1)]' :
-                            activeProvider === 'etisalat' ? 'border-emerald-500/35 shadow-[0_0_20px_rgba(113,158,25,0.1)]' :
-                            'border-purple-500/35 shadow-[0_0_20px_rgba(102,45,145,0.15)]'
+                            isKnownBrand && activeProvider === 'vodafone' ? 'border-red-500/35 shadow-[0_0_20px_rgba(230,0,0,0.1)]' :
+                            isKnownBrand && activeProvider === 'orange' ? 'border-orange-500/35 shadow-[0_0_20px_rgba(255,121,0,0.1)]' :
+                            isKnownBrand && activeProvider === 'etisalat' ? 'border-emerald-500/35 shadow-[0_0_20px_rgba(113,158,25,0.1)]' :
+                            isKnownBrand && activeProvider === 'we' ? 'border-purple-500/35 shadow-[0_0_20px_rgba(102,45,145,0.15)]' :
+                            'border-amber-500/25 shadow-[0_0_15px_rgba(212,175,55,0.06)]'
                           }`}
                         >
                           {/* Card Header with Provider Logo & Title */}
                           <div className="flex items-center justify-between pb-2 border-b border-white/10">
                             <div className="flex items-center gap-2.5">
                               <div className="w-10 h-10 rounded-xl bg-black/80 border border-white/15 p-1 flex items-center justify-center flex-shrink-0 shadow">
-                                <WalletProviderIcon provider={activeProvider} size={28} className="w-full h-full object-contain" />
+                                <WalletProviderIcon provider={isKnownBrand ? activeProvider : 'generic'} size={28} className="w-full h-full object-contain" />
                               </div>
                               <div>
                                 <span className="text-xs font-black text-white block">
                                   {walletCount > 1 ? `المحفظة رقم ${index + 1}` : 'بيانات محفظة الكاش'}
                                 </span>
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 ${activeMeta.color}`}>
-                                  {activeMeta.nameAr}
-                                </span>
+                                {isKnownBrand && activeMeta ? (
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 ${activeMeta.color}`}>
+                                    {activeMeta.nameAr}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 text-amber-300/80 bg-amber-500/10 border-amber-500/20">
+                                    تحديد تلقائي عند كتابة الرقم أو الرابط
+                                  </span>
+                                )}
                               </div>
                             </div>
 
                             {/* Provider Quick Switcher */}
                             <select
-                              value={activeProvider}
+                              value={item.provider}
                               onChange={(e) => handleWalletProviderChange(index, e.target.value as WalletProvider)}
                               className="px-2 py-1 bg-[#09090b] border border-white/15 rounded-lg text-[10px] font-bold text-slate-200 focus:outline-none focus:border-amber-400"
                             >
+                              <option value="generic">تحديد تلقائي للشبكة</option>
                               <option value="vodafone">فودافون كاش (010)</option>
                               <option value="orange">أورانج كاش (012)</option>
                               <option value="etisalat">اتصالات كاش (011)</option>
@@ -535,13 +564,9 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                             <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                               <span className="flex items-center gap-1.5 text-amber-200">
                                 <Phone className="w-3.5 h-3.5 text-amber-400" />
-                                {isQuickPayUrl(item.phone) ? (
-                                  <span>رابط الدفع السريع المباشر (Quick Pay Link):</span>
-                                ) : (
-                                  <>
-                                    <span>رقم هاتف المحفظة أو رابط الدفع السريع:</span>
-                                    <span className="text-amber-400 font-mono font-black">({activeMeta.prefix})</span>
-                                  </>
+                                <span>رقم المحفظة أو رابط الدفع السريع (إلزامي):</span>
+                                {isKnownBrand && activeMeta && !isUrl && (
+                                  <span className="text-amber-400 font-mono font-black">({activeMeta.prefix})</span>
                                 )}
                               </span>
                               {item.phone && (
@@ -576,48 +601,32 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                               )}
                             </div>
 
-                            {/* Show Quick prefix buttons if not a quick pay URL */}
-                            {!isQuickPayUrl(item.phone) ? (
-                              <div className="flex items-center gap-1.5 pt-1">
-                                <span className="text-[10px] text-slate-400 font-bold">بادئات سريعة:</span>
-                                {['010', '011', '012', '015'].map((pfx) => (
-                                  <button
-                                    key={pfx}
-                                    type="button"
-                                    onClick={() => {
-                                      const currentDigits = item.phone.replace(/^(010|011|012|015)/, '');
-                                      handleWalletPhoneChange(index, `${pfx}${currentDigits}`);
-                                    }}
-                                    className="px-2 py-0.5 bg-white/5 hover:bg-amber-400 hover:text-black rounded text-[10px] font-mono font-bold text-slate-300 border border-white/10 transition"
-                                  >
-                                    {pfx}
-                                  </button>
-                                ))}
-                              </div>
-                            ) : (
+                            {/* Quick Pay URL Detected Badge */}
+                            {isUrl && (
                               <div className="p-1.5 px-2.5 bg-amber-400/10 border border-amber-400/20 rounded-lg flex items-center gap-1.5 text-[11px] text-amber-300 font-bold">
                                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                                <span>سيظهر زر فاخر للدفع السريع والتحويل المباشر لـ ({activeMeta.nameAr}) ⚡</span>
+                                <span>سيظهر زر فاخر للدفع السريع والتحويل المباشر{isKnownBrand && activeMeta ? ` لـ (${activeMeta.nameAr})` : ''} ⚡</span>
                               </div>
                             )}
                           </div>
 
-                          {/* Field 2: Owner Name (Works for 1, 2, 3, or 4 wallets!) */}
+                          {/* Field 2: Owner Name - Mandatory */}
                           <div className="space-y-1.5 pt-1">
                             <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                               <span className="flex items-center gap-1.5 text-amber-200/90">
                                 <User className="w-3.5 h-3.5 text-amber-400" />
-                                <span>اسم صاحب المحفظة / المستفيد (يظهر للعميل عند التحويل):</span>
+                                <span>اسم صاحب المحفظة (إلزامي):</span>
                               </span>
-                              <span className="text-[10px] text-amber-300/80">اختياري</span>
+                              <span className="text-[10px] text-amber-400 font-bold">إلزامي</span>
                             </div>
                             <div className="relative">
                               <input
                                 type="text"
                                 value={item.ownerName}
                                 onChange={(e) => handleWalletOwnerChange(index, e.target.value)}
-                                placeholder={index === 0 ? 'مثال: أحمد محمد علي (فودافون كاش)' : `مثال: اسم صاحب محفظة ${activeMeta.nameAr}`}
+                                placeholder="مثال: أحمد محمد علي"
                                 className="w-full pr-3.5 pl-8 py-2.5 bg-black/70 border border-amber-500/20 rounded-xl text-xs font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition"
+                                required
                               />
                               {item.ownerName && (
                                 <button
@@ -632,13 +641,13 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                           </div>
 
                           {/* Operator Visual Confirmation */}
-                          {item.phone.trim() && (
+                          {hasInput && isKnownBrand && activeMeta && (
                             <div className="p-2.5 bg-black/40 rounded-xl border border-white/5 flex items-center justify-between text-[11px]">
                               <span className="text-slate-400">الشركة المحددة:</span>
                               <span className="font-bold text-white flex items-center gap-1.5">
                                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                                 {activeMeta.nameAr} ({activeMeta.nameEn})
-                                {isQuickPayUrl(item.phone) ? ' • رابط دفع سريع ⚡' : ' • رقم هاتف محفظة'}
+                                {isUrl ? ' • رابط دفع سريع ⚡' : ' • رقم هاتف محفظة'}
                               </span>
                             </div>
                           )}

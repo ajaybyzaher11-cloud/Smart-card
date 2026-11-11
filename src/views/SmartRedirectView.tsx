@@ -21,7 +21,7 @@ import {
   Sparkles,
   User
 } from 'lucide-react';
-import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo, isQuickPayUrl } from '../lib/deepLinks';
+import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo, isQuickPayUrl, sanitizeQuickPayUrl } from '../lib/deepLinks';
 import { QrCodeRecord, WalletItem, WalletProvider } from '../types/qr';
 import { PlatformBrandIcon, WalletProviderIcon } from '../components/BrandIcons';
 
@@ -281,10 +281,7 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                   prov === 'etisalat' ? 'Etisalat Cash' :
                   prov === 'we' ? 'WE Pay' : 'Cash Wallet'
                 );
-                let cleanTargetUrl = walletItem.phone.trim();
-                if (isUrl && !cleanTargetUrl.startsWith('http://') && !cleanTargetUrl.startsWith('https://')) {
-                  cleanTargetUrl = `https://${cleanTargetUrl}`;
-                }
+                const cleanTargetUrl = isUrl ? sanitizeQuickPayUrl(walletItem.phone, prov) : walletItem.phone.trim();
 
                 return (
                   <div
@@ -331,7 +328,7 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                           <div className="flex items-center gap-2 min-w-0 flex-1 pl-2">
                             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
                             <span className="font-mono text-xs sm:text-sm font-bold text-amber-300 truncate" dir="ltr">
-                              {cleanTargetUrl.replace(/^https?:\/\//, '')}
+                              {cleanTargetUrl.replace(/^https?:\/\//, '').replace(/^intent:\/\/[^#]*#Intent;/, 'دفع سريع ')}
                             </span>
                           </div>
                           <button
@@ -353,6 +350,12 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                           href={cleanTargetUrl}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={(e) => {
+                            if (cleanTargetUrl.startsWith('intent://')) {
+                              window.location.href = cleanTargetUrl;
+                              e.preventDefault();
+                            }
+                          }}
                           className="w-full py-3.5 px-4 text-xs sm:text-sm font-black rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/20"
                         >
                           <ExternalLink className="w-4 h-4 text-black" />
@@ -452,10 +455,7 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     );
     const style = getProviderStyle(provider);
     const isCopied = copiedField === 'wallet';
-    let cleanTargetUrl = singleWallet.phone.trim();
-    if (isUrl && !cleanTargetUrl.startsWith('http://') && !cleanTargetUrl.startsWith('https://')) {
-      cleanTargetUrl = `https://${cleanTargetUrl}`;
-    }
+    const cleanTargetUrl = isUrl ? sanitizeQuickPayUrl(singleWallet.phone, provider) : singleWallet.phone.trim();
 
     return (
       <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
@@ -532,6 +532,12 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                 href={cleanTargetUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => {
+                  if (cleanTargetUrl.startsWith('intent://')) {
+                    window.location.href = cleanTargetUrl;
+                    e.preventDefault();
+                  }
+                }}
                 className="w-full py-4 px-6 text-sm sm:text-base font-black rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/30"
               >
                 <ExternalLink className="w-5 h-5 text-black" />

@@ -34,6 +34,7 @@ import {
   decodeBankDetails, 
   detectWalletInfo, 
   isQuickPayUrl,
+  sanitizeQuickPayUrl,
   formatTikTokTargetUrl,
   formatInstagramTargetUrl,
   formatTelegramTargetUrl,
@@ -181,15 +182,27 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
   const handleWalletPhoneChange = (index: number, val: string) => {
     setWallets((prev) => {
       const next = [...prev];
-      const detected = detectWalletInfo(val);
-      let newProvider = (detected.provider !== 'generic' ? detected.provider : next[index].provider) as WalletProvider;
+      const trimmed = val.trim();
+      let newProvider: WalletProvider = 'generic';
 
-      // Smart operator detection from quick pay URLs
-      const lower = val.toLowerCase();
-      if (lower.includes('vodafone') || lower.includes('voda')) newProvider = 'vodafone';
-      else if (lower.includes('orange')) newProvider = 'orange';
-      else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
-      else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) newProvider = 'we';
+      if (trimmed) {
+        const isUrl = isQuickPayUrl(trimmed);
+        if (isUrl) {
+          const lower = trimmed.toLowerCase();
+          if (lower.includes('vodafone') || lower.includes('voda')) newProvider = 'vodafone';
+          else if (lower.includes('orange')) newProvider = 'orange';
+          else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
+          else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) newProvider = 'we';
+          else newProvider = next[index].provider !== 'generic' ? next[index].provider : 'vodafone';
+        } else {
+          const detected = detectWalletInfo(trimmed);
+          if (detected.provider !== 'generic') {
+            newProvider = detected.provider as WalletProvider;
+          } else {
+            newProvider = next[index].provider !== 'generic' ? next[index].provider : 'generic';
+          }
+        }
+      }
 
       next[index] = {
         ...next[index],
@@ -246,10 +259,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           const count = Math.min(4, Math.max(1, record.wallets.length));
           setWalletCount(count);
           setWallets([
-            { phone: record.wallets[0]?.phone || '', provider: record.wallets[0]?.provider || 'vodafone', ownerName: record.wallets[0]?.ownerName || '' },
-            { phone: record.wallets[1]?.phone || '', provider: record.wallets[1]?.provider || 'orange', ownerName: record.wallets[1]?.ownerName || '' },
-            { phone: record.wallets[2]?.phone || '', provider: record.wallets[2]?.provider || 'etisalat', ownerName: record.wallets[2]?.ownerName || '' },
-            { phone: record.wallets[3]?.phone || '', provider: record.wallets[3]?.provider || 'we', ownerName: record.wallets[3]?.ownerName || '' },
+            { phone: record.wallets[0]?.phone || '', provider: record.wallets[0]?.provider || (record.wallets[0]?.phone ? 'vodafone' : 'generic'), ownerName: record.wallets[0]?.ownerName || '' },
+            { phone: record.wallets[1]?.phone || '', provider: record.wallets[1]?.provider || (record.wallets[1]?.phone ? 'orange' : 'generic'), ownerName: record.wallets[1]?.ownerName || '' },
+            { phone: record.wallets[2]?.phone || '', provider: record.wallets[2]?.provider || (record.wallets[2]?.phone ? 'etisalat' : 'generic'), ownerName: record.wallets[2]?.ownerName || '' },
+            { phone: record.wallets[3]?.phone || '', provider: record.wallets[3]?.provider || (record.wallets[3]?.phone ? 'we' : 'generic'), ownerName: record.wallets[3]?.ownerName || '' },
           ]);
           setWalletPhone(record.wallets[0]?.phone || '');
         } else {
@@ -260,10 +273,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           const detected = detectWalletInfo(clean);
           setWalletCount(1);
           setWallets([
-            { phone: clean, provider: (detected.provider !== 'generic' ? detected.provider : 'vodafone') as WalletProvider, ownerName: '' },
-            { phone: '', provider: 'orange', ownerName: '' },
-            { phone: '', provider: 'etisalat', ownerName: '' },
-            { phone: '', provider: 'we', ownerName: '' },
+            { phone: clean, provider: (clean ? (detected.provider !== 'generic' ? detected.provider : 'vodafone') : 'generic') as WalletProvider, ownerName: '' },
+            { phone: '', provider: 'generic', ownerName: '' },
+            { phone: '', provider: 'generic', ownerName: '' },
+            { phone: '', provider: 'generic', ownerName: '' },
           ]);
           setWalletPhone(clean);
         }
@@ -334,10 +347,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           const detected = detectWalletInfo(clean);
           setWalletCount(1);
           setWallets([
-            { phone: clean, provider: (detected.provider !== 'generic' ? detected.provider : 'vodafone') as WalletProvider, ownerName: '' },
-            { phone: '', provider: 'orange', ownerName: '' },
-            { phone: '', provider: 'etisalat', ownerName: '' },
-            { phone: '', provider: 'we', ownerName: '' },
+            { phone: clean, provider: (clean ? (detected.provider !== 'generic' ? detected.provider : 'vodafone') : 'generic') as WalletProvider, ownerName: '' },
+            { phone: '', provider: 'generic', ownerName: '' },
+            { phone: '', provider: 'generic', ownerName: '' },
+            { phone: '', provider: 'generic', ownerName: '' },
           ]);
           setWalletPhone(clean);
         }
@@ -348,10 +361,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       setWalletPhone('');
       setWalletCount(1);
       setWallets([
-        { phone: '', provider: 'vodafone', ownerName: '' },
-        { phone: '', provider: 'orange', ownerName: '' },
-        { phone: '', provider: 'etisalat', ownerName: '' },
-        { phone: '', provider: 'we', ownerName: '' },
+        { phone: '', provider: 'generic', ownerName: '' },
+        { phone: '', provider: 'generic', ownerName: '' },
+        { phone: '', provider: 'generic', ownerName: '' },
+        { phone: '', provider: 'generic', ownerName: '' },
       ]);
       setAccountNumber('');
       setAccountName('');
@@ -385,27 +398,32 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
         const item = wallets[i];
         const trimmedVal = item.phone.trim();
         if (!trimmedVal) {
-          alert(walletCount === 1 ? 'يرجى إدخال رقم هاتف المحفظة أو رابط الدفع السريع.' : `يرجى إدخال بيانات المحفظة رقم ${i + 1} (رقم هاتف أو رابط دفع سريع).`);
+          alert(walletCount === 1 ? 'يرجى إدخال رقم المحفظة أو رابط الدفع السريع.' : `يرجى إدخال بيانات المحفظة رقم ${i + 1} (رقم المحفظة أو رابط الدفع السريع).`);
+          setLoading(false);
+          return;
+        }
+
+        const trimmedOwner = item.ownerName?.trim() || '';
+        if (!trimmedOwner) {
+          alert(walletCount === 1 ? 'يرجى كتابة اسم صاحب المحفظة (إلزامي).' : `يرجى كتابة اسم صاحب المحفظة رقم ${i + 1} (إلزامي).`);
           setLoading(false);
           return;
         }
 
         if (isQuickPayUrl(trimmedVal)) {
-          let normalizedUrl = trimmedVal;
-          if (!/^https?:\/\//i.test(normalizedUrl)) {
-            normalizedUrl = `https://${normalizedUrl}`;
-          }
+          const fullUrl = sanitizeQuickPayUrl(trimmedVal, item.provider);
           activeList.push({
-            phone: normalizedUrl,
-            provider: item.provider || 'generic',
-            ownerName: item.ownerName?.trim() || '',
+            phone: fullUrl,
+            provider: item.provider !== 'generic' ? item.provider : 'vodafone',
+            ownerName: trimmedOwner,
           });
         } else {
           const detected = detectWalletInfo(trimmedVal);
+          const finalProv = item.provider !== 'generic' ? item.provider : (detected.provider !== 'generic' ? detected.provider : 'vodafone');
           activeList.push({
             phone: detected.cleanPhone || trimmedVal,
-            provider: item.provider || detected.provider,
-            ownerName: item.ownerName?.trim() || '',
+            provider: finalProv,
+            ownerName: trimmedOwner,
           });
         }
       }
@@ -778,42 +796,56 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
               <div className="space-y-3">
                 {Array.from({ length: walletCount }).map((_, index) => {
                   const item = wallets[index];
-                  const detected = detectWalletInfo(item.phone);
-                  const activeProvider = item.provider || (detected.provider !== 'generic' ? detected.provider : 'vodafone');
-                  const activeMeta = WALLET_PROVIDERS.find(p => p.id === activeProvider) || WALLET_PROVIDERS[0];
+                  const hasInput = Boolean(item.phone && item.phone.trim());
+                  const detected = hasInput ? detectWalletInfo(item.phone) : null;
+                  const isUrl = hasInput ? isQuickPayUrl(item.phone) : false;
+                  const activeProvider: WalletProvider = (hasInput 
+                    ? (item.provider !== 'generic' ? item.provider : (detected && detected.provider !== 'generic' ? detected.provider : 'generic'))
+                    : (item.provider !== 'generic' ? item.provider : 'generic')
+                  ) as WalletProvider;
+                  const isKnownBrand = hasInput && activeProvider !== 'generic';
+                  const activeMeta = isKnownBrand ? WALLET_PROVIDERS.find(p => p.id === activeProvider) : null;
 
                   return (
                     <div 
                       key={index} 
                       className={`p-3.5 rounded-2xl border transition-all space-y-3 bg-black/60 ${
-                        activeProvider === 'vodafone' ? 'border-red-500/35 shadow-[0_0_20px_rgba(230,0,0,0.1)]' :
-                        activeProvider === 'orange' ? 'border-orange-500/35 shadow-[0_0_20px_rgba(255,121,0,0.1)]' :
-                        activeProvider === 'etisalat' ? 'border-emerald-500/35 shadow-[0_0_20px_rgba(113,158,25,0.1)]' :
-                        'border-purple-500/35 shadow-[0_0_20px_rgba(102,45,145,0.15)]'
+                        isKnownBrand && activeProvider === 'vodafone' ? 'border-red-500/35 shadow-[0_0_20px_rgba(230,0,0,0.1)]' :
+                        isKnownBrand && activeProvider === 'orange' ? 'border-orange-500/35 shadow-[0_0_20px_rgba(255,121,0,0.1)]' :
+                        isKnownBrand && activeProvider === 'etisalat' ? 'border-emerald-500/35 shadow-[0_0_20px_rgba(113,158,25,0.1)]' :
+                        isKnownBrand && activeProvider === 'we' ? 'border-purple-500/35 shadow-[0_0_20px_rgba(102,45,145,0.15)]' :
+                        'border-amber-500/25 shadow-[0_0_15px_rgba(212,175,55,0.06)]'
                       }`}
                     >
                       {/* Header with Provider Logo & Switcher */}
                       <div className="flex items-center justify-between pb-2 border-b border-white/10">
                         <div className="flex items-center gap-2.5">
                           <div className="w-10 h-10 rounded-xl bg-black/80 border border-white/15 p-1 flex items-center justify-center flex-shrink-0 shadow">
-                            <WalletProviderIcon provider={activeProvider} size={28} className="w-full h-full object-contain" />
+                            <WalletProviderIcon provider={isKnownBrand ? activeProvider : 'generic'} size={28} className="w-full h-full object-contain" />
                           </div>
                           <div>
                             <span className="text-xs font-black text-white block">
                               {walletCount > 1 ? `المحفظة رقم ${index + 1}` : 'بيانات المحفظة الإلكترونية'}
                             </span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 ${activeMeta.color}`}>
-                              {activeMeta.nameAr}
-                            </span>
+                            {isKnownBrand && activeMeta ? (
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 ${activeMeta.color}`}>
+                                {activeMeta.nameAr}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 text-amber-300/80 bg-amber-500/10 border-amber-500/20">
+                                تحديد تلقائي عند كتابة الرقم أو الرابط
+                              </span>
+                            )}
                           </div>
                         </div>
 
                         {/* Provider Switcher */}
                         <select
-                          value={activeProvider}
+                          value={item.provider}
                           onChange={(e) => handleWalletProviderChange(index, e.target.value as WalletProvider)}
                           className="px-2 py-1 bg-[#121216] border border-white/15 rounded-lg text-[11px] font-bold text-amber-200 focus:outline-none focus:border-amber-400"
                         >
+                          <option value="generic">تحديد تلقائي للشبكة</option>
                           <option value="vodafone">فودافون كاش (010)</option>
                           <option value="orange">أورانج كاش (012)</option>
                           <option value="etisalat">اتصالات كاش (011)</option>
@@ -825,8 +857,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between text-xs font-bold text-slate-300">
                           <label className="flex items-center gap-1 text-amber-200/90">
-                            <span>رقم هاتف المحفظة أو رابط الدفع السريع:</span>
-                            <span className="text-amber-400 font-mono font-black">({activeMeta.prefix})</span>
+                            <span>رقم المحفظة أو رابط الدفع السريع (إلزامي):</span>
+                            {isKnownBrand && activeMeta && !isUrl && (
+                              <span className="text-amber-400 font-mono font-black">({activeMeta.prefix})</span>
+                            )}
                           </label>
                           {item.phone && (
                             <button
@@ -845,7 +879,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                             type="text"
                             value={item.phone}
                             onChange={(e) => handleWalletPhoneChange(index, e.target.value)}
-                            placeholder={item.phone && isQuickPayUrl(item.phone) ? 'رابط الدفع السريع https://...' : `010... أو رابط الدفع السريع https://...`}
+                            placeholder="010... أو رابط الدفع السريع https://..."
                             className="w-full pr-3.5 pl-10 py-2.5 bg-black/70 border border-amber-500/30 rounded-xl text-xs font-mono font-bold text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
                             dir="ltr"
                             required
@@ -862,47 +896,30 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                         </div>
 
                         {/* Quick Pay URL Detected Badge */}
-                        {isQuickPayUrl(item.phone) && (
+                        {isUrl && (
                           <div className="flex items-center gap-1.5 p-2 bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-amber-500/15 border border-amber-500/30 rounded-xl text-[11px] font-bold text-amber-200">
                             <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
-                            <span>رابط دفع سريع لماركة ({activeMeta.nameAr}) ⚡ سيظهر زر فاخر للدفع السريع والتحويل المباشر!</span>
+                            <span>رابط دفع سريع{isKnownBrand && activeMeta ? ` لماركة (${activeMeta.nameAr})` : ''} ⚡ سيظهر زر فاخر للدفع السريع والتحويل المباشر!</span>
                           </div>
                         )}
-
-                        {/* Quick Prefix buttons */}
-                        <div className="flex items-center gap-1.5 pt-1">
-                          <span className="text-[10px] text-slate-400 font-bold">بادئات سريعة:</span>
-                          {['010', '011', '012', '015'].map((pfx) => (
-                            <button
-                              key={pfx}
-                              type="button"
-                              onClick={() => {
-                                const currentDigits = item.phone.replace(/^(010|011|012|015)/, '');
-                                handleWalletPhoneChange(index, `${pfx}${currentDigits}`);
-                              }}
-                              className="px-2 py-0.5 bg-white/5 hover:bg-amber-400 hover:text-black rounded text-[10px] font-mono font-bold text-slate-300 border border-white/10 transition"
-                            >
-                              {pfx}
-                            </button>
-                          ))}
-                        </div>
                       </div>
 
-                      {/* Input 2: Wallet Owner Name */}
+                      {/* Input 2: Wallet Owner Name - Mandatory */}
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                          <label className="text-amber-200/90">
-                            اسم صاحب المحفظة / المستفيد (يظهر للعميل عند التحويل):
+                          <label className="text-amber-200/90 font-bold">
+                            اسم صاحب المحفظة (إلزامي):
                           </label>
-                          <span className="text-[10px] text-amber-400/80 font-normal">اختياري</span>
+                          <span className="text-[10px] text-amber-400 font-bold">إلزامي</span>
                         </div>
                         <div className="relative">
                           <input
                             type="text"
                             value={item.ownerName}
                             onChange={(e) => handleWalletOwnerChange(index, e.target.value)}
-                            placeholder={index === 0 ? 'مثال: أحمد محمد علي (فودافون كاش)' : `مثال: اسم المستفيد لمحفظة ${activeMeta.nameAr}`}
+                            placeholder="مثال: أحمد محمد علي"
                             className="w-full pr-3.5 pl-8 py-2 bg-black/70 border border-amber-500/20 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                            required
                           />
                           {item.ownerName && (
                             <button

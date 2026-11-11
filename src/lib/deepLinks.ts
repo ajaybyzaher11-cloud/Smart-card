@@ -151,6 +151,7 @@ export function isQuickPayUrl(input: string): boolean {
   const s = normalizeArabicNumerals(input || '').trim();
   if (/^https?:\/\//i.test(s)) return true;
   if (/^intent:\/\//i.test(s)) return true;
+  if (/^android-app:\/\//i.test(s)) return true;
   if (/^(vfcash|orangecash|etisalatcash|wepay|ipn):\/\//i.test(s)) return true;
 
   const hasDomain = s.includes('.eg') || s.includes('.com') || s.includes('.net') || s.includes('.me') || s.includes('.io') || s.startsWith('www.') || s.includes('/');
@@ -160,6 +161,68 @@ export function isQuickPayUrl(input: string): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Robustly sanitizes and converts any Quick Pay Link (including Android app links,
+ * share intents, and web links) into a safe, clickable URL that never triggers
+ * Chrome's DNS_PROBE_FINISHED_NXDOMAIN or failed custom schemes.
+ */
+export function sanitizeQuickPayUrl(raw: string, provider?: WalletProvider): string {
+  let s = (raw || '').trim();
+  if (!s) return '';
+
+  // 1. Clean double schemes like https://android-app:// or https://https://
+  s = s.replace(/^https?:\/\/+android-app:\/\//i, 'android-app://');
+  s = s.replace(/^https?:\/\/+(https?:\/\/)/i, '$1');
+
+  // 2. Check if the string contains an embedded web URL (common in Android share intents)
+  const embeddedMatch = s.match(/https?:\/\/[^\s"'<>]+/i) || s.match(/https?\/[^\s"'<>]+/i);
+  if (embeddedMatch) {
+    let clean = embeddedMatch[0];
+    if (clean.startsWith('https/') || clean.startsWith('http/')) {
+      clean = clean.replace(/^https?\//, 'https://');
+    }
+    return clean;
+  }
+
+  // 3. Handle Android app links: android-app://<package>/...
+  if (s.startsWith('android-app://')) {
+    const pkg = s.replace('android-app://', '').split('/')[0].trim().toLowerCase();
+    
+    // Vodafone / Ana Vodafone
+    if (pkg.includes('vf') || pkg.includes('vodafone') || provider === 'vodafone') {
+      return `intent://#Intent;package=com.vf.eg;scheme=anafodafone;S.browser_fallback_url=https%3A%2F%2Fweb.vodafone.com.eg%2Far%2Fvodafone-cash;end`;
+    }
+    // Orange Cash
+    if (pkg.includes('orange') || provider === 'orange') {
+      return `intent://#Intent;package=com.orange.mail.egypt;scheme=orangecash;S.browser_fallback_url=https%3A%2F%2Fwww.orange.eg%2Far%2Forange-cash;end`;
+    }
+    // Etisalat Cash
+    if (pkg.includes('etisalat') || provider === 'etisalat') {
+      return `intent://#Intent;package=com.etisalat;scheme=etisalatcash;S.browser_fallback_url=https%3A%2F%2Fwww.etisalat.eg;end`;
+    }
+    // WE Pay
+    if (pkg.includes('we') || pkg.includes('telecom') || provider === 'we') {
+      return `intent://#Intent;package=eg.telecom.we;scheme=wepay;S.browser_fallback_url=https%3A%2F%2Fte.eg;end`;
+    }
+    if (pkg) {
+      return `https://play.google.com/store/apps/details?id=${pkg}`;
+    }
+    return 'https://web.vodafone.com.eg/ar/vodafone-cash';
+  }
+
+  // 4. Intent links are left valid
+  if (s.startsWith('intent://')) {
+    return s;
+  }
+
+  // 5. Normal web links
+  if (!s.startsWith('http://') && !s.startsWith('https://')) {
+    s = `https://${s}`;
+  }
+
+  return s;
 }
 
 export interface DetectedWalletInfo {
@@ -445,18 +508,15 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
 
     // 1. Check if input is a Web URL or Quick Payment Link (e.g. https://... or vf.eg or web.vodafone.com.eg/...)
     if (isQuickPayUrl(cleanTrimmed)) {
-      let fullUrl = cleanTrimmed;
-      if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://') && !fullUrl.startsWith('intent://')) {
-        fullUrl = `https://${fullUrl}`;
-      }
-
       // Detect operator from URL domain / keywords
       let detectedProv: WalletProvider = 'vodafone';
-      const lower = fullUrl.toLowerCase();
+      const lower = cleanTrimmed.toLowerCase();
       if (lower.includes('vodafone') || lower.includes('voda')) detectedProv = 'vodafone';
       else if (lower.includes('orange')) detectedProv = 'orange';
       else if (lower.includes('etisalat') || lower.includes('e&')) detectedProv = 'etisalat';
       else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProv = 'we';
+
+      const fullUrl = sanitizeQuickPayUrl(cleanTrimmed, detectedProv);
 
       const provMeta: Record<WalletProvider, { nameAr: string; nameEn: string; companyNameAr: string }> = {
         vodafone: { nameAr: 'ڨودافون كاش', nameEn: 'Vodafone Cash', companyNameAr: 'فودافون مصر - Vodafone Egypt' },
