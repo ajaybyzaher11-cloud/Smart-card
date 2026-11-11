@@ -23,30 +23,50 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
     <script>
-      // Filter benign Vite dev server WebSocket disconnect notices in cloud iFrame/proxy
+      // Filter benign Vite dev server WebSocket disconnect and Firestore backend reconnect notices in cloud iFrame/proxy
       (function() {
         var origError = console.error;
-        console.error = function() {
-          var msg = Array.prototype.slice.call(arguments).join(' ');
-          if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('[vite]') !== -1) {
-            return;
+        var origWarn = console.warn;
+        function isBenign(args) {
+          var text = '';
+          for (var i = 0; i < args.length; i++) {
+            var item = args[i];
+            if (!item) continue;
+            text += ' ' + ((item && (item.message || item.stack)) || (typeof item === 'object' ? JSON.stringify(item) : String(item)));
           }
+          return (
+            text.indexOf('WebSocket') !== -1 ||
+            text.indexOf('[vite]') !== -1 ||
+            text.indexOf('Could not reach Cloud Firestore backend') !== -1 ||
+            text.indexOf('offline mode') !== -1 ||
+            text.indexOf('@firebase/firestore') !== -1
+          );
+        }
+        console.error = function() {
+          if (isBenign(arguments)) return;
           origError.apply(console, arguments);
+        };
+        console.warn = function() {
+          if (isBenign(arguments)) return;
+          origWarn.apply(console, arguments);
         };
       })();
       window.addEventListener('error', function(e) {
-        if (e && e.message && (e.message.indexOf('WebSocket') !== -1 || e.message.indexOf('vite') !== -1)) {
-          e.preventDefault && e.preventDefault();
-          e.stopImmediatePropagation && e.stopImmediatePropagation();
+        var msg = (e && (e.message || (e.error && (e.error.message || e.error.stack)))) || '';
+        if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('vite') !== -1 || msg.indexOf('Firestore') !== -1) {
+          if (e.preventDefault) e.preventDefault();
+          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
           return true;
         }
-      });
+      }, true);
       window.addEventListener('unhandledrejection', function(e) {
-        if (e && e.reason && e.reason.message && e.reason.message.indexOf('WebSocket') !== -1) {
-          e.preventDefault && e.preventDefault();
-          e.stopImmediatePropagation && e.stopImmediatePropagation();
+        var msg = (e && e.reason && (e.reason.message || e.reason.stack || String(e.reason))) || '';
+        if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('vite') !== -1 || msg.indexOf('Firestore') !== -1 || msg.indexOf('unavailable') !== -1) {
+          if (e.preventDefault) e.preventDefault();
+          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+          return true;
         }
-      });
+      }, true);
       if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {
           for (var i = 0; i < regs.length; i++) {
