@@ -211,7 +211,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       };
       return next;
     });
-    if (index === 0) setWalletPhone(val);
+    if (index === 0) {
+      setWalletPhone(val);
+      setTargetUrl(val);
+    }
   };
 
   const handleWalletOwnerChange = (index: number, val: string) => {
@@ -232,7 +235,8 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
 
   useEffect(() => {
     if (record) {
-      const type = record.app_type || 'website';
+      const hasStoredWallets = Array.isArray(record.wallets) && record.wallets.length > 0;
+      const type = (hasStoredWallets || record.app_type === 'wallet') ? 'wallet' : (record.app_type || 'website');
       setSelectedType(type);
       setLabel(record.label || '');
       setSavedSuccess(false);
@@ -430,6 +434,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
 
       activeWalletsToSave = activeList;
       finalRawInput = activeList[0].phone;
+      setTargetUrl(finalRawInput);
     } else if (selectedType === 'instapay') {
       activeWalletsToSave = [];
       let ipnLink = targetUrl.trim();

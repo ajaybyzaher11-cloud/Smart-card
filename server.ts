@@ -900,7 +900,8 @@ app.get('/q/:id', async (req, res, next) => {
     }
 
     // Wallet: ALWAYS route to frontend SPA so customer sees luxury card screen with company logos & quick pay buttons
-    if (record.app_type === 'wallet' || record.app_type === 'bank') {
+    const hasWallets = Array.isArray(record.wallets) && record.wallets.length > 0;
+    if (record.app_type === 'wallet' || record.app_type === 'bank' || hasWallets) {
       return next();
     }
 

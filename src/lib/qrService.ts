@@ -298,7 +298,9 @@ export async function activateQrCode(
   preferredType?: AppType,
   wallets?: WalletItem[]
 ): Promise<{ success: boolean; error?: string; record?: QrCodeRecord }> {
-  const smartLink = processSmartLink(rawInput, preferredType);
+  const isWallet = preferredType === 'wallet' || (Array.isArray(wallets) && wallets.length > 0);
+  const effectiveAppType = isWallet ? 'wallet' : (preferredType || 'website');
+  const smartLink = processSmartLink(rawInput, effectiveAppType);
   const now = new Date();
   const existing = await getQrCode(id);
 
@@ -319,7 +321,7 @@ export async function activateQrCode(
     id,
     is_active: true,
     target_url: effectiveTargetUrl,
-    app_type: smartLink.appType,
+    app_type: effectiveAppType,
     updated_at: now.toISOString(),
     created_at: existing?.created_at || now.toISOString(),
     total_scans: (existing && existing.is_active && existing.total_scans !== undefined) 
@@ -374,7 +376,9 @@ export async function adminUpdateQrCode(
   subscriptionMonths?: number,
   wallets?: WalletItem[]
 ): Promise<{ success: boolean; record?: QrCodeRecord }> {
-  const smartLink = processSmartLink(rawTargetUrl, preferredType);
+  const isWallet = preferredType === 'wallet' || (Array.isArray(wallets) && wallets.length > 0);
+  const effectiveAppType = isWallet ? 'wallet' : (preferredType || 'website');
+  const smartLink = processSmartLink(rawTargetUrl, effectiveAppType);
   const effectiveTargetUrl = (smartLink.isWalletCard && smartLink.walletPhone)
     ? smartLink.walletPhone
     : (smartLink.schemeUrl || smartLink.fallbackUrl || rawTargetUrl.trim());
@@ -391,7 +395,7 @@ export async function adminUpdateQrCode(
     ...current,
     id,
     target_url: effectiveTargetUrl,
-    app_type: smartLink.appType,
+    app_type: effectiveAppType,
     is_active: true,
     label: label !== undefined ? label : current.label,
     expires_at: expiresAt !== undefined ? expiresAt : current.expires_at,
@@ -414,7 +418,7 @@ export async function adminUpdateQrCode(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         target_url: effectiveTargetUrl,
-        app_type: smartLink.appType,
+        app_type: effectiveAppType,
         label,
         expires_at: expiresAt,
         subscription_months: subscriptionMonths,

@@ -103,7 +103,8 @@ export default async function handler(req: any, res: any) {
 
     // 5. Wallet: ALWAYS route to dedicated luxury card screen (/?view=${id}&scanned=1)
     // so customer sees company logos, owner names, phone numbers, and quick pay transfer buttons!
-    if (appType === 'wallet') {
+    const hasWallets = Boolean(fields.wallets?.arrayValue?.values?.length);
+    if (appType === 'wallet' || hasWallets) {
       return res.writeHead(302, { Location: `/?view=${id}&scanned=1` }).end();
     }
 

@@ -283,15 +283,15 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
     try {
       const res = await activateQrCode(qrId, valueToSave, selectedType, activeWalletsToSave);
 
-      // 1. If bank or wallet phone number: open dedicated card view
+      // 1. If bank or wallet: open dedicated card view
       if (selectedType === 'bank' || selectedType === 'wallet') {
         if (res.record) {
           setActivatedRecord(res.record);
           onActivated(res.record);
         }
-        setTimeout(() => {
-          window.location.href = `/?view=${qrId}`;
-        }, 500);
+        if (typeof window !== 'undefined') {
+          window.history.pushState({}, '', `/?view=${qrId}`);
+        }
         return;
       }
 

@@ -35,13 +35,15 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
   const [inIframe, setInIframe] = useState(false);
 
   const linkInfo = processSmartLink(record.target_url || '', record.app_type);
+  const isWallet = record.app_type === 'wallet' || linkInfo.isWalletCard || (Array.isArray(record.wallets) && record.wallets.length > 0);
+  const isBank = record.app_type === 'bank' || linkInfo.isBankCard || (Boolean(record.target_url) && record.target_url!.startsWith('bank://'));
 
   useEffect(() => {
     const isIframe = isRunningInIframe();
     setInIframe(isIframe);
 
     // If it is NOT a bank card, wallet card, or instapay card: instant auto-redirect!
-    if (!linkInfo.isBankCard && linkInfo.appType !== 'bank' && !linkInfo.isWalletCard && !linkInfo.isInstaPayCard) {
+    if (!isBank && !isWallet && !linkInfo.isBankCard && !linkInfo.isWalletCard && !linkInfo.isInstaPayCard) {
       if (!isIframe) {
         triggerSmartRedirect(linkInfo);
         setHasAttemptedRedirect(true);
@@ -49,7 +51,7 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
         setHasAttemptedRedirect(true);
       }
     }
-  }, [record.id]);
+  }, [record.id, record.target_url]);
 
   const handleCopy = (text: string, fieldKey: string) => {
     navigator.clipboard.writeText(text);
@@ -184,7 +186,7 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
   }
 
   // 2. WALLET VIEW (Vodafone Cash, Etisalat Cash, Orange Cash, WE Pay - Single or Multiple Wallets)
-  if (linkInfo.isWalletCard || (record.app_type === 'wallet' && linkInfo.isWalletCard !== false)) {
+  if (isWallet) {
     const rawPhone = linkInfo.walletPhone || linkInfo.displayUrl || record.target_url || '';
     
     // Normalize wallets list (fallback to single wallet from target_url if wallets array not present)

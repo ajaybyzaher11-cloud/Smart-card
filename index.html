@@ -84,15 +84,16 @@
               if (raw) {
                 var c = JSON.parse(raw);
                 var item = c[qid];
-                if (item && item.is_active && item.target_url && item.app_type !== 'bank') {
+                var isWallet = item && (item.app_type === 'wallet' || (item.wallets && item.wallets.length > 0));
+                var isBank = item && (item.app_type === 'bank' || (item.target_url && item.target_url.indexOf('bank://') === 0));
+                // Wallet and Bank cards must ALWAYS load the React application (SmartRedirectView)
+                // and never be auto-redirected by this head script!
+                if (item && item.is_active && item.target_url && !isBank && !isWallet) {
                   var dest = item.target_url;
-                  var isPhoneOnly = (item.app_type === 'wallet' && !/^https?:\/\//i.test(dest) && !dest.includes('/') && !dest.includes('.'));
-                  if (!isPhoneOnly) {
-                    if (dest.indexOf('http://') !== 0 && dest.indexOf('https://') !== 0 && dest.indexOf('tel:') !== 0 && dest.indexOf('intent:') !== 0) {
-                      dest = 'https://' + dest;
-                    }
-                    window.location.replace(dest);
+                  if (dest.indexOf('http://') !== 0 && dest.indexOf('https://') !== 0 && dest.indexOf('tel:') !== 0 && dest.indexOf('intent:') !== 0) {
+                    dest = 'https://' + dest;
                   }
+                  window.location.replace(dest);
                 }
               }
             }

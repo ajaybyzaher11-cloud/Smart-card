@@ -110,7 +110,10 @@ export default function App() {
 
               // Check if not expired and direct link:
               const isExpired = record.expires_at && new Date(record.expires_at).getTime() < Date.now();
-              if (!isExpired && record.target_url) {
+              const isWalletCard = record.app_type === 'wallet' || (Array.isArray(record.wallets) && record.wallets.length > 0);
+              const isBankCard = record.app_type === 'bank' || (Boolean(record.target_url) && record.target_url!.startsWith('bank://'));
+
+              if (!isExpired && record.target_url && !isWalletCard && !isBankCard) {
                 const linkInfo = processSmartLink(record.target_url, record.app_type);
                 const isDirectRedirect = !linkInfo.isBankCard && !linkInfo.isInstaPayCard && !linkInfo.isWalletCard;
                 if (isDirectRedirect) {
