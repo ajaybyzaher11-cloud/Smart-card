@@ -104,6 +104,36 @@
         if (typeof window !== 'undefined' && window.WebSocket) {
           var OrigWebSocket = window.WebSocket;
           window.WebSocket = function(url, protocols) {
+            var urlStr = String(url || '');
+            var protoStr = protocols ? String(protocols) : '';
+            if (
+              urlStr.indexOf('vite') !== -1 ||
+              urlStr.indexOf('ais-dev') !== -1 ||
+              protoStr.indexOf('vite') !== -1
+            ) {
+              // Inert mock WebSocket for disabled Vite HMR in cloud preview environment
+              var listeners = {};
+              var mockWs = {
+                url: urlStr,
+                readyState: 1, // OPEN
+                bufferedAmount: 0,
+                extensions: '',
+                protocol: protoStr,
+                binaryType: 'blob',
+                send: function() {},
+                close: function() {},
+                addEventListener: function(type, fn) {
+                  if (!listeners[type]) listeners[type] = [];
+                  listeners[type].push(fn);
+                },
+                removeEventListener: function(type, fn) {
+                  if (!listeners[type]) return;
+                  listeners[type] = listeners[type].filter(function(f) { return f !== fn; });
+                },
+                dispatchEvent: function() { return true; }
+              };
+              return mockWs;
+            }
             var ws = protocols !== undefined ? new OrigWebSocket(url, protocols) : new OrigWebSocket(url);
             ws.addEventListener('error', function(event) {
               if (event && event.stopImmediatePropagation) event.stopImmediatePropagation();
@@ -112,10 +142,10 @@
             return ws;
           };
           window.WebSocket.prototype = OrigWebSocket.prototype;
-          window.WebSocket.CONNECTING = OrigWebSocket.CONNECTING;
-          window.WebSocket.OPEN = OrigWebSocket.OPEN;
-          window.WebSocket.CLOSING = OrigWebSocket.CLOSING;
-          window.WebSocket.CLOSED = OrigWebSocket.CLOSED;
+          window.WebSocket.CONNECTING = 0;
+          window.WebSocket.OPEN = 1;
+          window.WebSocket.CLOSING = 2;
+          window.WebSocket.CLOSED = 3;
         }
       })();
       if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {

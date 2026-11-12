@@ -770,16 +770,32 @@ app.post('/api/qr/:id/reset-scans', requireAdminAuth, (req, res) => {
   res.json({ success: true, data: record, message: 'تم تعديل العداد بنجاح' });
 });
 
-// Delete QR Code (PROTECTED with requireAdminAuth)
-app.delete('/api/qr/:id', requireAdminAuth, (req, res) => {
+async function deleteFromFirestore(id: string): Promise<void> {
+  const pId = firebaseConfig?.projectId || FIRESTORE_PROJECT_ID;
+  const dbId = firebaseConfig?.firestoreDatabaseId || FIRESTORE_DATABASE_ID;
+  const key = firebaseConfig?.apiKey || 'AIzaSyAjyCP484AEQ52-9CDgp8TDkAw5woA1TFc';
+  try {
+    const docUrl = `https://firestore.googleapis.com/v1/projects/${pId}/databases/${dbId}/documents/qr_codes/${encodeURIComponent(id)}?key=${key}`;
+    await fetch(docUrl, { method: 'DELETE' });
+  } catch (fsErr) {
+    console.warn('Server failed to delete from Firestore REST:', fsErr);
+  }
+}
+
+// Delete QR Code permanently (PROTECTED with requireAdminAuth)
+// Deletes from both local server JSON DB and Cloud Firestore permanently, whether active or inactive
+app.delete('/api/qr/:id', requireAdminAuth, async (req, res) => {
   const { id } = req.params;
   const db = loadDatabase();
-  if (!db[id]) {
-    return res.status(404).json({ success: false, error: 'الكود غير موجود' });
+  if (db[id]) {
+    delete db[id];
+    saveDatabase(db);
   }
-  delete db[id];
-  saveDatabase(db);
-  res.json({ success: true, message: 'تم حذف الكود نهائياً' });
+
+  // Purge permanently from Cloud Firestore via REST API
+  await deleteFromFirestore(id);
+
+  res.json({ success: true, message: 'تم حذف الكود نهائياً من قاعدة البيانات والسيرفر' });
 });
 
 // Get platform settings

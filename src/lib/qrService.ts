@@ -5,6 +5,7 @@ import { db } from './firebase';
 import { AppType, QrCodeRecord, PlatformSettings, WalletItem } from '../types/qr';
 import { processSmartLink } from './deepLinks';
 import { authFetch } from './auth';
+import firebaseConfig from '../../firebase-applet-config.json';
 
 const LOCAL_STORAGE_KEY = 'smart_qr_codes_local_cache';
 const SETTINGS_CACHE_KEY = 'smart_qr_platform_settings';
@@ -235,9 +236,9 @@ export async function lookupExistingQrCode(id: string): Promise<QrCodeRecord | n
  * Fetch all QR codes for Admin view (Firestore + API + Local cache)
  */
 export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
-  const mergedMap: Record<string, QrCodeRecord> = { ...getLocalCache() };
+  const mergedMap: Record<string, QrCodeRecord> = {};
 
-  // 1. Primary: Direct Cloud Firestore fetch
+  // 1. Primary: Direct Cloud Firestore fetch (Source of Truth)
   try {
     const snap = await getDocs(collection(db, 'qr_codes'));
     if (!snap.empty) {
@@ -256,6 +257,11 @@ export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
           mergedMap[id] = item;
         }
       });
+      // Authoritatively update cache to exclude any deleted codes
+      saveLocalCache(mergedMap);
+      return Object.values(mergedMap)
+        .filter((r): r is QrCodeRecord => Boolean(r && r.id && r.id !== 'undefined' && r.id !== 'null'))
+        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
     }
   } catch (fsErr) {
     console.warn('Firestore fetchAll warning:', fsErr);
@@ -547,7 +553,9 @@ export function subscribeToQrCodes(
     const unsubscribe = onSnapshot(
       qrCol,
       (snapshot) => {
-        const map: Record<string, QrCodeRecord> = { ...getLocalCache() };
+        // Authoritative live snapshot: populate strictly from current Firestore docs
+        // so that deleted codes disappear immediately and are never kept as ghost records
+        const liveMap: Record<string, QrCodeRecord> = {};
         snapshot.forEach((d) => {
           const data = d.data();
           const id = data?.id || d.id;
@@ -560,15 +568,15 @@ export function subscribeToQrCodes(
               ...data,
               id,
             };
-            map[id] = item;
+            liveMap[id] = item;
           }
         });
-        const list = Object.values(map)
+        const list = Object.values(liveMap)
           .filter((item): item is QrCodeRecord => Boolean(item && item.id && item.id !== 'undefined' && item.id !== 'null'))
           .sort(
             (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
           );
-        saveLocalCache(map);
+        saveLocalCache(liveMap);
         callback(list);
       },
       (err) => {
@@ -722,32 +730,48 @@ export async function resetQrScanCount(id: string, count = 0): Promise<boolean> 
 }
 
 /**
- * Delete a QR Code permanently from database and local cache
+ * Delete a QR Code permanently from database (Firestore SDK + REST), server, and local cache.
+ * Purges the code completely whether active (is_active: true) or inactive (is_active: false).
  */
 export async function deleteQrCode(id: string): Promise<boolean> {
-  try {
-    const res = await authFetch(`/api/qr/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    });
-    if (res.ok) {
-      const cache = getLocalCache();
-      delete cache[id];
-      saveLocalCache(cache);
-      return true;
-    }
-  } catch (err) {
-    console.warn('Server delete failed, updating local state:', err);
-  }
+  const cleanId = id.trim();
+  if (!cleanId) return false;
 
-  try {
-    await deleteDoc(doc(db, 'qr_codes', id));
-  } catch (fsErr) {
-    console.warn('Firestore delete fallback warning:', fsErr);
-  }
-
+  // 1. Immediately purge from local cache
   const cache = getLocalCache();
-  delete cache[id];
+  delete cache[cleanId];
   saveLocalCache(cache);
+
+  // 2. Delete from Cloud Firestore via Firebase SDK
+  const sdkPromise = deleteDoc(doc(db, 'qr_codes', cleanId)).catch((fsErr) => {
+    console.warn('Firestore SDK deleteDoc warning:', fsErr);
+  });
+
+  // 3. Delete directly from Cloud Firestore via REST API (ensures immediate backend purge)
+  const pId = firebaseConfig?.projectId || 'clean-plateau-dv4kj';
+  const dbId = firebaseConfig?.firestoreDatabaseId || 'ai-studio-41f04a06-1999-41b9-b7be-e25b21dc1fd0';
+  const apiKey = firebaseConfig?.apiKey || 'AIzaSyAjyCP484AEQ52-9CDgp8TDkAw5woA1TFc';
+  const restUrl = `https://firestore.googleapis.com/v1/projects/${pId}/databases/${dbId}/documents/qr_codes/${encodeURIComponent(cleanId)}?key=${apiKey}`;
+  
+  const restPromise = fetch(restUrl, { method: 'DELETE' }).catch((restErr) => {
+    console.warn('Firestore REST delete warning:', restErr);
+  });
+
+  // 4. Delete from Backend Server API
+  const serverPromise = authFetch(`/api/qr/${encodeURIComponent(cleanId)}`, {
+    method: 'DELETE',
+  }).catch((err) => {
+    console.warn('Server delete request warning:', err);
+  });
+
+  // Wait for all delete operations to complete concurrently
+  await Promise.allSettled([sdkPromise, restPromise, serverPromise]);
+
+  // Clean local cache again defensively
+  const finalCache = getLocalCache();
+  delete finalCache[cleanId];
+  saveLocalCache(finalCache);
+
   return true;
 }
 

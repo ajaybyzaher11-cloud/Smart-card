@@ -126,6 +126,9 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
     try {
       await deleteQrCode(codeToDelete);
       setRecords((prev) => prev.filter((r) => r.id !== codeToDelete));
+      if (selectedEditRecord && selectedEditRecord.id === codeToDelete) {
+        setSelectedEditRecord(null);
+      }
       setCodeToDelete(null);
     } catch (err) {
       console.error('Delete failed:', err);
