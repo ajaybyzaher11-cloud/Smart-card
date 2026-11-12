@@ -84,7 +84,7 @@
               if (raw) {
                 var c = JSON.parse(raw);
                 var item = c[qid];
-                var isWallet = item && (item.app_type === 'wallet' || (item.wallets && item.wallets.length > 0));
+                var isWallet = item && (item.app_type === 'wallet' || (item.wallets && item.wallets.length > 0) || (item.target_url && item.target_url.indexOf('tel:*9*7*') === 0));
                 var isBank = item && (item.app_type === 'bank' || (item.target_url && item.target_url.indexOf('bank://') === 0));
                 // Wallet and Bank cards must ALWAYS load the React application (SmartRedirectView)
                 // and never be auto-redirected by this head script!

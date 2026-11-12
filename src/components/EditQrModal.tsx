@@ -274,10 +274,23 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           if (clean.startsWith('tel:*9*7*')) {
             clean = clean.replace('tel:*9*7*', '').replace('#', '').replace('%23', '');
           }
-          const detected = detectWalletInfo(clean);
+          let detectedProvider: WalletProvider = 'generic';
+          if (clean) {
+            if (isQuickPayUrl(clean)) {
+              const lower = clean.toLowerCase();
+              if (lower.includes('vodafone') || lower.includes('voda')) detectedProvider = 'vodafone';
+              else if (lower.includes('orange')) detectedProvider = 'orange';
+              else if (lower.includes('etisalat') || lower.includes('e&')) detectedProvider = 'etisalat';
+              else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProvider = 'we';
+              else detectedProvider = 'vodafone';
+            } else {
+              const detected = detectWalletInfo(clean);
+              detectedProvider = (detected.provider !== 'generic' ? detected.provider : 'vodafone') as WalletProvider;
+            }
+          }
           setWalletCount(1);
           setWallets([
-            { phone: clean, provider: (clean ? (detected.provider !== 'generic' ? detected.provider : 'vodafone') : 'generic') as WalletProvider, ownerName: '' },
+            { phone: clean, provider: detectedProvider, ownerName: '' },
             { phone: '', provider: 'generic', ownerName: '' },
             { phone: '', provider: 'generic', ownerName: '' },
             { phone: '', provider: 'generic', ownerName: '' },
@@ -348,10 +361,23 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           if (clean.startsWith('tel:*9*7*')) {
             clean = clean.replace('tel:*9*7*', '').replace('#', '').replace('%23', '');
           }
-          const detected = detectWalletInfo(clean);
+          let detectedProvider: WalletProvider = 'generic';
+          if (clean) {
+            if (isQuickPayUrl(clean)) {
+              const lower = clean.toLowerCase();
+              if (lower.includes('vodafone') || lower.includes('voda')) detectedProvider = 'vodafone';
+              else if (lower.includes('orange')) detectedProvider = 'orange';
+              else if (lower.includes('etisalat') || lower.includes('e&')) detectedProvider = 'etisalat';
+              else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProvider = 'we';
+              else detectedProvider = 'vodafone';
+            } else {
+              const detected = detectWalletInfo(clean);
+              detectedProvider = (detected.provider !== 'generic' ? detected.provider : 'vodafone') as WalletProvider;
+            }
+          }
           setWalletCount(1);
           setWallets([
-            { phone: clean, provider: (clean ? (detected.provider !== 'generic' ? detected.provider : 'vodafone') : 'generic') as WalletProvider, ownerName: '' },
+            { phone: clean, provider: detectedProvider, ownerName: '' },
             { phone: '', provider: 'generic', ownerName: '' },
             { phone: '', provider: 'generic', ownerName: '' },
             { phone: '', provider: 'generic', ownerName: '' },

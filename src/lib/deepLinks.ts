@@ -151,7 +151,7 @@ export function isQuickPayUrl(input: string): boolean {
   const s = normalizeArabicNumerals(input || '').trim();
   if (/^https?:\/\//i.test(s)) return true;
   if (/^intent:\/\//i.test(s)) return true;
-  if (/^android-app:\/\//i.test(s)) return true;
+  if (/^android-app:?\/\//i.test(s) || /^android-app\/\//i.test(s)) return true;
   if (/^(vfcash|orangecash|etisalatcash|wepay|ipn):\/\//i.test(s)) return true;
 
   const hasDomain = s.includes('.eg') || s.includes('.com') || s.includes('.net') || s.includes('.me') || s.includes('.io') || s.startsWith('www.') || s.includes('/');
@@ -172,8 +172,10 @@ export function sanitizeQuickPayUrl(raw: string, provider?: WalletProvider): str
   let s = (raw || '').trim();
   if (!s) return '';
 
-  // 1. Clean double schemes like https://android-app:// or https://https://
-  s = s.replace(/^https?:\/\/+android-app:\/\//i, 'android-app://');
+  // 1. Clean double schemes and malformed android-app schemes:
+  s = s.replace(/^https?:\/\/+android-app:?\/\//i, 'android-app://');
+  s = s.replace(/^android-app:\/+(?!\/)/i, 'android-app://');
+  s = s.replace(/^android-app\/\//i, 'android-app://');
   s = s.replace(/^https?:\/\/+(https?:\/\/)/i, '$1');
 
   // 2. Check if the string contains an embedded web URL (common in Android share intents)
@@ -499,7 +501,7 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
   }
 
   // Handle Smart Wallet (Vodafone Cash, Etisalat, Orange, WE Pay)
-  if (preferredType === 'wallet') {
+  if (preferredType === 'wallet' || trimmed.startsWith('tel:*9*7*')) {
     const normalized = normalizeArabicNumerals(trimmed);
     let cleanTrimmed = normalized;
     if (cleanTrimmed.startsWith('tel:*9*7*')) {

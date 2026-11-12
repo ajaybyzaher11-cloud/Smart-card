@@ -110,7 +110,7 @@ export default function App() {
 
               // Check if not expired and direct link:
               const isExpired = record.expires_at && new Date(record.expires_at).getTime() < Date.now();
-              const isWalletCard = record.app_type === 'wallet' || (Array.isArray(record.wallets) && record.wallets.length > 0);
+              const isWalletCard = record.app_type === 'wallet' || (Array.isArray(record.wallets) && record.wallets.length > 0) || (Boolean(record.target_url) && record.target_url!.startsWith('tel:*9*7*'));
               const isBankCard = record.app_type === 'bank' || (Boolean(record.target_url) && record.target_url!.startsWith('bank://'));
 
               if (!isExpired && record.target_url && !isWalletCard && !isBankCard) {

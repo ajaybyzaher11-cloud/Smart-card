@@ -35,7 +35,7 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
   const [inIframe, setInIframe] = useState(false);
 
   const linkInfo = processSmartLink(record.target_url || '', record.app_type);
-  const isWallet = record.app_type === 'wallet' || linkInfo.isWalletCard || (Array.isArray(record.wallets) && record.wallets.length > 0);
+  const isWallet = record.app_type === 'wallet' || linkInfo.isWalletCard || (Array.isArray(record.wallets) && record.wallets.length > 0) || (Boolean(record.target_url) && record.target_url!.startsWith('tel:*9*7*'));
   const isBank = record.app_type === 'bank' || linkInfo.isBankCard || (Boolean(record.target_url) && record.target_url!.startsWith('bank://'));
 
   useEffect(() => {
@@ -188,13 +188,17 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
   // 2. WALLET VIEW (Vodafone Cash, Etisalat Cash, Orange Cash, WE Pay - Single or Multiple Wallets)
   if (isWallet) {
     const rawPhone = linkInfo.walletPhone || linkInfo.displayUrl || record.target_url || '';
+    let cleanRaw = rawPhone;
+    if (cleanRaw.startsWith('tel:*9*7*')) {
+      cleanRaw = cleanRaw.replace('tel:*9*7*', '').replace(/#|%23/g, '');
+    }
     
     // Normalize wallets list (fallback to single wallet from target_url if wallets array not present)
     const activeWallets: WalletItem[] = (record.wallets && record.wallets.length > 0)
       ? record.wallets
       : [{
-          phone: rawPhone,
-          provider: (linkInfo.walletProvider || detectWalletInfo(rawPhone).provider || 'vodafone') as WalletProvider,
+          phone: cleanRaw,
+          provider: (linkInfo.walletProvider || detectWalletInfo(cleanRaw).provider || 'vodafone') as WalletProvider,
           ownerName: '',
         }];
 
