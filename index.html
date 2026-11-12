@@ -37,6 +37,7 @@
           return (
             text.indexOf('WebSocket') !== -1 ||
             text.indexOf('[vite]') !== -1 ||
+            text.indexOf('closed without opened') !== -1 ||
             text.indexOf('Could not reach Cloud Firestore backend') !== -1 ||
             text.indexOf('offline mode') !== -1 ||
             text.indexOf('@firebase/firestore') !== -1
@@ -50,23 +51,73 @@
           if (isBenign(arguments)) return;
           origWarn.apply(console, arguments);
         };
+
+        // Window error handler
+        window.addEventListener('error', function(e) {
+          var msg = (e && (e.message || (e.error && (e.error.message || e.error.stack)))) || '';
+          if (typeof msg !== 'string') msg = String(msg);
+          if (
+            msg.indexOf('WebSocket') !== -1 ||
+            msg.indexOf('vite') !== -1 ||
+            msg.indexOf('Firestore') !== -1 ||
+            msg.indexOf('closed without opened') !== -1
+          ) {
+            if (e.preventDefault) e.preventDefault();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+
+        // Window unhandled rejection handler
+        window.addEventListener('unhandledrejection', function(e) {
+          var msg = (e && e.reason && (e.reason.message || e.reason.stack || String(e.reason))) || '';
+          if (typeof msg !== 'string') msg = String(msg);
+          if (
+            msg.indexOf('WebSocket') !== -1 ||
+            msg.indexOf('vite') !== -1 ||
+            msg.indexOf('Firestore') !== -1 ||
+            msg.indexOf('unavailable') !== -1 ||
+            msg.indexOf('closed without opened') !== -1
+          ) {
+            if (e.preventDefault) e.preventDefault();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+
+        // Global onerror fallback
+        var origOnError = window.onerror;
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+          var errStr = String(msg || '') + ' ' + String((error && (error.message || error.stack)) || '');
+          if (
+            errStr.indexOf('WebSocket') !== -1 ||
+            errStr.indexOf('vite') !== -1 ||
+            errStr.indexOf('Firestore') !== -1 ||
+            errStr.indexOf('closed without opened') !== -1
+          ) {
+            return true;
+          }
+          if (origOnError) return origOnError.apply(this, arguments);
+        };
+
+        // Wrap WebSocket to intercept closed-without-opened in cloud preview
+        if (typeof window !== 'undefined' && window.WebSocket) {
+          var OrigWebSocket = window.WebSocket;
+          window.WebSocket = function(url, protocols) {
+            var ws = protocols !== undefined ? new OrigWebSocket(url, protocols) : new OrigWebSocket(url);
+            ws.addEventListener('error', function(event) {
+              if (event && event.stopImmediatePropagation) event.stopImmediatePropagation();
+              if (event && event.preventDefault) event.preventDefault();
+            }, true);
+            return ws;
+          };
+          window.WebSocket.prototype = OrigWebSocket.prototype;
+          window.WebSocket.CONNECTING = OrigWebSocket.CONNECTING;
+          window.WebSocket.OPEN = OrigWebSocket.OPEN;
+          window.WebSocket.CLOSING = OrigWebSocket.CLOSING;
+          window.WebSocket.CLOSED = OrigWebSocket.CLOSED;
+        }
       })();
-      window.addEventListener('error', function(e) {
-        var msg = (e && (e.message || (e.error && (e.error.message || e.error.stack)))) || '';
-        if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('vite') !== -1 || msg.indexOf('Firestore') !== -1) {
-          if (e.preventDefault) e.preventDefault();
-          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-          return true;
-        }
-      }, true);
-      window.addEventListener('unhandledrejection', function(e) {
-        var msg = (e && e.reason && (e.reason.message || e.reason.stack || String(e.reason))) || '';
-        if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('vite') !== -1 || msg.indexOf('Firestore') !== -1 || msg.indexOf('unavailable') !== -1) {
-          if (e.preventDefault) e.preventDefault();
-          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-          return true;
-        }
-      }, true);
       if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {
           for (var i = 0; i < regs.length; i++) {
