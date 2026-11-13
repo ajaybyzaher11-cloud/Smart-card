@@ -32,6 +32,7 @@ interface HomeLandingViewProps {
 export function HomeLandingView({ onGoToAdmin, onSimulateScan }: HomeLandingViewProps) {
   const [manualCode, setManualCode] = useState('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [cameraDeclinedOnce, setCameraDeclinedOnce] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
   const [settings, setSettings] = useState<PlatformSettings>({
@@ -185,6 +186,36 @@ export function HomeLandingView({ onGoToAdmin, onSimulateScan }: HomeLandingView
           }`}>
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <span className="flex-1 font-semibold">{feedbackMsg.text}</span>
+          </div>
+        )}
+
+        {/* Re-appear Camera Scan Choice Banner after first decline */}
+        {cameraDeclinedOnce && !isScannerOpen && (
+          <div className="p-4 rounded-2xl bg-amber-400/10 border border-amber-400/35 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in duration-300">
+            <div className="flex items-center gap-3 text-right">
+              <div className="w-10 h-10 rounded-xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center flex-shrink-0">
+                <Camera className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-xs font-extrabold text-amber-200">
+                  خيار مسح الرمز بالكاميرا متاح مرة أخرى
+                </p>
+                <p className="text-[11px] text-slate-300">
+                  تم إغلاق نافذة إذن الكاميرا — يمكنك إظهار اختيار التفعيل ومسح الرمز الآن في أي وقت.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setCameraDeclinedOnce(false);
+                setIsScannerOpen(true);
+              }}
+              className="px-4 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-amber-400 text-black font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
+            >
+              <Camera className="w-3.5 h-3.5 text-black" />
+              <span>إظهار مسح الرمز بالكاميرا</span>
+            </button>
           </div>
         )}
 
@@ -360,8 +391,12 @@ export function HomeLandingView({ onGoToAdmin, onSimulateScan }: HomeLandingView
       {/* Live Camera Scanner Modal */}
       <QrScannerModal
         isOpen={isScannerOpen}
+        mode="customer"
         onClose={() => setIsScannerOpen(false)}
+        onDeclined={() => setCameraDeclinedOnce(true)}
+        onUploadFallback={() => fileInputRef.current?.click()}
         onScannedId={(id) => {
+          setCameraDeclinedOnce(false);
           setIsScannerOpen(false);
           window.location.href = `/q/${id}`;
         }}

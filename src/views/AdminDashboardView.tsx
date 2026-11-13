@@ -119,6 +119,32 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
   // QR Thumbnails cache
   const [qrThumbs, setQrThumbs] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [adminNotice, setAdminNotice] = useState<{ type: 'error' | 'info' | 'success'; text: string } | null>(null);
+  const [isCopyingFullCode, setIsCopyingFullCode] = useState(false);
+  const [fullCodeCopied, setFullCodeCopied] = useState(false);
+
+  const handleCopyFullPlatformCode = async () => {
+    setIsCopyingFullCode(true);
+    try {
+      const res = await fetch('/SMART_CARD_FULL_CODE.txt');
+      if (!res.ok) throw new Error('Failed to fetch source file');
+      const text = await res.text();
+      await navigator.clipboard.writeText(text);
+      setFullCodeCopied(true);
+      setAdminNotice({
+        type: 'success',
+        text: 'تم نسخ كود المنصة بالكامل (ملف واحد) إلى الحافظة بنجاح!',
+      });
+      setTimeout(() => setFullCodeCopied(false), 3000);
+    } catch {
+      setAdminNotice({
+        type: 'info',
+        text: 'يمكنك فتح أو تحميل الملف الموحد مباشرة من /SMART_CARD_FULL_CODE.txt',
+      });
+    } finally {
+      setIsCopyingFullCode(false);
+    }
+  };
 
   const handleConfirmDelete = async () => {
     if (!codeToDelete) return;
@@ -343,6 +369,33 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
               <span className="text-[11px]">تواصل مع المطور (الواتساب)</span>
             </button>
 
+            {/* Copy Full Platform Code (Single File) */}
+            <button
+              type="button"
+              onClick={handleCopyFullPlatformCode}
+              disabled={isCopyingFullCode}
+              className="px-2.5 py-1.5 text-cyan-300 hover:text-black hover:bg-cyan-400 bg-cyan-400/10 rounded-xl transition text-xs font-bold flex items-center gap-1.5 border border-cyan-400/30 cursor-pointer"
+              title="نسخ كود المنصة بالكامل في ملف واحد بضغطة واحدة"
+            >
+              {fullCodeCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              <span className="text-[11px]">
+                {fullCodeCopied ? 'تم نسخ الكود!' : 'نسخ كود المنصة'}
+              </span>
+            </button>
+
+            {/* Download Full Source Code Single Text File */}
+            <a
+              href="/SMART_CARD_FULL_CODE.txt"
+              download="SMART_CARD_FULL_CODE.txt"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1.5 text-emerald-300 hover:text-black hover:bg-emerald-400 bg-emerald-400/10 rounded-xl transition text-xs font-bold flex items-center gap-1.5 border border-emerald-400/30"
+              title="فتح / تحميل كود المنصة بالكامل في ملف نصي واحد سهل النسخ"
+            >
+              <Code2 className="w-3.5 h-3.5" />
+              <span className="text-[11px] hidden sm:inline">ملف الكود (.txt)</span>
+            </a>
+
             {/* Download Documentation PDF */}
             <a
               href="/Smart_Card_Documentation_and_Updates.pdf"
@@ -354,19 +407,6 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             >
               <FileText className="w-3.5 h-3.5" />
               <span className="text-[11px] hidden sm:inline">تقرير التوثيق (PDF)</span>
-            </a>
-
-            {/* Download Full Source Code PDF */}
-            <a
-              href="/Smart_Card_Full_Source_Code.pdf"
-              download="Smart_Card_Full_Source_Code.pdf"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-2.5 py-1.5 text-emerald-300 hover:text-black hover:bg-emerald-400 bg-emerald-400/10 rounded-xl transition text-xs font-bold flex items-center gap-1.5 border border-emerald-400/30"
-              title="تحميل كود المشروع بالكامل (PDF)"
-            >
-              <Code2 className="w-3.5 h-3.5" />
-              <span className="text-[11px] hidden sm:inline">كود الموقع (PDF)</span>
             </a>
 
             <button
@@ -391,6 +431,30 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
 
       {/* Main Body */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+        {adminNotice && (
+          <div
+            className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center justify-between gap-3 animate-in fade-in ${
+              adminNotice.type === 'error'
+                ? 'bg-rose-500/15 border-rose-500/35 text-rose-200'
+                : adminNotice.type === 'success'
+                ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-200'
+                : 'bg-amber-400/15 border-amber-400/35 text-amber-200'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{adminNotice.text}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAdminNotice(null)}
+              className="px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] cursor-pointer"
+            >
+              إغلاق
+            </button>
+          </div>
+        )}
+
         {/* Localhost / Online Domain Guidance Banner */}
         {(domainUrl.includes('localhost') || domainUrl.includes('127.0.0.1')) && !platformSettings.public_domain_url && (
           <div className="p-4 bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-500/15 border border-amber-500/35 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 text-right shadow-lg">
@@ -1122,7 +1186,15 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
 
       <QrScannerModal
         isOpen={isScannerOpen}
+        mode="admin"
         onClose={() => setIsScannerOpen(false)}
+        onUploadFallback={() => setIsUploadOpen(true)}
+        onDeclined={() =>
+          setAdminNotice({
+            type: 'info',
+            text: 'تم إغلاق إذن الكاميرا — يمكنك الضغط على "مسح بالكاميرا للتعديل" في أي وقت لإعادة التخيير وتفعيل الكاميرا.',
+          })
+        }
         onScannedId={async (id) => {
           setIsScannerOpen(false);
           let rec: QrCodeRecord | null | undefined = records.find((r) => r.id === id);
@@ -1132,7 +1204,10 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
           if (rec) {
             setSelectedEditRecord(rec);
           } else {
-            alert(`الرمز "${id}" غير موجود أو تم حذفه من قاعدة البيانات.`);
+            setAdminNotice({
+              type: 'error',
+              text: `الرمز "${id}" غير موجود أو تم حذفه من قاعدة البيانات.`,
+            });
           }
         }}
       />
