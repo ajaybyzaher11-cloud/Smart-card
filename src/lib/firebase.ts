@@ -8,6 +8,7 @@ const app = initializeApp(firebaseConfig);
 // CRITICAL: The app requires firebaseConfig.firestoreDatabaseId with auto-detect long polling for iframe resilience
 export const db = initializeFirestore(app, {
   experimentalAutoDetectLongPolling: true,
+  ignoreUndefinedProperties: true,
 }, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 

@@ -1,14 +1,14 @@
 ################################################################################
 # SMART CARD PLATFORM - COMPLETE UNIFIED SOURCE CODE (SINGLE COPYABLE FILE)
 # Total Files: 37
-# Generated At: 2026-11-14T15:10:55.031Z
+# Generated At: 2026-11-14T15:31:28.833Z
 # Live URL: https://smart-card-inky.vercel.app
 ################################################################################
 #
 # TABLE OF CONTENTS:
 #   01. package.json (49 lines)
-#   02. index.html (191 lines)
-#   03. vite.config.ts (104 lines)
+#   02. index.html (165 lines)
+#   03. vite.config.ts (105 lines)
 #   04. tsconfig.json (29 lines)
 #   05. vercel.json (13 lines)
 #   06. metadata.json (11 lines)
@@ -16,7 +16,7 @@
 #   08. firestore.rules (26 lines)
 #   09. firebase-blueprint.json (64 lines)
 #   10. firebase-applet-config.json (12 lines)
-#   11. server.ts (991 lines)
+#   11. server.ts (1050 lines)
 #   12. api/redirect.ts (288 lines)
 #   13. src/main.tsx (6 lines)
 #   14. src/App.tsx (263 lines)
@@ -24,13 +24,13 @@
 #   16. src/types/qr.ts (78 lines)
 #   17. src/types/jsqr.d.ts (37 lines)
 #   18. src/hooks/usePWAInstall.ts (74 lines)
-#   19. src/lib/firebase.ts (73 lines)
+#   19. src/lib/firebase.ts (74 lines)
 #   20. src/lib/auth.ts (374 lines)
 #   21. src/lib/deepLinks.ts (822 lines)
-#   22. src/lib/qrService.ts (955 lines)
+#   22. src/lib/qrService.ts (1121 lines)
 #   23. src/components/BrandIcons.tsx (656 lines)
 #   24. src/components/QrScannerModal.tsx (413 lines)
-#   25. src/components/EditQrModal.tsx (1308 lines)
+#   25. src/components/EditQrModal.tsx (1325 lines)
 #   26. src/components/BulkGenerateModal.tsx (389 lines)
 #   27. src/components/PrintSheetModal.tsx (194 lines)
 #   28. src/components/UploadQrModal.tsx (320 lines)
@@ -39,9 +39,9 @@
 #   31. src/components/PWAInstallModal.tsx (205 lines)
 #   32. src/views/HomeLandingView.tsx (407 lines)
 #   33. src/views/AdminLoginView.tsx (131 lines)
-#   34. src/views/AdminDashboardView.tsx (1377 lines)
+#   34. src/views/AdminDashboardView.tsx (1376 lines)
 #   35. src/views/CustomerActivationView.tsx (731 lines)
-#   36. src/views/SmartRedirectView.tsx (719 lines)
+#   36. src/views/SmartRedirectView.tsx (674 lines)
 #   37. src/views/CardExpiredView.tsx (140 lines)
 #
 ################################################################################
@@ -258,32 +258,6 @@ FILE: index.html
           }
         }).catch(function() {});
       }
-      (function() {
-        try {
-          var p = window.location.pathname || '';
-          if (p.indexOf('/q/') === 0) {
-            var qid = p.replace('/q/', '').split('?')[0].split('/')[0];
-            if (qid) {
-              var raw = localStorage.getItem('smart_qr_codes_local_cache');
-              if (raw) {
-                var c = JSON.parse(raw);
-                var item = c[qid];
-                var isWallet = item && (item.app_type === 'wallet' || (item.wallets && item.wallets.length > 0) || (item.target_url && item.target_url.indexOf('tel:*9*7*') === 0));
-                var isBank = item && (item.app_type === 'bank' || (item.target_url && item.target_url.indexOf('bank://') === 0));
-                // Wallet and Bank cards must ALWAYS load the React application (SmartRedirectView)
-                // and never be auto-redirected by this head script!
-                if (item && item.is_active && item.target_url && !isBank && !isWallet) {
-                  var dest = item.target_url;
-                  if (dest.indexOf('http://') !== 0 && dest.indexOf('https://') !== 0 && dest.indexOf('tel:') !== 0 && dest.indexOf('intent:') !== 0) {
-                    dest = 'https://' + dest;
-                  }
-                  window.location.replace(dest);
-                }
-              }
-            }
-          }
-        } catch (e) {}
-      })();
     </script>
   </head>
   <body class="bg-[#09090b] text-slate-100 font-sans antialiased min-h-screen selection:bg-amber-500 selection:text-black">
@@ -345,6 +319,7 @@ export default defineConfig(() => {
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,
+          navigateFallbackDenylist: [/^\/q\//, /^\/api\//],
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,ttf,woff,woff2}'],
           runtimeCaching: [
@@ -1176,14 +1151,84 @@ app.get('/api/qr', (req, res) => {
   res.json({ success: true, data: list });
 });
 
+function parseFirestoreFieldVal(val: any): any {
+  if (!val || typeof val !== 'object') return undefined;
+  if ('stringValue' in val) return val.stringValue;
+  if ('booleanValue' in val) return val.booleanValue;
+  if ('integerValue' in val) return parseInt(val.integerValue, 10);
+  if ('doubleValue' in val) return Number(val.doubleValue);
+  if ('nullValue' in val) return null;
+  if ('timestampValue' in val) return val.timestampValue;
+  if ('arrayValue' in val) {
+    const vals = val.arrayValue?.values || [];
+    return vals.map(parseFirestoreFieldVal).filter((v: any) => v !== undefined);
+  }
+  if ('mapValue' in val) {
+    const fields = val.mapValue?.fields || {};
+    const obj: Record<string, any> = {};
+    for (const [k, v] of Object.entries(fields)) {
+      const parsed = parseFirestoreFieldVal(v);
+      if (parsed !== undefined) obj[k] = parsed;
+    }
+    return obj;
+  }
+  return undefined;
+}
+
+async function fetchQrFromFirestoreRestServer(id: string): Promise<QrRecord | null> {
+  const pId = firebaseConfig?.projectId || FIRESTORE_PROJECT_ID;
+  const dbId = firebaseConfig?.firestoreDatabaseId || FIRESTORE_DATABASE_ID;
+  const key = firebaseConfig?.apiKey || 'AIzaSyAjyCP484AEQ52-9CDgp8TDkAw5woA1TFc';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1400);
+  try {
+    const docUrl = `https://firestore.googleapis.com/v1/projects/${pId}/databases/${dbId}/documents/qr_codes/${encodeURIComponent(id)}?key=${key}`;
+    const firestoreRes = await fetch(docUrl, { signal: controller.signal, cache: 'no-store' });
+    if (!firestoreRes.ok) return null;
+    const firestoreData = await firestoreRes.json();
+    const f = firestoreData.fields || {};
+    const parsedWallets = parseFirestoreFieldVal(f.wallets);
+    return {
+      id,
+      is_active: f.is_active?.booleanValue ?? false,
+      target_url: f.target_url?.stringValue ?? null,
+      app_type: f.app_type?.stringValue ?? 'website',
+      label: f.label?.stringValue,
+      created_at: f.created_at?.stringValue ?? new Date().toISOString(),
+      updated_at: f.updated_at?.stringValue,
+      total_scans: parseInt(f.total_scans?.integerValue || '0', 10),
+      expires_at: f.expires_at?.stringValue ?? null,
+      subscription_months: parseInt(f.subscription_months?.integerValue || '1', 10),
+      wallets: Array.isArray(parsedWallets) ? parsedWallets : undefined,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // Get single QR code by ID
-app.get('/api/qr/:id', (req, res) => {
+app.get('/api/qr/:id', async (req, res) => {
   const { id } = req.params;
   const db = loadDatabase();
-  const record = db[id];
+  let record = db[id];
+
+  const fsRecord = await fetchQrFromFirestoreRestServer(id);
+  if (fsRecord) {
+    const localTime = record ? new Date(record.updated_at || record.created_at || 0).getTime() : 0;
+    const fsTime = new Date(fsRecord.updated_at || fsRecord.created_at || 0).getTime();
+    if (!record || fsTime >= localTime) {
+      record = fsRecord;
+      db[id] = fsRecord;
+      saveDatabase(db);
+    }
+  }
+
   if (!record) {
     return res.status(404).json({ success: false, error: 'الرمز غير موجود' });
   }
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   res.json({ success: true, data: record });
 });
 
@@ -1446,29 +1491,18 @@ app.get('/q/:id', async (req, res, next) => {
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
 
-  // Firestore fallback lookup
-  if (!record) {
-    try {
-      const docUrl = `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT_ID}/databases/${FIRESTORE_DATABASE_ID}/documents/qr_codes/${id}`;
-      const firestoreRes = await fetch(docUrl);
-      if (firestoreRes.ok) {
-        const firestoreData = await firestoreRes.json();
-        const f = firestoreData.fields || {};
-        record = {
-          id,
-          is_active: f.is_active?.booleanValue ?? false,
-          target_url: f.target_url?.stringValue ?? null,
-          app_type: f.app_type?.stringValue ?? 'website',
-          created_at: f.created_at?.stringValue ?? new Date().toISOString(),
-          total_scans: parseInt(f.total_scans?.integerValue || '0', 10),
-          expires_at: f.expires_at?.stringValue ?? null,
-          subscription_months: parseInt(f.subscription_months?.integerValue || '1', 10),
-        };
-        db[id] = record;
-        saveDatabase(db);
-      }
-    } catch (fsErr) {
-      console.warn('Server Firestore fallback lookup error:', fsErr);
+  // Always reconcile against live Cloud Firestore so edits made on Vercel or Admin are immediately reflected on existing QR codes
+  const fsRecord = await fetchQrFromFirestoreRestServer(id);
+  if (fsRecord) {
+    const localTime = record ? new Date(record.updated_at || record.created_at || 0).getTime() : 0;
+    const fsTime = new Date(fsRecord.updated_at || fsRecord.created_at || 0).getTime();
+    if (!record || fsTime >= localTime) {
+      record = {
+        ...fsRecord,
+        total_scans: Math.max(record?.total_scans || 0, fsRecord.total_scans || 0),
+      };
+      db[id] = record;
+      saveDatabase(db);
     }
   }
 
@@ -1689,7 +1723,7 @@ export default async function handler(req: any, res: any) {
     // 5. Wallet: ALWAYS route to dedicated luxury card screen (/?view=${id}&scanned=1)
     // so customer sees company logos, owner names, phone numbers, and quick pay transfer buttons!
     const hasWallets = Boolean(fields.wallets?.arrayValue?.values?.length);
-    if (appType === 'wallet' || hasWallets || targetUrl.startsWith('tel:*9*7*')) {
+    if (appType === 'wallet' || hasWallets || targetUrl.startsWith('tel:*9*7*') || /vf\.eg\/vfcash/i.test(targetUrl)) {
       return res.writeHead(302, { Location: `/?view=${id}&scanned=1` }).end();
     }
 
@@ -2421,6 +2455,7 @@ const app = initializeApp(firebaseConfig);
 // CRITICAL: The app requires firebaseConfig.firestoreDatabaseId with auto-detect long polling for iframe resilience
 export const db = initializeFirestore(app, {
   experimentalAutoDetectLongPolling: true,
+  ignoreUndefinedProperties: true,
 }, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
@@ -3379,7 +3414,7 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
       // Detect operator from URL domain / keywords
       let detectedProv: WalletProvider = 'vodafone';
       const lower = cleanTrimmed.toLowerCase();
-      if (lower.includes('vodafone') || lower.includes('voda')) detectedProv = 'vodafone';
+      if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) detectedProv = 'vodafone';
       else if (lower.includes('orange')) detectedProv = 'orange';
       else if (lower.includes('etisalat') || lower.includes('e&')) detectedProv = 'etisalat';
       else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProv = 'we';
@@ -3691,7 +3726,7 @@ FILE: src/lib/qrService.ts
 ================================================================================
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, writeBatch, increment, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, getDocs, collection, writeBatch, increment, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { AppType, QrCodeRecord, PlatformSettings, WalletItem } from '../types/qr';
 import { processSmartLink } from './deepLinks';
@@ -3729,6 +3764,137 @@ function saveLocalCache(cache: Record<string, QrCodeRecord>) {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cache));
   } catch (e) {
     console.warn('LocalStorage save warning:', e);
+  }
+}
+
+/**
+ * Recursively strips undefined values from objects/arrays so Firestore never rejects a write.
+ */
+function cleanForFirestore<T>(val: T): T {
+  if (Array.isArray(val)) {
+    return val
+      .filter((item) => item !== undefined)
+      .map((item) => cleanForFirestore(item)) as unknown as T;
+  }
+  if (val !== null && typeof val === 'object') {
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(val as Record<string, any>)) {
+      if (v !== undefined) {
+        out[k] = cleanForFirestore(v);
+      }
+    }
+    return out as T;
+  }
+  return val;
+}
+
+function getFirestoreRestConfig() {
+  const pId = firebaseConfig?.projectId || 'clean-plateau-dv4kj';
+  const dbId = firebaseConfig?.firestoreDatabaseId || 'ai-studio-41f04a06-1999-41b9-b7be-e25b21dc1fd0';
+  const apiKey = firebaseConfig?.apiKey || 'AIzaSyAjyCP484AEQ52-9CDgp8TDkAw5woA1TFc';
+  return { pId, dbId, apiKey };
+}
+
+function parseFirestoreValue(val: any): any {
+  if (!val || typeof val !== 'object') return undefined;
+  if ('stringValue' in val) return val.stringValue;
+  if ('booleanValue' in val) return val.booleanValue;
+  if ('integerValue' in val) return parseInt(val.integerValue, 10);
+  if ('doubleValue' in val) return Number(val.doubleValue);
+  if ('nullValue' in val) return null;
+  if ('timestampValue' in val) return val.timestampValue;
+  if ('arrayValue' in val) {
+    const vals = val.arrayValue?.values || [];
+    return vals.map(parseFirestoreValue).filter((v: any) => v !== undefined);
+  }
+  if ('mapValue' in val) {
+    const fields = val.mapValue?.fields || {};
+    const obj: Record<string, any> = {};
+    for (const [k, v] of Object.entries(fields)) {
+      const parsed = parseFirestoreValue(v);
+      if (parsed !== undefined) obj[k] = parsed;
+    }
+    return obj;
+  }
+  return undefined;
+}
+
+function firestoreRestDocToQrRecord(id: string, docJson: any): QrCodeRecord | null {
+  if (!docJson || !docJson.fields) return null;
+  const parsed: Record<string, any> = {};
+  for (const [k, v] of Object.entries(docJson.fields)) {
+    const pv = parseFirestoreValue(v);
+    if (pv !== undefined) parsed[k] = pv;
+  }
+  return {
+    created_at: parsed.created_at || new Date().toISOString(),
+    total_scans: typeof parsed.total_scans === 'number' ? parsed.total_scans : 0,
+    is_active: Boolean(parsed.is_active),
+    target_url: parsed.target_url ?? null,
+    ...parsed,
+    id: parsed.id || id,
+  } as QrCodeRecord;
+}
+
+function toFirestoreValue(val: any): any {
+  if (val === null) return { nullValue: null };
+  if (typeof val === 'boolean') return { booleanValue: val };
+  if (typeof val === 'number') {
+    return Number.isInteger(val) ? { integerValue: String(val) } : { doubleValue: val };
+  }
+  if (typeof val === 'string') return { stringValue: val };
+  if (Array.isArray(val)) {
+    return {
+      arrayValue: {
+        values: val.filter((v) => v !== undefined).map(toFirestoreValue),
+      },
+    };
+  }
+  if (typeof val === 'object') {
+    const fields: Record<string, any> = {};
+    for (const [k, v] of Object.entries(val)) {
+      if (v !== undefined) {
+        fields[k] = toFirestoreValue(v);
+      }
+    }
+    return { mapValue: { fields } };
+  }
+  return { nullValue: null };
+}
+
+async function fetchQrFromFirestoreRest(cleanId: string): Promise<QrCodeRecord | null> {
+  try {
+    const { pId, dbId, apiKey } = getFirestoreRestConfig();
+    const url = `https://firestore.googleapis.com/v1/projects/${pId}/databases/${dbId}/documents/qr_codes/${encodeURIComponent(cleanId)}?key=${apiKey}&t=${Date.now()}`;
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return firestoreRestDocToQrRecord(cleanId, json);
+  } catch {
+    return null;
+  }
+}
+
+async function writeQrToFirestoreRest(cleanId: string, record: QrCodeRecord): Promise<boolean> {
+  try {
+    const { pId, dbId, apiKey } = getFirestoreRestConfig();
+    const url = `https://firestore.googleapis.com/v1/projects/${pId}/databases/${dbId}/documents/qr_codes/${encodeURIComponent(cleanId)}?key=${apiKey}`;
+    const clean = cleanForFirestore(record);
+    const fields: Record<string, any> = {};
+    for (const [k, v] of Object.entries(clean)) {
+      if (v !== undefined) {
+        fields[k] = toFirestoreValue(v);
+      }
+    }
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+      cache: 'no-store',
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }
 
@@ -3821,12 +3987,19 @@ export async function getQrCode(id: string): Promise<QrCodeRecord | null> {
     }
   }
 
-  // 1. Fetch from Firestore and Server API concurrently
-  const firestoreFetch = getDoc(doc(db, 'qr_codes', cleanId))
+  // 1. Fetch from Firestore Server, Firestore REST API, and Express Server API concurrently
+  const docRef = doc(db, 'qr_codes', cleanId);
+  const firestoreSdkFetch = getDocFromServer(docRef)
     .then((snap) => (snap.exists() ? (snap.data() as QrCodeRecord) : null))
-    .catch(() => null);
+    .catch(() =>
+      getDoc(docRef)
+        .then((snap) => (snap.exists() ? (snap.data() as QrCodeRecord) : null))
+        .catch(() => null)
+    );
 
-  const serverFetch = fetch(`/api/qr/${encodeURIComponent(cleanId)}`)
+  const firestoreRestFetch = fetchQrFromFirestoreRest(cleanId);
+
+  const serverFetch = fetch(`/api/qr/${encodeURIComponent(cleanId)}?t=${Date.now()}`, { cache: 'no-store' })
     .then(async (res) => {
       const contentType = res.headers.get('content-type') || '';
       if (res.ok && contentType.includes('application/json')) {
@@ -3838,20 +4011,20 @@ export async function getQrCode(id: string): Promise<QrCodeRecord | null> {
     .catch(() => null);
 
   try {
-    const results = await Promise.allSettled([firestoreFetch, serverFetch]);
-    const fsRecord = results[0].status === 'fulfilled' ? results[0].value : null;
-    const srvRecord = results[1].status === 'fulfilled' ? results[1].value : null;
+    const results = await Promise.allSettled([firestoreRestFetch, firestoreSdkFetch, serverFetch]);
+    const candidates = results
+      .filter((r): r is PromiseFulfilledResult<QrCodeRecord | null> => r.status === 'fulfilled')
+      .map((r) => r.value)
+      .filter((r): r is QrCodeRecord => Boolean(r && r.id));
 
-    let bestRecord: QrCodeRecord | null = null;
-    if (fsRecord && srvRecord) {
-      const fsTime = new Date(fsRecord.updated_at || fsRecord.created_at || 0).getTime();
-      const srvTime = new Date(srvRecord.updated_at || srvRecord.created_at || 0).getTime();
-      bestRecord = srvTime > fsTime ? srvRecord : fsRecord;
-    } else {
-      bestRecord = fsRecord || srvRecord;
-    }
+    if (candidates.length > 0) {
+      // Pick the candidate with the newest updated_at/created_at timestamp (REST listed first so ties favor REST)
+      const bestRecord = candidates.reduce((best, curr) => {
+        const bestTime = new Date(best.updated_at || best.created_at || 0).getTime();
+        const currTime = new Date(curr.updated_at || curr.created_at || 0).getTime();
+        return currTime > bestTime ? curr : best;
+      });
 
-    if (bestRecord) {
       const cache = getLocalCache();
       cache[cleanId] = bestRecord;
       saveLocalCache(cache);
@@ -3861,7 +4034,7 @@ export async function getQrCode(id: string): Promise<QrCodeRecord | null> {
     console.warn('Concurrent QR fetch warning:', err);
   }
 
-  // 2. Fallback to local cache only if network temporarily unreachable
+  // 2. Fallback to local cache only if all network sources temporarily unreachable
   const cache = getLocalCache();
   if (cache[cleanId]) {
     return cache[cleanId];
@@ -3995,11 +4168,15 @@ export async function activateQrCode(
   preferredType?: AppType,
   wallets?: WalletItem[]
 ): Promise<{ success: boolean; error?: string; record?: QrCodeRecord }> {
+  const cleanId = id.trim();
   const isWallet = preferredType === 'wallet' || (Array.isArray(wallets) && wallets.length > 0);
   const effectiveAppType = isWallet ? 'wallet' : (preferredType || 'website');
-  const smartLink = processSmartLink(rawInput, effectiveAppType);
+  const effectiveRawInput = (isWallet && Array.isArray(wallets) && wallets.length > 0)
+    ? wallets[0].phone
+    : rawInput;
+  const smartLink = processSmartLink(effectiveRawInput, effectiveAppType);
   const now = new Date();
-  const existing = await getQrCode(id);
+  const existing = await getQrCode(cleanId);
 
   // Preserve existing expires_at if set, otherwise default to 1 month from activation
   const defaultExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -4012,10 +4189,18 @@ export async function activateQrCode(
 
   const effectiveTargetUrl = (smartLink.isWalletCard && smartLink.walletPhone)
     ? smartLink.walletPhone
-    : (smartLink.schemeUrl || smartLink.fallbackUrl || rawInput.trim());
+    : (smartLink.schemeUrl || smartLink.fallbackUrl || effectiveRawInput.trim());
 
-  const updatedRecord: QrCodeRecord = {
-    id,
+  const cleanWallets = (isWallet && Array.isArray(wallets) && wallets.length > 0)
+    ? wallets.map((w) => ({
+        phone: (w.phone || '').trim(),
+        provider: w.provider || 'vodafone',
+        ownerName: (w.ownerName || '').trim(),
+      }))
+    : [];
+
+  const updatedRecord: QrCodeRecord = cleanForFirestore({
+    id: cleanId,
     is_active: true,
     target_url: effectiveTargetUrl,
     app_type: effectiveAppType,
@@ -4026,34 +4211,33 @@ export async function activateQrCode(
       : 0,
     expires_at,
     subscription_months,
-    ...(wallets && wallets.length > 0 ? { wallets } : {}),
-  };
+    wallets: cleanWallets,
+  });
 
-  // 1. Direct Cloud Firestore save with setDoc merge
-  try {
-    await setDoc(doc(db, 'qr_codes', id), updatedRecord, { merge: true });
-  } catch (fsErr) {
+  // 1. Write to Cloud Firestore via SDK (full replace) + REST API concurrently
+  const sdkWrite = setDoc(doc(db, 'qr_codes', cleanId), updatedRecord).catch((fsErr) => {
     console.warn('Firestore direct activate write warning:', fsErr);
-  }
+  });
+  const restWrite = writeQrToFirestoreRest(cleanId, updatedRecord);
 
   // 2. Sync to Server API
-  try {
-    fetch(`/api/qr/${encodeURIComponent(id)}/activate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        target_url: effectiveTargetUrl,
-        app_type: smartLink.appType,
-        expires_at,
-        subscription_months,
-        wallets: wallets || [],
-      }),
-    }).catch(() => {});
-  } catch {}
+  const serverWrite = fetch(`/api/qr/${encodeURIComponent(cleanId)}/activate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      target_url: effectiveTargetUrl,
+      app_type: effectiveAppType,
+      expires_at,
+      subscription_months,
+      wallets: cleanWallets,
+    }),
+  }).catch(() => {});
+
+  await Promise.allSettled([sdkWrite, restWrite, serverWrite]);
 
   // 3. Update local cache
   const cache = getLocalCache();
-  cache[id] = updatedRecord;
+  cache[cleanId] = updatedRecord;
   saveLocalCache(cache);
 
   return { success: true, record: updatedRecord };
@@ -4062,7 +4246,7 @@ export async function activateQrCode(
 /**
  * Admin Quick Edit: Modify Target URL, label, and subscription expiry.
  * ID is strictly read-only and immutable.
- * Saves simultaneously to Firestore AND Server API.
+ * Saves simultaneously to Firestore (SDK + REST) AND Server API with full field overwrite so no stale link ever remains.
  */
 export async function adminUpdateQrCode(
   id: string,
@@ -4073,62 +4257,79 @@ export async function adminUpdateQrCode(
   subscriptionMonths?: number,
   wallets?: WalletItem[]
 ): Promise<{ success: boolean; record?: QrCodeRecord }> {
+  const cleanId = id.trim();
   const isWallet = preferredType === 'wallet' || (Array.isArray(wallets) && wallets.length > 0);
-  const effectiveAppType = isWallet ? 'wallet' : (preferredType || 'website');
-  const smartLink = processSmartLink(rawTargetUrl, effectiveAppType);
+  const effectiveAppType: AppType = isWallet ? 'wallet' : (preferredType || 'website');
+
+  const sourceInput = (isWallet && Array.isArray(wallets) && wallets.length > 0)
+    ? wallets[0].phone
+    : rawTargetUrl;
+
+  const smartLink = processSmartLink(sourceInput, effectiveAppType);
   const effectiveTargetUrl = (smartLink.isWalletCard && smartLink.walletPhone)
     ? smartLink.walletPhone
-    : (smartLink.schemeUrl || smartLink.fallbackUrl || rawTargetUrl.trim());
+    : (smartLink.schemeUrl || smartLink.fallbackUrl || sourceInput.trim());
 
-  const current: QrCodeRecord = (await getQrCode(id)) || {
-    id,
+  const current: QrCodeRecord = (await getQrCode(cleanId)) || {
+    id: cleanId,
     created_at: new Date().toISOString(),
     total_scans: 0,
     is_active: true,
     target_url: null,
   };
 
-  const updatedRecord: QrCodeRecord = {
+  const resolvedWallets: WalletItem[] = isWallet
+    ? (wallets !== undefined
+        ? wallets.map((w) => ({
+            phone: (w.phone || '').trim(),
+            provider: w.provider || 'vodafone',
+            ownerName: (w.ownerName || '').trim(),
+          }))
+        : (current.wallets || []))
+    : [];
+
+  const updatedRecord: QrCodeRecord = cleanForFirestore({
     ...current,
-    id,
+    id: cleanId,
     target_url: effectiveTargetUrl,
     app_type: effectiveAppType,
     is_active: true,
-    label: label !== undefined ? label : current.label,
-    expires_at: expiresAt !== undefined ? expiresAt : current.expires_at,
-    subscription_months: subscriptionMonths !== undefined ? subscriptionMonths : current.subscription_months,
+    label: label !== undefined ? label : (current.label ?? ''),
+    expires_at: expiresAt !== undefined ? expiresAt : (current.expires_at ?? null),
+    subscription_months: subscriptionMonths !== undefined
+      ? subscriptionMonths
+      : (current.subscription_months ?? 1),
     updated_at: new Date().toISOString(),
-    ...(wallets !== undefined ? { wallets } : (current.wallets ? { wallets: current.wallets } : {})),
-  };
+    wallets: resolvedWallets,
+  });
 
-  // 1. ALWAYS write to Cloud Firestore with setDoc merge (Primary source of truth for Vercel & Production)
-  try {
-    await setDoc(doc(db, 'qr_codes', id), updatedRecord, { merge: true });
-  } catch (fsErr) {
+  // 1. ALWAYS write full sanitized record to Cloud Firestore (SDK setDoc overwrite + REST PATCH)
+  const sdkWrite = setDoc(doc(db, 'qr_codes', cleanId), updatedRecord).catch((fsErr) => {
     console.warn('Firestore admin update warning:', fsErr);
-  }
+  });
+  const restWrite = writeQrToFirestoreRest(cleanId, updatedRecord);
 
   // 2. ALWAYS sync to Server API if running full-stack Node/Express
-  try {
-    await authFetch(`/api/qr/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        target_url: effectiveTargetUrl,
-        app_type: effectiveAppType,
-        label,
-        expires_at: expiresAt,
-        subscription_months: subscriptionMonths,
-        wallets: wallets !== undefined ? wallets : current.wallets,
-      }),
-    });
-  } catch (err) {
+  const serverWrite = authFetch(`/api/qr/${encodeURIComponent(cleanId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      target_url: effectiveTargetUrl,
+      app_type: effectiveAppType,
+      label: updatedRecord.label,
+      expires_at: updatedRecord.expires_at,
+      subscription_months: updatedRecord.subscription_months,
+      wallets: resolvedWallets,
+    }),
+  }).catch((err) => {
     console.warn('Server admin update sync failed:', err);
-  }
+  });
+
+  await Promise.allSettled([sdkWrite, restWrite, serverWrite]);
 
   // 3. Update local cache
   const cache = getLocalCache();
-  cache[id] = updatedRecord;
+  cache[cleanId] = updatedRecord;
   saveLocalCache(cache);
 
   return { success: true, record: updatedRecord };
@@ -5749,7 +5950,8 @@ import {
   Sparkles,
   RotateCcw,
   Clock,
-  Calendar
+  Calendar,
+  AlertTriangle
 } from 'lucide-react';
 import { adminUpdateQrCode, generateQrDataUrl, resetQrScanCount } from '../lib/qrService';
 import { 
@@ -5880,6 +6082,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
   const [label, setLabel] = useState('');
   const [loading, setLoading] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
   // Subscription expiry state
@@ -5913,7 +6116,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
         const isUrl = isQuickPayUrl(trimmed);
         if (isUrl) {
           const lower = trimmed.toLowerCase();
-          if (lower.includes('vodafone') || lower.includes('voda')) newProvider = 'vodafone';
+          if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) newProvider = 'vodafone';
           else if (lower.includes('orange')) newProvider = 'orange';
           else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
           else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) newProvider = 'we';
@@ -5964,6 +6167,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       setSelectedType(type);
       setLabel(record.label || '');
       setSavedSuccess(false);
+      setErrorMsg(null);
       setCurrentScans(record.total_scans || 0);
       setExpiresAt(record.expires_at || null);
 
@@ -6002,7 +6206,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           if (clean) {
             if (isQuickPayUrl(clean)) {
               const lower = clean.toLowerCase();
-              if (lower.includes('vodafone') || lower.includes('voda')) detectedProvider = 'vodafone';
+              if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) detectedProvider = 'vodafone';
               else if (lower.includes('orange')) detectedProvider = 'orange';
               else if (lower.includes('etisalat') || lower.includes('e&')) detectedProvider = 'etisalat';
               else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProvider = 'we';
@@ -6089,7 +6293,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           if (clean) {
             if (isQuickPayUrl(clean)) {
               const lower = clean.toLowerCase();
-              if (lower.includes('vodafone') || lower.includes('voda')) detectedProvider = 'vodafone';
+              if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) detectedProvider = 'vodafone';
               else if (lower.includes('orange')) detectedProvider = 'orange';
               else if (lower.includes('etisalat') || lower.includes('e&')) detectedProvider = 'etisalat';
               else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProvider = 'we';
@@ -6131,6 +6335,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
     e.preventDefault();
     setLoading(true);
     setSavedSuccess(false);
+    setErrorMsg(null);
 
     let finalRawInput = targetUrl.trim();
     let activeWalletsToSave: WalletItem[] | undefined = undefined;
@@ -6152,14 +6357,14 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
         const item = wallets[i];
         const trimmedVal = item.phone.trim();
         if (!trimmedVal) {
-          alert(walletCount === 1 ? 'يرجى إدخال رقم المحفظة أو رابط الدفع السريع.' : `يرجى إدخال بيانات المحفظة رقم ${i + 1} (رقم المحفظة أو رابط الدفع السريع).`);
+          setErrorMsg(walletCount === 1 ? 'يرجى إدخال رقم المحفظة أو رابط الدفع السريع.' : `يرجى إدخال بيانات المحفظة رقم ${i + 1} (رقم المحفظة أو رابط الدفع السريع).`);
           setLoading(false);
           return;
         }
 
         const trimmedOwner = item.ownerName?.trim() || '';
         if (!trimmedOwner) {
-          alert(walletCount === 1 ? 'يرجى كتابة اسم صاحب المحفظة (إلزامي).' : `يرجى كتابة اسم صاحب المحفظة رقم ${i + 1} (إلزامي).`);
+          setErrorMsg(walletCount === 1 ? 'يرجى كتابة اسم صاحب المحفظة (إلزامي).' : `يرجى كتابة اسم صاحب المحفظة رقم ${i + 1} (إلزامي).`);
           setLoading(false);
           return;
         }
@@ -6184,13 +6389,14 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
 
       activeWalletsToSave = activeList;
       finalRawInput = activeList[0].phone;
+      setWalletPhone(finalRawInput);
       setTargetUrl(finalRawInput);
     } else if (selectedType === 'instapay') {
       activeWalletsToSave = [];
       let ipnLink = targetUrl.trim();
       const hasLink = ipnLink.includes('ipn.eg') || ipnLink.startsWith('http://') || ipnLink.startsWith('https://');
       if (!hasLink) {
-        alert('تطبيق إنستاباي يتطلب وضع رابط الدفع السريع المباشر (مثل: https://ipn.eg/S/...) وليس اسم المستخدم أو العنوان، حتى يتم فتح صفحة الدفع في التطبيق للعميل مباشرة.');
+        setErrorMsg('تطبيق إنستاباي يتطلب وضع رابط الدفع السريع المباشر (مثل: https://ipn.eg/S/...) وليس اسم المستخدم أو العنوان، حتى يتم فتح صفحة الدفع في التطبيق للعميل مباشرة.');
         setLoading(false);
         return;
       }
@@ -6199,6 +6405,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       } else if (!ipnLink.startsWith('http://') && !ipnLink.startsWith('https://')) {
         ipnLink = `https://${ipnLink}`;
       }
+      finalRawInput = ipnLink;
     } else if (selectedType === 'tiktok') {
       activeWalletsToSave = [];
       finalRawInput = formatTikTokTargetUrl(targetUrl);
@@ -6232,9 +6439,12 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           setSavedSuccess(false);
           onClose();
         }, 1200);
+      } else {
+        setErrorMsg('تعذر حفظ التعديلات حالياً، يرجى المحاولة مجدداً.');
       }
     } catch (err) {
       console.error('Failed to update QR code:', err);
+      setErrorMsg('حدث خطأ أثناء حفظ التعديلات، يرجى المحاولة مرة أخرى.');
     } finally {
       setLoading(false);
     }
@@ -6258,7 +6468,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       iban: iban.trim(),
     });
   } else if (selectedType === 'wallet') {
-    currentPreviewInput = walletPhone.trim();
+    currentPreviewInput = (wallets[0]?.phone || walletPhone || '').trim();
   }
   const currentLinkInfo = processSmartLink(currentPreviewInput, selectedType);
 
@@ -6981,6 +7191,14 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
               تنزيل الصورة (PNG)
             </button>
           </div>
+
+          {/* Error Banner */}
+          {errorMsg && (
+            <div className="p-3 bg-rose-500/20 border border-rose-500/40 rounded-2xl text-xs text-rose-300 font-bold flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
 
           {/* Success Banner */}
           {savedSuccess && (
@@ -9219,8 +9437,8 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
     }
   };
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const data = await fetchAllQrCodes();
       const safeData = Array.isArray(data)
@@ -9229,22 +9447,24 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
       setRecords(safeData);
 
       // Pre-generate thumbnails for first batch
-      const thumbs: Record<string, string> = {};
-      for (const item of safeData.slice(0, 30)) {
-        if (item && item.id) {
-          thumbs[item.id] = await generateQrDataUrl(`${domainUrl}/q/${item.id}`, 200);
+      if (!silent || Object.keys(qrThumbs).length === 0) {
+        const thumbs: Record<string, string> = {};
+        for (const item of safeData.slice(0, 30)) {
+          if (item && item.id) {
+            thumbs[item.id] = await generateQrDataUrl(`${domainUrl}/q/${item.id}`, 200);
+          }
         }
+        setQrThumbs(thumbs);
       }
-      setQrThumbs(thumbs);
     } catch (err) {
       console.error('Failed to load QR codes:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadData(false);
     fetchPlatformSettings().then((s) => {
       if (s) setPlatformSettings(s);
     });
@@ -9258,9 +9478,9 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
       setLoading(false);
     });
 
-    // Also periodic 4-second background refresh to guarantee live numbers
+    // Also periodic 4-second silent background refresh to guarantee live numbers
     const pollInterval = setInterval(() => {
-      loadData();
+      loadData(true);
     }, 4000);
 
     return () => {
@@ -9760,7 +9980,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
 
               {/* Refresh Button */}
               <button
-                onClick={loadData}
+                onClick={() => loadData(false)}
                 disabled={loading}
                 className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition border border-white/5"
                 title="تحديث البيانات"
@@ -10239,10 +10459,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         }
         onScannedId={async (id) => {
           setIsScannerOpen(false);
-          let rec: QrCodeRecord | null | undefined = records.find((r) => r.id === id);
-          if (!rec) {
-            rec = await getQrCode(id);
-          }
+          const rec = (await getQrCode(id)) || records.find((r) => r.id === id);
           if (rec) {
             setSelectedEditRecord(rec);
           } else {
@@ -10492,7 +10709,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
         const isUrl = isQuickPayUrl(trimmed);
         if (isUrl) {
           const lower = trimmed.toLowerCase();
-          if (lower.includes('vodafone') || lower.includes('vfcash') || lower.includes('voda')) newProvider = 'vodafone';
+          if (lower.includes('vodafone') || lower.includes('vfcash') || lower.includes('voda') || lower.includes('vf.eg')) newProvider = 'vodafone';
           else if (lower.includes('orange')) newProvider = 'orange';
           else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
           else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) newProvider = 'we';
@@ -11349,9 +11566,16 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
       cleanRaw = cleanRaw.replace('tel:*9*7*', '').replace(/#|%23/g, '');
     }
     
+    const normalizeWalletPhone = (val: string) => {
+      const raw = (val || '').trim();
+      return raw.startsWith('tel:*9*7*')
+        ? raw.replace('tel:*9*7*', '').replace(/#|%23/g, '').trim()
+        : raw;
+    };
+
     // Normalize wallets list (fallback to single wallet from target_url if wallets array not present)
     const activeWallets: WalletItem[] = (record.wallets && record.wallets.length > 0)
-      ? record.wallets
+      ? record.wallets.map((w) => ({ ...w, phone: normalizeWalletPhone(w.phone) }))
       : [{
           phone: cleanRaw,
           provider: (linkInfo.walletProvider || detectWalletInfo(cleanRaw).provider || 'vodafone') as WalletProvider,
@@ -11412,7 +11636,7 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                 محافظ الكاش المتاحة للتحويل
               </h1>
               <p className="text-xs text-slate-300">
-                اختر المحفظة التابعة لشبكتك وانسخ الرقم لإتمام عملية التحويل الفوري:
+                اختر المحفظة التابعة لشبكتك لإتمام عملية التحويل أو الدفع الفوري:
               </p>
             </div>
 
@@ -11484,30 +11708,8 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                     )}
 
                     {isUrl ? (
-                      /* Quick Pay Link Case */
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between bg-black/80 border border-amber-500/25 rounded-xl p-3">
-                          <div className="flex items-center gap-2 min-w-0 flex-1 pl-2">
-                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                            <span className="font-mono text-xs sm:text-sm font-bold text-amber-300 truncate" dir="ltr">
-                              {cleanTargetUrl.replace(/^https?:\/\//, '').replace(/^intent:\/\/[^#]*#Intent;/, 'دفع سريع ')}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(cleanTargetUrl, `wallet_${idx}`)}
-                            className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-black rounded-lg transition shadow-md cursor-pointer flex-shrink-0 mr-2 ${
-                              isCopied
-                                ? 'bg-emerald-500 text-black'
-                                : 'bg-white/10 hover:bg-white/20 text-amber-300 border border-amber-400/30'
-                            }`}
-                          >
-                            {isCopied ? <Check className="w-3.5 h-3.5 text-black" /> : <Copy className="w-3.5 h-3.5 text-amber-400" />}
-                            <span>{isCopied ? 'تم النسخ!' : 'نسخ الرابط'}</span>
-                          </button>
-                        </div>
-
-                        {/* Big Action Button to Open Payment Link */}
+                      /* Quick Pay Link Case - Hide raw URL, keep only owner name & Quick Pay launch button */
+                      <div className="pt-1">
                         <a
                           href={cleanTargetUrl}
                           target="_blank"
@@ -11581,8 +11783,8 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
               </p>
               <ol className="list-decimal list-inside space-y-1 pr-1 text-slate-300">
                 <li>اختر المحفظة التابعة لشبكة خطك أعلاه.</li>
-                <li>إذا كانت رابط دفع سريع: اضغط على زر <strong>الانتقال للدفع السريع</strong> ليفتح لك صفحة الدفع فوراً.</li>
-                <li>إذا كانت رقم هاتف: اضغط على <strong>نسخ الرقم</strong> ثم افتح تطبيق المحفظة وأتم التحويل.</li>
+                <li>للدفع بالرابط السريع: اضغط على زر <strong>الانتقال للدفع السريع الآن</strong> للتحويل الفوري.</li>
+                <li>للدفع برقم الهاتف: اضغط على <strong>نسخ الرقم</strong> ثم افتح تطبيق المحفظة وأتم التحويل.</li>
               </ol>
             </div>
           </div>
@@ -11658,38 +11860,8 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
           </div>
 
           {isUrl ? (
-            /* Quick Pay Link Case */
-            <div className="space-y-4">
-              <div className="bg-black/60 border border-white/10 rounded-2xl p-4 sm:p-5 space-y-3">
-                <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-                  <span>رابط الدفع السريع المباشر:</span>
-                  <span className="text-[10px] text-amber-400/90 font-bold">تحويل فوري ⚡</span>
-                </div>
-
-                <div className="flex items-center justify-between bg-black/80 border border-amber-500/30 rounded-xl p-3 sm:p-3.5">
-                  <div className="flex items-center gap-2 min-w-0 flex-1 pl-2">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                    <span className="font-mono text-xs sm:text-sm font-bold text-amber-300 truncate" dir="ltr">
-                      {cleanTargetUrl.replace(/^https?:\/\//, '')}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(cleanTargetUrl, 'wallet')}
-                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-black rounded-lg transition shadow-md cursor-pointer flex-shrink-0 ${
-                      isCopied
-                        ? 'bg-emerald-500 text-black hover:bg-emerald-400'
-                        : 'bg-white/10 hover:bg-white/20 text-amber-300 border border-amber-400/30'
-                    }`}
-                  >
-                    {isCopied ? <Check className="w-4 h-4 text-black" /> : <Copy className="w-4 h-4 text-black" />}
-                    <span>{isCopied ? 'تم النسخ!' : 'نسخ الرابط'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Big Action Button to Open Payment Link */}
+            /* Quick Pay Link Case - Hide raw URL, keep only owner name & Quick Pay launch button */
+            <div className="pt-2">
               <a
                 href={cleanTargetUrl}
                 target="_blank"

@@ -1,6 +1,6 @@
 import QRCode from 'qrcode';
 import jsQR from 'jsqr';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, writeBatch, increment, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, getDocFromServer, setDoc, updateDoc, deleteDoc, getDocs, collection, writeBatch, increment, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { AppType, QrCodeRecord, PlatformSettings, WalletItem } from '../types/qr';
 import { processSmartLink } from './deepLinks';
@@ -38,6 +38,137 @@ function saveLocalCache(cache: Record<string, QrCodeRecord>) {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cache));
   } catch (e) {
     console.warn('LocalStorage save warning:', e);
+  }
+}
+
+/**
+ * Recursively strips undefined values from objects/arrays so Firestore never rejects a write.
+ */
+function cleanForFirestore<T>(val: T): T {
+  if (Array.isArray(val)) {
+    return val
+      .filter((item) => item !== undefined)
+      .map((item) => cleanForFirestore(item)) as unknown as T;
+  }
+  if (val !== null && typeof val === 'object') {
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(val as Record<string, any>)) {
+      if (v !== undefined) {
+        out[k] = cleanForFirestore(v);
+      }
+    }
+    return out as T;
+  }
+  return val;
+}
+
+function getFirestoreRestConfig() {
+  const pId = firebaseConfig?.projectId || 'clean-plateau-dv4kj';
+  const dbId = firebaseConfig?.firestoreDatabaseId || 'ai-studio-41f04a06-1999-41b9-b7be-e25b21dc1fd0';
+  const apiKey = firebaseConfig?.apiKey || 'AIzaSyAjyCP484AEQ52-9CDgp8TDkAw5woA1TFc';
+  return { pId, dbId, apiKey };
+}
+
+function parseFirestoreValue(val: any): any {
+  if (!val || typeof val !== 'object') return undefined;
+  if ('stringValue' in val) return val.stringValue;
+  if ('booleanValue' in val) return val.booleanValue;
+  if ('integerValue' in val) return parseInt(val.integerValue, 10);
+  if ('doubleValue' in val) return Number(val.doubleValue);
+  if ('nullValue' in val) return null;
+  if ('timestampValue' in val) return val.timestampValue;
+  if ('arrayValue' in val) {
+    const vals = val.arrayValue?.values || [];
+    return vals.map(parseFirestoreValue).filter((v: any) => v !== undefined);
+  }
+  if ('mapValue' in val) {
+    const fields = val.mapValue?.fields || {};
+    const obj: Record<string, any> = {};
+    for (const [k, v] of Object.entries(fields)) {
+      const parsed = parseFirestoreValue(v);
+      if (parsed !== undefined) obj[k] = parsed;
+    }
+    return obj;
+  }
+  return undefined;
+}
+
+function firestoreRestDocToQrRecord(id: string, docJson: any): QrCodeRecord | null {
+  if (!docJson || !docJson.fields) return null;
+  const parsed: Record<string, any> = {};
+  for (const [k, v] of Object.entries(docJson.fields)) {
+    const pv = parseFirestoreValue(v);
+    if (pv !== undefined) parsed[k] = pv;
+  }
+  return {
+    created_at: parsed.created_at || new Date().toISOString(),
+    total_scans: typeof parsed.total_scans === 'number' ? parsed.total_scans : 0,
+    is_active: Boolean(parsed.is_active),
+    target_url: parsed.target_url ?? null,
+    ...parsed,
+    id: parsed.id || id,
+  } as QrCodeRecord;
+}
+
+function toFirestoreValue(val: any): any {
+  if (val === null) return { nullValue: null };
+  if (typeof val === 'boolean') return { booleanValue: val };
+  if (typeof val === 'number') {
+    return Number.isInteger(val) ? { integerValue: String(val) } : { doubleValue: val };
+  }
+  if (typeof val === 'string') return { stringValue: val };
+  if (Array.isArray(val)) {
+    return {
+      arrayValue: {
+        values: val.filter((v) => v !== undefined).map(toFirestoreValue),
+      },
+    };
+  }
+  if (typeof val === 'object') {
+    const fields: Record<string, any> = {};
+    for (const [k, v] of Object.entries(val)) {
+      if (v !== undefined) {
+        fields[k] = toFirestoreValue(v);
+      }
+    }
+    return { mapValue: { fields } };
+  }
+  return { nullValue: null };
+}
+
+async function fetchQrFromFirestoreRest(cleanId: string): Promise<QrCodeRecord | null> {
+  try {
+    const { pId, dbId, apiKey } = getFirestoreRestConfig();
+    const url = `https://firestore.googleapis.com/v1/projects/${pId}/databases/${dbId}/documents/qr_codes/${encodeURIComponent(cleanId)}?key=${apiKey}&t=${Date.now()}`;
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return firestoreRestDocToQrRecord(cleanId, json);
+  } catch {
+    return null;
+  }
+}
+
+async function writeQrToFirestoreRest(cleanId: string, record: QrCodeRecord): Promise<boolean> {
+  try {
+    const { pId, dbId, apiKey } = getFirestoreRestConfig();
+    const url = `https://firestore.googleapis.com/v1/projects/${pId}/databases/${dbId}/documents/qr_codes/${encodeURIComponent(cleanId)}?key=${apiKey}`;
+    const clean = cleanForFirestore(record);
+    const fields: Record<string, any> = {};
+    for (const [k, v] of Object.entries(clean)) {
+      if (v !== undefined) {
+        fields[k] = toFirestoreValue(v);
+      }
+    }
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+      cache: 'no-store',
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }
 
@@ -130,12 +261,19 @@ export async function getQrCode(id: string): Promise<QrCodeRecord | null> {
     }
   }
 
-  // 1. Fetch from Firestore and Server API concurrently
-  const firestoreFetch = getDoc(doc(db, 'qr_codes', cleanId))
+  // 1. Fetch from Firestore Server, Firestore REST API, and Express Server API concurrently
+  const docRef = doc(db, 'qr_codes', cleanId);
+  const firestoreSdkFetch = getDocFromServer(docRef)
     .then((snap) => (snap.exists() ? (snap.data() as QrCodeRecord) : null))
-    .catch(() => null);
+    .catch(() =>
+      getDoc(docRef)
+        .then((snap) => (snap.exists() ? (snap.data() as QrCodeRecord) : null))
+        .catch(() => null)
+    );
 
-  const serverFetch = fetch(`/api/qr/${encodeURIComponent(cleanId)}`)
+  const firestoreRestFetch = fetchQrFromFirestoreRest(cleanId);
+
+  const serverFetch = fetch(`/api/qr/${encodeURIComponent(cleanId)}?t=${Date.now()}`, { cache: 'no-store' })
     .then(async (res) => {
       const contentType = res.headers.get('content-type') || '';
       if (res.ok && contentType.includes('application/json')) {
@@ -147,20 +285,20 @@ export async function getQrCode(id: string): Promise<QrCodeRecord | null> {
     .catch(() => null);
 
   try {
-    const results = await Promise.allSettled([firestoreFetch, serverFetch]);
-    const fsRecord = results[0].status === 'fulfilled' ? results[0].value : null;
-    const srvRecord = results[1].status === 'fulfilled' ? results[1].value : null;
+    const results = await Promise.allSettled([firestoreRestFetch, firestoreSdkFetch, serverFetch]);
+    const candidates = results
+      .filter((r): r is PromiseFulfilledResult<QrCodeRecord | null> => r.status === 'fulfilled')
+      .map((r) => r.value)
+      .filter((r): r is QrCodeRecord => Boolean(r && r.id));
 
-    let bestRecord: QrCodeRecord | null = null;
-    if (fsRecord && srvRecord) {
-      const fsTime = new Date(fsRecord.updated_at || fsRecord.created_at || 0).getTime();
-      const srvTime = new Date(srvRecord.updated_at || srvRecord.created_at || 0).getTime();
-      bestRecord = srvTime > fsTime ? srvRecord : fsRecord;
-    } else {
-      bestRecord = fsRecord || srvRecord;
-    }
+    if (candidates.length > 0) {
+      // Pick the candidate with the newest updated_at/created_at timestamp (REST listed first so ties favor REST)
+      const bestRecord = candidates.reduce((best, curr) => {
+        const bestTime = new Date(best.updated_at || best.created_at || 0).getTime();
+        const currTime = new Date(curr.updated_at || curr.created_at || 0).getTime();
+        return currTime > bestTime ? curr : best;
+      });
 
-    if (bestRecord) {
       const cache = getLocalCache();
       cache[cleanId] = bestRecord;
       saveLocalCache(cache);
@@ -170,7 +308,7 @@ export async function getQrCode(id: string): Promise<QrCodeRecord | null> {
     console.warn('Concurrent QR fetch warning:', err);
   }
 
-  // 2. Fallback to local cache only if network temporarily unreachable
+  // 2. Fallback to local cache only if all network sources temporarily unreachable
   const cache = getLocalCache();
   if (cache[cleanId]) {
     return cache[cleanId];
@@ -304,11 +442,15 @@ export async function activateQrCode(
   preferredType?: AppType,
   wallets?: WalletItem[]
 ): Promise<{ success: boolean; error?: string; record?: QrCodeRecord }> {
+  const cleanId = id.trim();
   const isWallet = preferredType === 'wallet' || (Array.isArray(wallets) && wallets.length > 0);
   const effectiveAppType = isWallet ? 'wallet' : (preferredType || 'website');
-  const smartLink = processSmartLink(rawInput, effectiveAppType);
+  const effectiveRawInput = (isWallet && Array.isArray(wallets) && wallets.length > 0)
+    ? wallets[0].phone
+    : rawInput;
+  const smartLink = processSmartLink(effectiveRawInput, effectiveAppType);
   const now = new Date();
-  const existing = await getQrCode(id);
+  const existing = await getQrCode(cleanId);
 
   // Preserve existing expires_at if set, otherwise default to 1 month from activation
   const defaultExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -321,10 +463,18 @@ export async function activateQrCode(
 
   const effectiveTargetUrl = (smartLink.isWalletCard && smartLink.walletPhone)
     ? smartLink.walletPhone
-    : (smartLink.schemeUrl || smartLink.fallbackUrl || rawInput.trim());
+    : (smartLink.schemeUrl || smartLink.fallbackUrl || effectiveRawInput.trim());
 
-  const updatedRecord: QrCodeRecord = {
-    id,
+  const cleanWallets = (isWallet && Array.isArray(wallets) && wallets.length > 0)
+    ? wallets.map((w) => ({
+        phone: (w.phone || '').trim(),
+        provider: w.provider || 'vodafone',
+        ownerName: (w.ownerName || '').trim(),
+      }))
+    : [];
+
+  const updatedRecord: QrCodeRecord = cleanForFirestore({
+    id: cleanId,
     is_active: true,
     target_url: effectiveTargetUrl,
     app_type: effectiveAppType,
@@ -335,34 +485,33 @@ export async function activateQrCode(
       : 0,
     expires_at,
     subscription_months,
-    ...(wallets && wallets.length > 0 ? { wallets } : {}),
-  };
+    wallets: cleanWallets,
+  });
 
-  // 1. Direct Cloud Firestore save with setDoc merge
-  try {
-    await setDoc(doc(db, 'qr_codes', id), updatedRecord, { merge: true });
-  } catch (fsErr) {
+  // 1. Write to Cloud Firestore via SDK (full replace) + REST API concurrently
+  const sdkWrite = setDoc(doc(db, 'qr_codes', cleanId), updatedRecord).catch((fsErr) => {
     console.warn('Firestore direct activate write warning:', fsErr);
-  }
+  });
+  const restWrite = writeQrToFirestoreRest(cleanId, updatedRecord);
 
   // 2. Sync to Server API
-  try {
-    fetch(`/api/qr/${encodeURIComponent(id)}/activate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        target_url: effectiveTargetUrl,
-        app_type: smartLink.appType,
-        expires_at,
-        subscription_months,
-        wallets: wallets || [],
-      }),
-    }).catch(() => {});
-  } catch {}
+  const serverWrite = fetch(`/api/qr/${encodeURIComponent(cleanId)}/activate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      target_url: effectiveTargetUrl,
+      app_type: effectiveAppType,
+      expires_at,
+      subscription_months,
+      wallets: cleanWallets,
+    }),
+  }).catch(() => {});
+
+  await Promise.allSettled([sdkWrite, restWrite, serverWrite]);
 
   // 3. Update local cache
   const cache = getLocalCache();
-  cache[id] = updatedRecord;
+  cache[cleanId] = updatedRecord;
   saveLocalCache(cache);
 
   return { success: true, record: updatedRecord };
@@ -371,7 +520,7 @@ export async function activateQrCode(
 /**
  * Admin Quick Edit: Modify Target URL, label, and subscription expiry.
  * ID is strictly read-only and immutable.
- * Saves simultaneously to Firestore AND Server API.
+ * Saves simultaneously to Firestore (SDK + REST) AND Server API with full field overwrite so no stale link ever remains.
  */
 export async function adminUpdateQrCode(
   id: string,
@@ -382,62 +531,79 @@ export async function adminUpdateQrCode(
   subscriptionMonths?: number,
   wallets?: WalletItem[]
 ): Promise<{ success: boolean; record?: QrCodeRecord }> {
+  const cleanId = id.trim();
   const isWallet = preferredType === 'wallet' || (Array.isArray(wallets) && wallets.length > 0);
-  const effectiveAppType = isWallet ? 'wallet' : (preferredType || 'website');
-  const smartLink = processSmartLink(rawTargetUrl, effectiveAppType);
+  const effectiveAppType: AppType = isWallet ? 'wallet' : (preferredType || 'website');
+
+  const sourceInput = (isWallet && Array.isArray(wallets) && wallets.length > 0)
+    ? wallets[0].phone
+    : rawTargetUrl;
+
+  const smartLink = processSmartLink(sourceInput, effectiveAppType);
   const effectiveTargetUrl = (smartLink.isWalletCard && smartLink.walletPhone)
     ? smartLink.walletPhone
-    : (smartLink.schemeUrl || smartLink.fallbackUrl || rawTargetUrl.trim());
+    : (smartLink.schemeUrl || smartLink.fallbackUrl || sourceInput.trim());
 
-  const current: QrCodeRecord = (await getQrCode(id)) || {
-    id,
+  const current: QrCodeRecord = (await getQrCode(cleanId)) || {
+    id: cleanId,
     created_at: new Date().toISOString(),
     total_scans: 0,
     is_active: true,
     target_url: null,
   };
 
-  const updatedRecord: QrCodeRecord = {
+  const resolvedWallets: WalletItem[] = isWallet
+    ? (wallets !== undefined
+        ? wallets.map((w) => ({
+            phone: (w.phone || '').trim(),
+            provider: w.provider || 'vodafone',
+            ownerName: (w.ownerName || '').trim(),
+          }))
+        : (current.wallets || []))
+    : [];
+
+  const updatedRecord: QrCodeRecord = cleanForFirestore({
     ...current,
-    id,
+    id: cleanId,
     target_url: effectiveTargetUrl,
     app_type: effectiveAppType,
     is_active: true,
-    label: label !== undefined ? label : current.label,
-    expires_at: expiresAt !== undefined ? expiresAt : current.expires_at,
-    subscription_months: subscriptionMonths !== undefined ? subscriptionMonths : current.subscription_months,
+    label: label !== undefined ? label : (current.label ?? ''),
+    expires_at: expiresAt !== undefined ? expiresAt : (current.expires_at ?? null),
+    subscription_months: subscriptionMonths !== undefined
+      ? subscriptionMonths
+      : (current.subscription_months ?? 1),
     updated_at: new Date().toISOString(),
-    ...(wallets !== undefined ? { wallets } : (current.wallets ? { wallets: current.wallets } : {})),
-  };
+    wallets: resolvedWallets,
+  });
 
-  // 1. ALWAYS write to Cloud Firestore with setDoc merge (Primary source of truth for Vercel & Production)
-  try {
-    await setDoc(doc(db, 'qr_codes', id), updatedRecord, { merge: true });
-  } catch (fsErr) {
+  // 1. ALWAYS write full sanitized record to Cloud Firestore (SDK setDoc overwrite + REST PATCH)
+  const sdkWrite = setDoc(doc(db, 'qr_codes', cleanId), updatedRecord).catch((fsErr) => {
     console.warn('Firestore admin update warning:', fsErr);
-  }
+  });
+  const restWrite = writeQrToFirestoreRest(cleanId, updatedRecord);
 
   // 2. ALWAYS sync to Server API if running full-stack Node/Express
-  try {
-    await authFetch(`/api/qr/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        target_url: effectiveTargetUrl,
-        app_type: effectiveAppType,
-        label,
-        expires_at: expiresAt,
-        subscription_months: subscriptionMonths,
-        wallets: wallets !== undefined ? wallets : current.wallets,
-      }),
-    });
-  } catch (err) {
+  const serverWrite = authFetch(`/api/qr/${encodeURIComponent(cleanId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      target_url: effectiveTargetUrl,
+      app_type: effectiveAppType,
+      label: updatedRecord.label,
+      expires_at: updatedRecord.expires_at,
+      subscription_months: updatedRecord.subscription_months,
+      wallets: resolvedWallets,
+    }),
+  }).catch((err) => {
     console.warn('Server admin update sync failed:', err);
-  }
+  });
+
+  await Promise.allSettled([sdkWrite, restWrite, serverWrite]);
 
   // 3. Update local cache
   const cache = getLocalCache();
-  cache[id] = updatedRecord;
+  cache[cleanId] = updatedRecord;
   saveLocalCache(cache);
 
   return { success: true, record: updatedRecord };

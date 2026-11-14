@@ -513,7 +513,7 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
       // Detect operator from URL domain / keywords
       let detectedProv: WalletProvider = 'vodafone';
       const lower = cleanTrimmed.toLowerCase();
-      if (lower.includes('vodafone') || lower.includes('voda')) detectedProv = 'vodafone';
+      if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) detectedProv = 'vodafone';
       else if (lower.includes('orange')) detectedProv = 'orange';
       else if (lower.includes('etisalat') || lower.includes('e&')) detectedProv = 'etisalat';
       else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProv = 'we';

@@ -193,9 +193,16 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
       cleanRaw = cleanRaw.replace('tel:*9*7*', '').replace(/#|%23/g, '');
     }
     
+    const normalizeWalletPhone = (val: string) => {
+      const raw = (val || '').trim();
+      return raw.startsWith('tel:*9*7*')
+        ? raw.replace('tel:*9*7*', '').replace(/#|%23/g, '').trim()
+        : raw;
+    };
+
     // Normalize wallets list (fallback to single wallet from target_url if wallets array not present)
     const activeWallets: WalletItem[] = (record.wallets && record.wallets.length > 0)
-      ? record.wallets
+      ? record.wallets.map((w) => ({ ...w, phone: normalizeWalletPhone(w.phone) }))
       : [{
           phone: cleanRaw,
           provider: (linkInfo.walletProvider || detectWalletInfo(cleanRaw).provider || 'vodafone') as WalletProvider,
@@ -256,7 +263,7 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                 محافظ الكاش المتاحة للتحويل
               </h1>
               <p className="text-xs text-slate-300">
-                اختر المحفظة التابعة لشبكتك وانسخ الرقم لإتمام عملية التحويل الفوري:
+                اختر المحفظة التابعة لشبكتك لإتمام عملية التحويل أو الدفع الفوري:
               </p>
             </div>
 
@@ -328,30 +335,8 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                     )}
 
                     {isUrl ? (
-                      /* Quick Pay Link Case */
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between bg-black/80 border border-amber-500/25 rounded-xl p-3">
-                          <div className="flex items-center gap-2 min-w-0 flex-1 pl-2">
-                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                            <span className="font-mono text-xs sm:text-sm font-bold text-amber-300 truncate" dir="ltr">
-                              {cleanTargetUrl.replace(/^https?:\/\//, '').replace(/^intent:\/\/[^#]*#Intent;/, 'دفع سريع ')}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(cleanTargetUrl, `wallet_${idx}`)}
-                            className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-black rounded-lg transition shadow-md cursor-pointer flex-shrink-0 mr-2 ${
-                              isCopied
-                                ? 'bg-emerald-500 text-black'
-                                : 'bg-white/10 hover:bg-white/20 text-amber-300 border border-amber-400/30'
-                            }`}
-                          >
-                            {isCopied ? <Check className="w-3.5 h-3.5 text-black" /> : <Copy className="w-3.5 h-3.5 text-amber-400" />}
-                            <span>{isCopied ? 'تم النسخ!' : 'نسخ الرابط'}</span>
-                          </button>
-                        </div>
-
-                        {/* Big Action Button to Open Payment Link */}
+                      /* Quick Pay Link Case - Hide raw URL, keep only owner name & Quick Pay launch button */
+                      <div className="pt-1">
                         <a
                           href={cleanTargetUrl}
                           target="_blank"
@@ -425,8 +410,8 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
               </p>
               <ol className="list-decimal list-inside space-y-1 pr-1 text-slate-300">
                 <li>اختر المحفظة التابعة لشبكة خطك أعلاه.</li>
-                <li>إذا كانت رابط دفع سريع: اضغط على زر <strong>الانتقال للدفع السريع</strong> ليفتح لك صفحة الدفع فوراً.</li>
-                <li>إذا كانت رقم هاتف: اضغط على <strong>نسخ الرقم</strong> ثم افتح تطبيق المحفظة وأتم التحويل.</li>
+                <li>للدفع بالرابط السريع: اضغط على زر <strong>الانتقال للدفع السريع الآن</strong> للتحويل الفوري.</li>
+                <li>للدفع برقم الهاتف: اضغط على <strong>نسخ الرقم</strong> ثم افتح تطبيق المحفظة وأتم التحويل.</li>
               </ol>
             </div>
           </div>
@@ -502,38 +487,8 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
           </div>
 
           {isUrl ? (
-            /* Quick Pay Link Case */
-            <div className="space-y-4">
-              <div className="bg-black/60 border border-white/10 rounded-2xl p-4 sm:p-5 space-y-3">
-                <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-                  <span>رابط الدفع السريع المباشر:</span>
-                  <span className="text-[10px] text-amber-400/90 font-bold">تحويل فوري ⚡</span>
-                </div>
-
-                <div className="flex items-center justify-between bg-black/80 border border-amber-500/30 rounded-xl p-3 sm:p-3.5">
-                  <div className="flex items-center gap-2 min-w-0 flex-1 pl-2">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
-                    <span className="font-mono text-xs sm:text-sm font-bold text-amber-300 truncate" dir="ltr">
-                      {cleanTargetUrl.replace(/^https?:\/\//, '')}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(cleanTargetUrl, 'wallet')}
-                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-black rounded-lg transition shadow-md cursor-pointer flex-shrink-0 ${
-                      isCopied
-                        ? 'bg-emerald-500 text-black hover:bg-emerald-400'
-                        : 'bg-white/10 hover:bg-white/20 text-amber-300 border border-amber-400/30'
-                    }`}
-                  >
-                    {isCopied ? <Check className="w-4 h-4 text-black" /> : <Copy className="w-4 h-4 text-black" />}
-                    <span>{isCopied ? 'تم النسخ!' : 'نسخ الرابط'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Big Action Button to Open Payment Link */}
+            /* Quick Pay Link Case - Hide raw URL, keep only owner name & Quick Pay launch button */
+            <div className="pt-2">
               <a
                 href={cleanTargetUrl}
                 target="_blank"

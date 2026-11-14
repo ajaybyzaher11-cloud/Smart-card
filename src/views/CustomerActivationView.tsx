@@ -70,7 +70,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
         const isUrl = isQuickPayUrl(trimmed);
         if (isUrl) {
           const lower = trimmed.toLowerCase();
-          if (lower.includes('vodafone') || lower.includes('vfcash') || lower.includes('voda')) newProvider = 'vodafone';
+          if (lower.includes('vodafone') || lower.includes('vfcash') || lower.includes('voda') || lower.includes('vf.eg')) newProvider = 'vodafone';
           else if (lower.includes('orange')) newProvider = 'orange';
           else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
           else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) newProvider = 'we';

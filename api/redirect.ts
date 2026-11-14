@@ -104,7 +104,7 @@ export default async function handler(req: any, res: any) {
     // 5. Wallet: ALWAYS route to dedicated luxury card screen (/?view=${id}&scanned=1)
     // so customer sees company logos, owner names, phone numbers, and quick pay transfer buttons!
     const hasWallets = Boolean(fields.wallets?.arrayValue?.values?.length);
-    if (appType === 'wallet' || hasWallets || targetUrl.startsWith('tel:*9*7*')) {
+    if (appType === 'wallet' || hasWallets || targetUrl.startsWith('tel:*9*7*') || /vf\.eg\/vfcash/i.test(targetUrl)) {
       return res.writeHead(302, { Location: `/?view=${id}&scanned=1` }).end();
     }
 

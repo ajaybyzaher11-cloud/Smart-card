@@ -25,7 +25,8 @@ import {
   Sparkles,
   RotateCcw,
   Clock,
-  Calendar
+  Calendar,
+  AlertTriangle
 } from 'lucide-react';
 import { adminUpdateQrCode, generateQrDataUrl, resetQrScanCount } from '../lib/qrService';
 import { 
@@ -156,6 +157,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
   const [label, setLabel] = useState('');
   const [loading, setLoading] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
   // Subscription expiry state
@@ -189,7 +191,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
         const isUrl = isQuickPayUrl(trimmed);
         if (isUrl) {
           const lower = trimmed.toLowerCase();
-          if (lower.includes('vodafone') || lower.includes('voda')) newProvider = 'vodafone';
+          if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) newProvider = 'vodafone';
           else if (lower.includes('orange')) newProvider = 'orange';
           else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
           else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) newProvider = 'we';
@@ -240,6 +242,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       setSelectedType(type);
       setLabel(record.label || '');
       setSavedSuccess(false);
+      setErrorMsg(null);
       setCurrentScans(record.total_scans || 0);
       setExpiresAt(record.expires_at || null);
 
@@ -278,7 +281,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           if (clean) {
             if (isQuickPayUrl(clean)) {
               const lower = clean.toLowerCase();
-              if (lower.includes('vodafone') || lower.includes('voda')) detectedProvider = 'vodafone';
+              if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) detectedProvider = 'vodafone';
               else if (lower.includes('orange')) detectedProvider = 'orange';
               else if (lower.includes('etisalat') || lower.includes('e&')) detectedProvider = 'etisalat';
               else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProvider = 'we';
@@ -365,7 +368,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           if (clean) {
             if (isQuickPayUrl(clean)) {
               const lower = clean.toLowerCase();
-              if (lower.includes('vodafone') || lower.includes('voda')) detectedProvider = 'vodafone';
+              if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) detectedProvider = 'vodafone';
               else if (lower.includes('orange')) detectedProvider = 'orange';
               else if (lower.includes('etisalat') || lower.includes('e&')) detectedProvider = 'etisalat';
               else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProvider = 'we';
@@ -407,6 +410,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
     e.preventDefault();
     setLoading(true);
     setSavedSuccess(false);
+    setErrorMsg(null);
 
     let finalRawInput = targetUrl.trim();
     let activeWalletsToSave: WalletItem[] | undefined = undefined;
@@ -428,14 +432,14 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
         const item = wallets[i];
         const trimmedVal = item.phone.trim();
         if (!trimmedVal) {
-          alert(walletCount === 1 ? 'يرجى إدخال رقم المحفظة أو رابط الدفع السريع.' : `يرجى إدخال بيانات المحفظة رقم ${i + 1} (رقم المحفظة أو رابط الدفع السريع).`);
+          setErrorMsg(walletCount === 1 ? 'يرجى إدخال رقم المحفظة أو رابط الدفع السريع.' : `يرجى إدخال بيانات المحفظة رقم ${i + 1} (رقم المحفظة أو رابط الدفع السريع).`);
           setLoading(false);
           return;
         }
 
         const trimmedOwner = item.ownerName?.trim() || '';
         if (!trimmedOwner) {
-          alert(walletCount === 1 ? 'يرجى كتابة اسم صاحب المحفظة (إلزامي).' : `يرجى كتابة اسم صاحب المحفظة رقم ${i + 1} (إلزامي).`);
+          setErrorMsg(walletCount === 1 ? 'يرجى كتابة اسم صاحب المحفظة (إلزامي).' : `يرجى كتابة اسم صاحب المحفظة رقم ${i + 1} (إلزامي).`);
           setLoading(false);
           return;
         }
@@ -460,13 +464,14 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
 
       activeWalletsToSave = activeList;
       finalRawInput = activeList[0].phone;
+      setWalletPhone(finalRawInput);
       setTargetUrl(finalRawInput);
     } else if (selectedType === 'instapay') {
       activeWalletsToSave = [];
       let ipnLink = targetUrl.trim();
       const hasLink = ipnLink.includes('ipn.eg') || ipnLink.startsWith('http://') || ipnLink.startsWith('https://');
       if (!hasLink) {
-        alert('تطبيق إنستاباي يتطلب وضع رابط الدفع السريع المباشر (مثل: https://ipn.eg/S/...) وليس اسم المستخدم أو العنوان، حتى يتم فتح صفحة الدفع في التطبيق للعميل مباشرة.');
+        setErrorMsg('تطبيق إنستاباي يتطلب وضع رابط الدفع السريع المباشر (مثل: https://ipn.eg/S/...) وليس اسم المستخدم أو العنوان، حتى يتم فتح صفحة الدفع في التطبيق للعميل مباشرة.');
         setLoading(false);
         return;
       }
@@ -475,6 +480,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       } else if (!ipnLink.startsWith('http://') && !ipnLink.startsWith('https://')) {
         ipnLink = `https://${ipnLink}`;
       }
+      finalRawInput = ipnLink;
     } else if (selectedType === 'tiktok') {
       activeWalletsToSave = [];
       finalRawInput = formatTikTokTargetUrl(targetUrl);
@@ -508,9 +514,12 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
           setSavedSuccess(false);
           onClose();
         }, 1200);
+      } else {
+        setErrorMsg('تعذر حفظ التعديلات حالياً، يرجى المحاولة مجدداً.');
       }
     } catch (err) {
       console.error('Failed to update QR code:', err);
+      setErrorMsg('حدث خطأ أثناء حفظ التعديلات، يرجى المحاولة مرة أخرى.');
     } finally {
       setLoading(false);
     }
@@ -534,7 +543,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       iban: iban.trim(),
     });
   } else if (selectedType === 'wallet') {
-    currentPreviewInput = walletPhone.trim();
+    currentPreviewInput = (wallets[0]?.phone || walletPhone || '').trim();
   }
   const currentLinkInfo = processSmartLink(currentPreviewInput, selectedType);
 
@@ -1257,6 +1266,14 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
               تنزيل الصورة (PNG)
             </button>
           </div>
+
+          {/* Error Banner */}
+          {errorMsg && (
+            <div className="p-3 bg-rose-500/20 border border-rose-500/40 rounded-2xl text-xs text-rose-300 font-bold flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
 
           {/* Success Banner */}
           {savedSuccess && (

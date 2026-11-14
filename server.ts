@@ -585,14 +585,84 @@ app.get('/api/qr', (req, res) => {
   res.json({ success: true, data: list });
 });
 
+function parseFirestoreFieldVal(val: any): any {
+  if (!val || typeof val !== 'object') return undefined;
+  if ('stringValue' in val) return val.stringValue;
+  if ('booleanValue' in val) return val.booleanValue;
+  if ('integerValue' in val) return parseInt(val.integerValue, 10);
+  if ('doubleValue' in val) return Number(val.doubleValue);
+  if ('nullValue' in val) return null;
+  if ('timestampValue' in val) return val.timestampValue;
+  if ('arrayValue' in val) {
+    const vals = val.arrayValue?.values || [];
+    return vals.map(parseFirestoreFieldVal).filter((v: any) => v !== undefined);
+  }
+  if ('mapValue' in val) {
+    const fields = val.mapValue?.fields || {};
+    const obj: Record<string, any> = {};
+    for (const [k, v] of Object.entries(fields)) {
+      const parsed = parseFirestoreFieldVal(v);
+      if (parsed !== undefined) obj[k] = parsed;
+    }
+    return obj;
+  }
+  return undefined;
+}
+
+async function fetchQrFromFirestoreRestServer(id: string): Promise<QrRecord | null> {
+  const pId = firebaseConfig?.projectId || FIRESTORE_PROJECT_ID;
+  const dbId = firebaseConfig?.firestoreDatabaseId || FIRESTORE_DATABASE_ID;
+  const key = firebaseConfig?.apiKey || 'AIzaSyAjyCP484AEQ52-9CDgp8TDkAw5woA1TFc';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1400);
+  try {
+    const docUrl = `https://firestore.googleapis.com/v1/projects/${pId}/databases/${dbId}/documents/qr_codes/${encodeURIComponent(id)}?key=${key}`;
+    const firestoreRes = await fetch(docUrl, { signal: controller.signal, cache: 'no-store' });
+    if (!firestoreRes.ok) return null;
+    const firestoreData = await firestoreRes.json();
+    const f = firestoreData.fields || {};
+    const parsedWallets = parseFirestoreFieldVal(f.wallets);
+    return {
+      id,
+      is_active: f.is_active?.booleanValue ?? false,
+      target_url: f.target_url?.stringValue ?? null,
+      app_type: f.app_type?.stringValue ?? 'website',
+      label: f.label?.stringValue,
+      created_at: f.created_at?.stringValue ?? new Date().toISOString(),
+      updated_at: f.updated_at?.stringValue,
+      total_scans: parseInt(f.total_scans?.integerValue || '0', 10),
+      expires_at: f.expires_at?.stringValue ?? null,
+      subscription_months: parseInt(f.subscription_months?.integerValue || '1', 10),
+      wallets: Array.isArray(parsedWallets) ? parsedWallets : undefined,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // Get single QR code by ID
-app.get('/api/qr/:id', (req, res) => {
+app.get('/api/qr/:id', async (req, res) => {
   const { id } = req.params;
   const db = loadDatabase();
-  const record = db[id];
+  let record = db[id];
+
+  const fsRecord = await fetchQrFromFirestoreRestServer(id);
+  if (fsRecord) {
+    const localTime = record ? new Date(record.updated_at || record.created_at || 0).getTime() : 0;
+    const fsTime = new Date(fsRecord.updated_at || fsRecord.created_at || 0).getTime();
+    if (!record || fsTime >= localTime) {
+      record = fsRecord;
+      db[id] = fsRecord;
+      saveDatabase(db);
+    }
+  }
+
   if (!record) {
     return res.status(404).json({ success: false, error: 'الرمز غير موجود' });
   }
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   res.json({ success: true, data: record });
 });
 
@@ -855,29 +925,18 @@ app.get('/q/:id', async (req, res, next) => {
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
 
-  // Firestore fallback lookup
-  if (!record) {
-    try {
-      const docUrl = `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT_ID}/databases/${FIRESTORE_DATABASE_ID}/documents/qr_codes/${id}`;
-      const firestoreRes = await fetch(docUrl);
-      if (firestoreRes.ok) {
-        const firestoreData = await firestoreRes.json();
-        const f = firestoreData.fields || {};
-        record = {
-          id,
-          is_active: f.is_active?.booleanValue ?? false,
-          target_url: f.target_url?.stringValue ?? null,
-          app_type: f.app_type?.stringValue ?? 'website',
-          created_at: f.created_at?.stringValue ?? new Date().toISOString(),
-          total_scans: parseInt(f.total_scans?.integerValue || '0', 10),
-          expires_at: f.expires_at?.stringValue ?? null,
-          subscription_months: parseInt(f.subscription_months?.integerValue || '1', 10),
-        };
-        db[id] = record;
-        saveDatabase(db);
-      }
-    } catch (fsErr) {
-      console.warn('Server Firestore fallback lookup error:', fsErr);
+  // Always reconcile against live Cloud Firestore so edits made on Vercel or Admin are immediately reflected on existing QR codes
+  const fsRecord = await fetchQrFromFirestoreRestServer(id);
+  if (fsRecord) {
+    const localTime = record ? new Date(record.updated_at || record.created_at || 0).getTime() : 0;
+    const fsTime = new Date(fsRecord.updated_at || fsRecord.created_at || 0).getTime();
+    if (!record || fsTime >= localTime) {
+      record = {
+        ...fsRecord,
+        total_scans: Math.max(record?.total_scans || 0, fsRecord.total_scans || 0),
+      };
+      db[id] = record;
+      saveDatabase(db);
     }
   }
 

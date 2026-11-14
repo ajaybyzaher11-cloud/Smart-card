@@ -177,8 +177,8 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
     }
   };
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const data = await fetchAllQrCodes();
       const safeData = Array.isArray(data)
@@ -187,22 +187,24 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
       setRecords(safeData);
 
       // Pre-generate thumbnails for first batch
-      const thumbs: Record<string, string> = {};
-      for (const item of safeData.slice(0, 30)) {
-        if (item && item.id) {
-          thumbs[item.id] = await generateQrDataUrl(`${domainUrl}/q/${item.id}`, 200);
+      if (!silent || Object.keys(qrThumbs).length === 0) {
+        const thumbs: Record<string, string> = {};
+        for (const item of safeData.slice(0, 30)) {
+          if (item && item.id) {
+            thumbs[item.id] = await generateQrDataUrl(`${domainUrl}/q/${item.id}`, 200);
+          }
         }
+        setQrThumbs(thumbs);
       }
-      setQrThumbs(thumbs);
     } catch (err) {
       console.error('Failed to load QR codes:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadData(false);
     fetchPlatformSettings().then((s) => {
       if (s) setPlatformSettings(s);
     });
@@ -216,9 +218,9 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
       setLoading(false);
     });
 
-    // Also periodic 4-second background refresh to guarantee live numbers
+    // Also periodic 4-second silent background refresh to guarantee live numbers
     const pollInterval = setInterval(() => {
-      loadData();
+      loadData(true);
     }, 4000);
 
     return () => {
@@ -718,7 +720,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
 
               {/* Refresh Button */}
               <button
-                onClick={loadData}
+                onClick={() => loadData(false)}
                 disabled={loading}
                 className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition border border-white/5"
                 title="تحديث البيانات"
@@ -1197,10 +1199,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         }
         onScannedId={async (id) => {
           setIsScannerOpen(false);
-          let rec: QrCodeRecord | null | undefined = records.find((r) => r.id === id);
-          if (!rec) {
-            rec = await getQrCode(id);
-          }
+          const rec = (await getQrCode(id)) || records.find((r) => r.id === id);
           if (rec) {
             setSelectedEditRecord(rec);
           } else {
