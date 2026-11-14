@@ -13,7 +13,14 @@ const app = express();
 // Enable trust proxy for environments behind reverse proxies (Cloud Run, Vercel, Nginx)
 app.set('trust proxy', 1);
 
-const PORT = process.env.PORT || 3000;
+const isProd = process.env.NODE_ENV === 'production';
+const portArgIdx = process.argv.indexOf('--port');
+const cliPort = portArgIdx !== -1 ? Number(process.argv[portArgIdx + 1]) : NaN;
+const PORT = !isNaN(cliPort) && cliPort > 0
+  ? cliPort
+  : (!isProd && process.env.PORT === '8080')
+    ? 3000
+    : (Number(process.env.PORT) || 3000);
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'qr_codes.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
@@ -958,8 +965,6 @@ app.get('/q/:id', async (req, res, next) => {
 
 // Start dev server with Vite or static production
 async function startServer() {
-  const isProd = process.env.NODE_ENV === 'production';
-
   if (!isProd) {
     const { createServer } = await import('vite');
     const vite = await createServer({
@@ -977,7 +982,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }
