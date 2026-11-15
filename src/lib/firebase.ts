@@ -1,13 +1,16 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { doc, getDocFromServer, initializeFirestore } from 'firebase/firestore';
+import { doc, getDocFromServer, initializeFirestore, setLogLevel } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 
-// CRITICAL: The app requires firebaseConfig.firestoreDatabaseId with auto-detect long polling for iframe resilience
+// Prevent transient WebChannel offline noise in sandboxed iframes/proxies; app code handles errors explicitly
+setLogLevel('silent');
+
+// CRITICAL: The app requires firebaseConfig.firestoreDatabaseId with forced long polling for iframe/proxy resilience
 export const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
+  experimentalForceLongPolling: true,
   ignoreUndefinedProperties: true,
 }, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
@@ -61,11 +64,14 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 // Test connection on boot
 async function testConnection() {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return;
+  }
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firestore client is offline, check connection.');
+    if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('unavailable'))) {
+      return;
     }
   }
 }
