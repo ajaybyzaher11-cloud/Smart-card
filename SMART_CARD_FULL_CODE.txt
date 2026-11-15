@@ -1,14 +1,14 @@
 ################################################################################
 # SMART CARD PLATFORM - COMPLETE UNIFIED SOURCE CODE (SINGLE COPYABLE FILE)
 # Total Files: 34
-# Generated At: 2026-11-15T11:23:31.944Z
+# Generated At: 2026-11-15T11:30:56.972Z
 # Live URL: https://smart-card-inky.vercel.app
 ################################################################################
 #
 # TABLE OF CONTENTS:
 #   01. package.json (48 lines)
 #   02. index.html (158 lines)
-#   03. vite.config.ts (26 lines)
+#   03. vite.config.ts (27 lines)
 #   04. tsconfig.json (29 lines)
 #   05. vercel.json (33 lines)
 #   06. metadata.json (11 lines)
@@ -16,7 +16,7 @@
 #   08. firestore.rules (26 lines)
 #   09. firebase-blueprint.json (87 lines)
 #   10. firebase-applet-config.json (12 lines)
-#   11. server.ts (1083 lines)
+#   11. server.ts (1084 lines)
 #   12. api/redirect.ts (293 lines)
 #   13. src/main.tsx (6 lines)
 #   14. src/App.tsx (253 lines)
@@ -275,6 +275,7 @@ export default defineConfig(() => {
       },
     },
     server: {
+      allowedHosts: true as const,
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
@@ -1563,6 +1564,7 @@ async function startServer() {
         createServer({
           server: {
             middlewareMode: true,
+            allowedHosts: true,
             hmr: false,
             ...(process.env.DISABLE_HMR === 'true' ? { watch: null } : {}),
           },

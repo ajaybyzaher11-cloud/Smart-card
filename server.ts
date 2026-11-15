@@ -1044,6 +1044,7 @@ async function startServer() {
         createServer({
           server: {
             middlewareMode: true,
+            allowedHosts: true,
             hmr: false,
             ...(process.env.DISABLE_HMR === 'true' ? { watch: null } : {}),
           },
