@@ -19,6 +19,7 @@ import {
   processSmartLink, 
   triggerSmartRedirect, 
   detectWalletInfo, 
+  detectWalletProviderFromUrl,
   isQuickPayUrl,
   sanitizeQuickPayUrl,
   formatTikTokTargetUrl,
@@ -69,18 +70,11 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
       if (trimmed) {
         const isUrl = isQuickPayUrl(trimmed);
         if (isUrl) {
-          const lower = trimmed.toLowerCase();
-          if (lower.includes('vodafone') || lower.includes('vfcash') || lower.includes('voda') || lower.includes('vf.eg')) newProvider = 'vodafone';
-          else if (lower.includes('orange')) newProvider = 'orange';
-          else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
-          else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) newProvider = 'we';
-          else newProvider = next[index].provider !== 'generic' ? next[index].provider : 'vodafone';
+          newProvider = detectWalletProviderFromUrl(trimmed);
         } else {
           const detected = detectWalletInfo(trimmed);
           if (detected.provider !== 'generic') {
             newProvider = detected.provider as WalletProvider;
-          } else {
-            newProvider = next[index].provider !== 'generic' ? next[index].provider : 'generic';
           }
         }
       }
@@ -98,14 +92,6 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
     setWallets((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], ownerName: val };
-      return next;
-    });
-  };
-
-  const handleWalletProviderChange = (index: number, prov: WalletProvider) => {
-    setWallets((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], provider: prov };
       return next;
     });
   };
@@ -209,10 +195,12 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
 
         // Check if quick pay url
         if (isQuickPayUrl(trimmedPhone)) {
-          const fullUrl = sanitizeQuickPayUrl(trimmedPhone, item.provider);
+          const urlProv = detectWalletProviderFromUrl(trimmedPhone);
+          const resolvedProv: WalletProvider = item.provider !== 'generic' ? item.provider : (urlProv !== 'generic' ? urlProv : 'vodafone');
+          const fullUrl = sanitizeQuickPayUrl(trimmedPhone, resolvedProv);
           activeList.push({
             phone: fullUrl,
-            provider: item.provider !== 'generic' ? item.provider : 'vodafone',
+            provider: resolvedProv,
             ownerName: trimmedOwner,
           });
         } else {
@@ -337,12 +325,12 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
-      <div className="w-full max-w-lg relative z-10">
+      <div className="w-full max-w-lg relative z-10 stage-3d">
         {!activatedRecord ? (
-          <div className="bg-[#121216] border border-amber-500/30 rounded-3xl p-5 sm:p-8 shadow-[0_0_40px_rgba(212,175,55,0.12)] space-y-6">
-            {/* Clean Header with Logo */}
+          <div className="bg-[#121216] border border-amber-500/30 rounded-3xl p-5 sm:p-8 shadow-[0_0_40px_rgba(212,175,55,0.12)] space-y-6 animate-3d-enter">
+            {/* Clean Header with 3D Floating Logo */}
             <div className="text-center space-y-2">
-              <img src="/logo.png" alt="Smart Card" className="w-16 h-16 object-contain mx-auto mb-2 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)]" />
+              <img src="/logo.png" alt="Smart Card" className="w-16 h-16 object-contain mx-auto mb-2 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)] animate-3d-float" />
               <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400/15 text-amber-300 border border-amber-400/30 rounded-full text-xs font-bold mb-1">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 تفعيل بطاقة Smart Card لأول مرة
@@ -374,7 +362,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 stage-3d">
                   {platforms.map((p) => {
                      const isSelected = selectedType === p.type;
                      return (
@@ -397,9 +385,9 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                            }
                            setErrorMsg(null);
                          }}
-                         className={`p-3 rounded-2xl border transition flex flex-col items-center justify-center gap-2 cursor-pointer text-center relative ${
+                         className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-2 cursor-pointer text-center relative platform-card-3d ${
                            isSelected
-                             ? 'bg-gradient-to-b from-amber-500/20 to-black border-amber-400 shadow-[0_0_20px_rgba(212,175,55,0.25)] ring-1 ring-amber-400/50'
+                             ? 'bg-gradient-to-b from-amber-500/20 to-black border-amber-400 ring-1 ring-amber-400/50 platform-card-3d-active'
                              : 'bg-[#18181b]/70 border-white/10 hover:border-amber-400/40 hover:bg-[#18181b]'
                          }`}
                        >
@@ -408,8 +396,10 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                              <Check className="w-2.5 h-2.5 stroke-[3]" />
                            </div>
                          )}
-                         <PlatformBrandIcon type={p.type} className="w-8 h-8" />
-                         <span className={`text-xs font-bold leading-tight ${isSelected ? 'text-amber-300' : 'text-slate-200'}`}>
+                         <div className={isSelected ? 'animate-icon-alive' : 'transition-transform duration-200'}>
+                           <PlatformBrandIcon type={p.type} className="w-8 h-8" />
+                         </div>
+                         <span className={`text-xs font-bold leading-tight ${isSelected ? 'text-amber-300 animate-name-alive' : 'text-slate-200'}`}>
                            {p.label}
                          </span>
                        </button>
@@ -517,8 +507,9 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                       const hasInput = Boolean(item.phone && item.phone.trim());
                       const detected = hasInput ? detectWalletInfo(item.phone) : null;
                       const isUrl = hasInput ? isQuickPayUrl(item.phone) : false;
+                      const urlProv = hasInput && isUrl ? detectWalletProviderFromUrl(item.phone) : 'generic';
                       const activeProvider: WalletProvider = (hasInput 
-                        ? (item.provider !== 'generic' ? item.provider : (detected && detected.provider !== 'generic' ? detected.provider : 'generic'))
+                        ? (item.provider !== 'generic' ? item.provider : (urlProv !== 'generic' ? urlProv : (detected && detected.provider !== 'generic' ? detected.provider : 'generic')))
                         : (item.provider !== 'generic' ? item.provider : 'generic')
                       ) as WalletProvider;
                       const isKnownBrand = hasInput && activeProvider !== 'generic';
@@ -527,7 +518,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                       return (
                         <div 
                           key={index} 
-                          className={`p-4 rounded-2xl border transition-all space-y-3 bg-black/50 ${
+                          className={`p-4 rounded-2xl border transition-all space-y-3 bg-black/50 animate-3d-enter ${
                             isKnownBrand && activeProvider === 'vodafone' ? 'border-red-500/35 shadow-[0_0_20px_rgba(230,0,0,0.1)]' :
                             isKnownBrand && activeProvider === 'orange' ? 'border-orange-500/35 shadow-[0_0_20px_rgba(255,121,0,0.1)]' :
                             isKnownBrand && activeProvider === 'etisalat' ? 'border-emerald-500/35 shadow-[0_0_20px_rgba(113,158,25,0.1)]' :
@@ -535,40 +526,23 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                             'border-amber-500/25 shadow-[0_0_15px_rgba(212,175,55,0.06)]'
                           }`}
                         >
-                          {/* Card Header with Provider Logo & Title */}
+                          {/* Card Header with Provider Logo & Title (100% Automatic — No Dropdown or Auto-Detect Hint Shown) */}
                           <div className="flex items-center justify-between pb-2 border-b border-white/10">
                             <div className="flex items-center gap-2.5">
-                              <div className="w-10 h-10 rounded-xl bg-black/80 border border-white/15 p-1 flex items-center justify-center flex-shrink-0 shadow">
+                              <div className={`w-10 h-10 rounded-xl bg-black/80 border border-white/15 p-1 flex items-center justify-center flex-shrink-0 shadow ${isKnownBrand ? 'animate-icon-alive' : ''}`}>
                                 <WalletProviderIcon provider={isKnownBrand ? activeProvider : 'generic'} size={28} className="w-full h-full object-contain" />
                               </div>
                               <div>
                                 <span className="text-xs font-black text-white block">
                                   {walletCount > 1 ? `المحفظة رقم ${index + 1}` : 'بيانات محفظة الكاش'}
                                 </span>
-                                {isKnownBrand && activeMeta ? (
-                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 ${activeMeta.color}`}>
+                                {isKnownBrand && activeMeta && (
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 animate-name-alive ${activeMeta.color}`}>
                                     {activeMeta.nameAr}
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 text-amber-300/80 bg-amber-500/10 border-amber-500/20">
-                                    تحديد تلقائي عند كتابة الرقم أو الرابط
                                   </span>
                                 )}
                               </div>
                             </div>
-
-                            {/* Provider Quick Switcher */}
-                            <select
-                              value={item.provider}
-                              onChange={(e) => handleWalletProviderChange(index, e.target.value as WalletProvider)}
-                              className="px-2 py-1 bg-[#09090b] border border-white/15 rounded-lg text-[10px] font-bold text-slate-200 focus:outline-none focus:border-amber-400"
-                            >
-                              <option value="generic">تحديد تلقائي للشبكة</option>
-                              <option value="vodafone">فودافون كاش (010)</option>
-                              <option value="orange">أورانج كاش (012)</option>
-                              <option value="etisalat">اتصالات كاش (011)</option>
-                              <option value="we">وي باي (015)</option>
-                            </select>
                           </div>
 
                           {/* Field 1: Phone Number OR Quick Pay Link */}

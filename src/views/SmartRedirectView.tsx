@@ -21,7 +21,7 @@ import {
   Sparkles,
   User
 } from 'lucide-react';
-import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo, isQuickPayUrl, sanitizeQuickPayUrl } from '../lib/deepLinks';
+import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo, detectWalletProviderFromUrl, isQuickPayUrl, sanitizeQuickPayUrl } from '../lib/deepLinks';
 import { QrCodeRecord, WalletItem, WalletProvider } from '../types/qr';
 import { PlatformBrandIcon, WalletProviderIcon } from '../components/BrandIcons';
 
@@ -78,11 +78,11 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     };
 
     return (
-      <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
-        <div className="w-full max-w-md bg-[#121216] border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.15)] space-y-6 animate-in zoom-in-95">
+      <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none stage-3d">
+        <div className="w-full max-w-md bg-[#121216] border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.15)] space-y-6 animate-3d-enter card-3d-tilt">
           {/* Header */}
           <div className="text-center space-y-2">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 via-yellow-500 to-amber-600 text-black flex items-center justify-center mx-auto shadow-lg shadow-amber-500/30 font-black">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 via-yellow-500 to-amber-600 text-black flex items-center justify-center mx-auto shadow-lg shadow-amber-500/30 font-black animate-3d-float">
               <Building2 className="w-8 h-8 text-black" />
             </div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400/15 border border-amber-400/30 rounded-full text-[11px] font-black text-amber-300">
@@ -249,12 +249,12 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     // --- CASE A: MULTI-WALLET VIEW (2, 3, or 4 Wallets) ---
     if (isMultiWallet) {
       return (
-        <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
-          <div className="w-full max-w-lg bg-[#121216] border border-amber-500/30 rounded-3xl p-5 sm:p-7 space-y-5 text-center animate-in zoom-in-95 backdrop-blur-2xl shadow-[0_0_50px_rgba(212,175,55,0.12)]">
+        <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none stage-3d">
+          <div className="w-full max-w-lg bg-[#121216] border border-amber-500/30 rounded-3xl p-5 sm:p-7 space-y-5 text-center animate-3d-enter backdrop-blur-2xl shadow-[0_0_50px_rgba(212,175,55,0.12)]">
             
             {/* Header with Smart Card Logo */}
             <div className="space-y-2">
-              <img src="/logo.png" alt="Smart Card" className="w-14 h-14 object-contain mx-auto mb-1 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)]" />
+              <img src="/logo.png" alt="Smart Card" className="w-14 h-14 object-contain mx-auto mb-1 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)] animate-3d-float" />
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-400/15 text-amber-300 border border-amber-400/30">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 <span>متاح {activeWallets.length} محافظ كاش للدفع الفوري ⚡</span>
@@ -272,7 +272,9 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
               {activeWallets.map((walletItem, idx) => {
                 const isUrl = isQuickPayUrl(walletItem.phone);
                 const detected = isUrl ? null : detectWalletInfo(walletItem.phone);
-                const prov = walletItem.provider || (detected ? detected.provider : 'vodafone');
+                const urlProv = isUrl ? detectWalletProviderFromUrl(walletItem.phone) : 'generic';
+                const explicitProv = walletItem.provider && walletItem.provider !== 'generic' ? walletItem.provider : null;
+                const prov: WalletProvider = explicitProv || (urlProv !== 'generic' ? urlProv : (detected && detected.provider !== 'generic' ? detected.provider : 'vodafone'));
                 const style = getProviderStyle(prov);
                 const isCopied = copiedField === `wallet_${idx}`;
                 const formatted = detected?.formattedPhone || walletItem.phone;
@@ -299,12 +301,12 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                 return (
                   <div
                     key={idx}
-                    className={`bg-black/70 border rounded-2xl p-4 sm:p-5 space-y-3.5 transition-all relative overflow-hidden ${style.border}`}
+                    className={`bg-black/70 border rounded-2xl p-4 sm:p-5 space-y-3.5 transition-all relative overflow-hidden card-3d-tilt ${style.border}`}
                   >
                     {/* Top Row: Brand Logo + Operator Title */}
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 rounded-xl bg-black/80 border border-white/15 p-1.5 flex items-center justify-center flex-shrink-0 shadow-md">
+                        <div className="w-14 h-14 rounded-xl bg-black/80 border border-white/15 p-1.5 flex items-center justify-center flex-shrink-0 shadow-md animate-icon-alive">
                           <WalletProviderIcon provider={prov} size={42} className="w-full h-full object-contain" />
                         </div>
                         <div>
@@ -423,9 +425,11 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     const singleWallet = activeWallets[0];
     const isUrl = isQuickPayUrl(singleWallet.phone);
     const detected = isUrl ? null : detectWalletInfo(singleWallet.phone);
+    const urlProv = isUrl ? detectWalletProviderFromUrl(singleWallet.phone) : 'generic';
+    const explicitProv = singleWallet.provider && singleWallet.provider !== 'generic' ? singleWallet.provider : null;
     const phone = detected?.cleanPhone || singleWallet.phone;
     const formattedPhone = detected?.formattedPhone || phone;
-    const provider = singleWallet.provider || (detected?.provider !== 'generic' ? detected?.provider : 'vodafone');
+    const provider: WalletProvider = explicitProv || (urlProv !== 'generic' ? urlProv : (detected && detected.provider !== 'generic' ? detected.provider : 'vodafone'));
     const providerNameAr = detected?.nameAr || (
       provider === 'vodafone' ? 'ڨودافون كاش' :
       provider === 'orange' ? 'أورانج كاش' :
@@ -449,12 +453,12 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     const cleanTargetUrl = isUrl ? sanitizeQuickPayUrl(singleWallet.phone, provider) : singleWallet.phone.trim();
 
     return (
-      <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
-        <div className={`w-full max-w-md bg-[#121216] border rounded-3xl p-6 sm:p-8 space-y-6 text-center animate-in zoom-in-95 backdrop-blur-2xl ${style.border}`}>
+      <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none stage-3d">
+        <div className={`w-full max-w-md bg-[#121216] border rounded-3xl p-6 sm:p-8 space-y-6 text-center animate-3d-enter card-3d-tilt backdrop-blur-2xl ${style.border}`}>
           
           {/* Official Company Logo */}
           <div className="relative inline-block mx-auto">
-            <div className="w-48 h-24 sm:w-56 sm:h-28 rounded-2xl bg-black/60 border border-white/15 p-3 flex items-center justify-center mx-auto shadow-2xl transition hover:scale-105 backdrop-blur-md">
+            <div className="w-48 h-24 sm:w-56 sm:h-28 rounded-2xl bg-black/60 border border-white/15 p-3 flex items-center justify-center mx-auto shadow-2xl transition hover:scale-105 backdrop-blur-md animate-3d-float">
               <WalletProviderIcon provider={provider} size={140} className="w-full h-full max-h-20 object-contain drop-shadow-lg" />
             </div>
           </div>
@@ -584,9 +588,9 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
   if (linkInfo.isInstaPayCard) {
     const handle = linkInfo.instaPayHandle || record.target_url || '';
     return (
-      <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
-        <div className="w-full max-w-md bg-[#121216] border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.15)] space-y-6 text-center animate-in zoom-in-95 backdrop-blur-2xl">
-          <div className="w-18 h-18 rounded-2xl bg-black/60 border border-amber-500/40 p-2 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/20">
+      <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none stage-3d">
+        <div className="w-full max-w-md bg-[#121216] border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.15)] space-y-6 text-center animate-3d-enter card-3d-tilt backdrop-blur-2xl">
+          <div className="w-18 h-18 rounded-2xl bg-black/60 border border-amber-500/40 p-2 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/20 animate-3d-float">
             <PlatformBrandIcon type="instapay" className="w-12 h-12" />
           </div>
 
@@ -642,10 +646,10 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
   const targetLink = linkInfo.schemeUrl || linkInfo.fallbackUrl;
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white flex flex-col items-center justify-center p-6 text-center select-none relative overflow-hidden">
+    <div className="min-h-screen bg-[#09090b] text-white flex flex-col items-center justify-center p-6 text-center select-none relative overflow-hidden stage-3d">
       <div className="relative mb-6">
-        <div className="w-20 h-20 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center shadow-xl shadow-amber-500/20">
-          <PlatformBrandIcon type={linkInfo.appType} className="w-12 h-12 animate-pulse" />
+        <div className="w-20 h-20 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center shadow-xl shadow-amber-500/20 animate-3d-float">
+          <PlatformBrandIcon type={linkInfo.appType} className="w-12 h-12 animate-icon-alive" />
         </div>
       </div>
 

@@ -1,7 +1,7 @@
 ################################################################################
 # SMART CARD PLATFORM - COMPLETE UNIFIED SOURCE CODE (SINGLE COPYABLE FILE)
 # Total Files: 34
-# Generated At: 2026-11-15T00:06:39.929Z
+# Generated At: 2026-11-15T11:23:31.944Z
 # Live URL: https://smart-card-inky.vercel.app
 ################################################################################
 #
@@ -10,35 +10,35 @@
 #   02. index.html (158 lines)
 #   03. vite.config.ts (26 lines)
 #   04. tsconfig.json (29 lines)
-#   05. vercel.json (13 lines)
+#   05. vercel.json (33 lines)
 #   06. metadata.json (11 lines)
 #   07. .env.example (10 lines)
 #   08. firestore.rules (26 lines)
 #   09. firebase-blueprint.json (87 lines)
 #   10. firebase-applet-config.json (12 lines)
-#   11. server.ts (1063 lines)
+#   11. server.ts (1083 lines)
 #   12. api/redirect.ts (293 lines)
 #   13. src/main.tsx (6 lines)
 #   14. src/App.tsx (253 lines)
-#   15. src/index.css (62 lines)
+#   15. src/index.css (161 lines)
 #   16. src/types/qr.ts (78 lines)
 #   17. src/types/jsqr.d.ts (37 lines)
 #   18. src/lib/firebase.ts (74 lines)
 #   19. src/lib/auth.ts (374 lines)
-#   20. src/lib/deepLinks.ts (822 lines)
+#   20. src/lib/deepLinks.ts (839 lines)
 #   21. src/lib/qrService.ts (1292 lines)
 #   22. src/components/BrandIcons.tsx (656 lines)
 #   23. src/components/QrScannerModal.tsx (413 lines)
-#   24. src/components/EditQrModal.tsx (1410 lines)
+#   24. src/components/EditQrModal.tsx (1403 lines)
 #   25. src/components/BulkGenerateModal.tsx (389 lines)
 #   26. src/components/PrintSheetModal.tsx (194 lines)
 #   27. src/components/UploadQrModal.tsx (320 lines)
 #   28. src/components/DeveloperSettingsModal.tsx (252 lines)
 #   29. src/views/HomeLandingView.tsx (404 lines)
 #   30. src/views/AdminLoginView.tsx (131 lines)
-#   31. src/views/AdminDashboardView.tsx (1377 lines)
-#   32. src/views/CustomerActivationView.tsx (743 lines)
-#   33. src/views/SmartRedirectView.tsx (674 lines)
+#   31. src/views/AdminDashboardView.tsx (1379 lines)
+#   32. src/views/CustomerActivationView.tsx (717 lines)
+#   33. src/views/SmartRedirectView.tsx (678 lines)
 #   34. src/views/CardExpiredView.tsx (140 lines)
 #
 ################################################################################
@@ -320,6 +320,26 @@ FILE: tsconfig.json
 FILE: vercel.json
 ================================================================================
 {
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/((?!assets/).*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/q/:id",
@@ -1534,18 +1554,34 @@ app.get('/q/:id', async (req, res, next) => {
   next();
 });
 
-// Start dev server with Vite or static production
+// Start dev server with immediate port binding so startup health probes succeed right away
 async function startServer() {
   if (!isProd) {
-    const { createServer } = await import('vite');
-    const vite = await createServer({
-      server: { 
-        middlewareMode: true,
-        hmr: false,
-      },
-      appType: 'spa',
+    let resolvedMiddlewares: express.RequestHandler | null = null;
+    const viteInitPromise = import('vite')
+      .then(({ createServer }) =>
+        createServer({
+          server: {
+            middlewareMode: true,
+            hmr: false,
+            ...(process.env.DISABLE_HMR === 'true' ? { watch: null } : {}),
+          },
+          appType: 'spa',
+        })
+      )
+      .then((vite) => {
+        resolvedMiddlewares = vite.middlewares;
+        return vite.middlewares;
+      });
+
+    app.use((req, res, next) => {
+      if (resolvedMiddlewares) {
+        return resolvedMiddlewares(req, res, next);
+      }
+      viteInitPromise
+        .then((middlewares) => middlewares(req, res, next))
+        .catch(next);
     });
-    app.use(vite.middlewares);
   } else {
     app.use(express.static(path.join(__dirname, 'dist')));
     app.get('*', (req, res) => {
@@ -1553,8 +1589,12 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
+  });
+
+  server.on('error', (err) => {
+    console.error('Server listen error:', err);
   });
 }
 
@@ -2132,15 +2172,15 @@ FILE: src/index.css
   }
 }
 
-/* 3D Lifelike Animations for Customer Selected Platform: Logo & Name Only */
+/* 3D Lifelike Animations for Platform Selection, Activation Cards, and Admin Dashboard */
 @keyframes icon3DAlive {
   0%, 100% {
-    transform: perspective(600px) translateZ(16px) translateY(0px) rotateY(-4deg) scale(1.15);
-    filter: drop-shadow(0 8px 14px rgba(245, 158, 11, 0.45));
+    transform: perspective(600px) translateZ(16px) translateY(0px) rotateY(-6deg) rotateX(3deg) scale(1.12);
+    filter: drop-shadow(0 8px 14px rgba(245, 158, 11, 0.4));
   }
   50% {
-    transform: perspective(600px) translateZ(28px) translateY(-6px) rotateY(4deg) scale(1.25);
-    filter: drop-shadow(0 14px 22px rgba(245, 158, 11, 0.7));
+    transform: perspective(600px) translateZ(28px) translateY(-5px) rotateY(6deg) rotateX(-3deg) scale(1.2);
+    filter: drop-shadow(0 14px 22px rgba(245, 158, 11, 0.65));
   }
 }
 
@@ -2149,19 +2189,118 @@ FILE: src/index.css
     transform: translateY(0px) scale(1.02);
   }
   50% {
-    transform: translateY(-2px) scale(1.08);
+    transform: translateY(-2px) scale(1.06);
   }
 }
 
+@keyframes card3DEnter {
+  0% {
+    opacity: 0;
+    transform: perspective(1100px) rotateX(8deg) translateY(14px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1100px) rotateX(0deg) translateY(0px) scale(1);
+  }
+}
+
+@keyframes float3DAmbient {
+  0%, 100% {
+    transform: perspective(800px) translateY(0px) rotateX(1.5deg) rotateY(-2deg);
+  }
+  50% {
+    transform: perspective(800px) translateY(-5px) rotateX(-1.5deg) rotateY(2deg);
+  }
+}
+
+.stage-3d {
+  perspective: 1100px;
+  transform-style: preserve-3d;
+}
+
 .animate-icon-alive {
-  animation: icon3DAlive 2.5s ease-in-out infinite;
+  animation: icon3DAlive 2.6s cubic-bezier(0.37, 0, 0.63, 1) infinite;
   transform-style: preserve-3d;
   will-change: transform, filter;
 }
 
 .animate-name-alive {
-  animation: name3DAlive 2.5s ease-in-out infinite;
+  animation: name3DAlive 2.6s cubic-bezier(0.37, 0, 0.63, 1) infinite;
   will-change: transform;
+}
+
+.animate-3d-enter {
+  animation: card3DEnter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+
+.animate-3d-float {
+  animation: float3DAmbient 4.2s ease-in-out infinite;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.platform-card-3d {
+  transform: perspective(750px) translateZ(0px) rotateX(0deg) rotateY(0deg);
+  transform-style: preserve-3d;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), border-color 200ms ease, box-shadow 220ms ease, background-color 200ms ease;
+  will-change: transform;
+}
+
+.platform-card-3d:hover {
+  transform: perspective(750px) translateY(-4px) translateZ(12px) rotateX(6deg) rotateY(-4deg);
+}
+
+.platform-card-3d:active {
+  transform: perspective(750px) translateY(0px) translateZ(4px) scale(0.97);
+}
+
+.platform-card-3d-active {
+  transform: perspective(750px) translateY(-4px) translateZ(18px) rotateX(3deg);
+  transform-style: preserve-3d;
+  box-shadow: 0 14px 30px -10px rgba(245, 158, 11, 0.45), 0 0 24px rgba(245, 158, 11, 0.2);
+}
+
+.card-3d-tilt {
+  transform: perspective(1000px) translateZ(0px) rotateX(0deg) rotateY(0deg);
+  transform-style: preserve-3d;
+  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1), border-color 200ms ease, box-shadow 240ms ease;
+  will-change: transform;
+}
+
+.card-3d-tilt:hover {
+  transform: perspective(1000px) translateY(-4px) translateZ(14px) rotateX(3deg) rotateY(-2.5deg);
+}
+
+.qr-thumb-3d {
+  transform: perspective(650px) translateZ(0px) rotateX(0deg);
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.group:hover .qr-thumb-3d {
+  transform: perspective(650px) translateZ(20px) rotateX(4deg) scale(1.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-icon-alive,
+  .animate-name-alive,
+  .animate-3d-enter,
+  .animate-3d-float {
+    animation: none !important;
+    transform: none !important;
+  }
+  .platform-card-3d,
+  .platform-card-3d:hover,
+  .platform-card-3d-active,
+  .card-3d-tilt,
+  .card-3d-tilt:hover,
+  .qr-thumb-3d,
+  .group:hover .qr-thumb-3d {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 @media print {
@@ -2929,6 +3068,27 @@ export function isQuickPayUrl(input: string): boolean {
 }
 
 /**
+ * Automatically detects the Egyptian mobile wallet operator from a Quick Pay URL or deep link.
+ */
+export function detectWalletProviderFromUrl(url: string): WalletProvider {
+  const lower = (url || '').trim().toLowerCase();
+  if (!lower) return 'generic';
+  if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) {
+    return 'vodafone';
+  }
+  if (lower.includes('orange')) {
+    return 'orange';
+  }
+  if (lower.includes('etisalat') || lower.includes('e&')) {
+    return 'etisalat';
+  }
+  if (lower.includes('te.eg') || lower.includes('telecom') || /(?:^|[^a-z])we(?:pay)?(?:[^a-z]|$)/i.test(lower)) {
+    return 'we';
+  }
+  return 'generic';
+}
+
+/**
  * Robustly sanitizes and converts any Quick Pay Link (including Android app links,
  * share intents, and web links) into a safe, clickable URL that never triggers
  * Chrome's DNS_PROBE_FINISHED_NXDOMAIN or failed custom schemes.
@@ -3276,12 +3436,8 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
     // 1. Check if input is a Web URL or Quick Payment Link (e.g. https://... or vf.eg or web.vodafone.com.eg/...)
     if (isQuickPayUrl(cleanTrimmed)) {
       // Detect operator from URL domain / keywords
-      let detectedProv: WalletProvider = 'vodafone';
-      const lower = cleanTrimmed.toLowerCase();
-      if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) detectedProv = 'vodafone';
-      else if (lower.includes('orange')) detectedProv = 'orange';
-      else if (lower.includes('etisalat') || lower.includes('e&')) detectedProv = 'etisalat';
-      else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProv = 'we';
+      const urlProv = detectWalletProviderFromUrl(cleanTrimmed);
+      const detectedProv: WalletProvider = urlProv !== 'generic' ? urlProv : 'vodafone';
 
       const fullUrl = sanitizeQuickPayUrl(cleanTrimmed, detectedProv);
 
@@ -5995,6 +6151,7 @@ import {
   encodeBankDetails, 
   decodeBankDetails, 
   detectWalletInfo, 
+  detectWalletProviderFromUrl,
   isQuickPayUrl,
   sanitizeQuickPayUrl,
   formatTikTokTargetUrl,
@@ -6154,18 +6311,14 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
       if (trimmed) {
         const isUrl = isQuickPayUrl(trimmed);
         if (isUrl) {
-          const lower = trimmed.toLowerCase();
-          if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) newProvider = 'vodafone';
-          else if (lower.includes('orange')) newProvider = 'orange';
-          else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
-          else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) newProvider = 'we';
-          else newProvider = next[index].provider !== 'generic' ? next[index].provider : 'vodafone';
+          const urlProv = detectWalletProviderFromUrl(trimmed);
+          newProvider = urlProv !== 'generic' ? urlProv : (next[index].provider !== 'generic' ? next[index].provider : 'vodafone');
         } else {
           const detected = detectWalletInfo(trimmed);
           if (detected.provider !== 'generic') {
             newProvider = detected.provider as WalletProvider;
           } else {
-            newProvider = next[index].provider !== 'generic' ? next[index].provider : 'generic';
+            newProvider = 'generic';
           }
         }
       }
@@ -6593,8 +6746,8 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-[#0e0e12] rounded-3xl shadow-[0_0_50px_rgba(212,175,55,0.2)] border border-amber-500/35 overflow-hidden flex flex-col max-h-[94vh] text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200 stage-3d">
+      <div className="relative w-full max-w-2xl bg-[#0e0e12] rounded-3xl shadow-[0_0_50px_rgba(212,175,55,0.2)] border border-amber-500/35 overflow-hidden flex flex-col max-h-[94vh] text-white animate-3d-enter">
         {/* Ambient Gold Glow */}
         <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
         <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-yellow-500/10 rounded-full blur-2xl pointer-events-none" />
@@ -6684,7 +6837,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
               <span>🏦 خيارات البنوك والمدفوعات الإلكترونية:</span>
               <span className="text-[11px] text-amber-400/80 font-normal">اختيار واحد فقط</span>
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 stage-3d">
               {paymentPlatforms.map((p) => {
                 const isSelected = selectedType === p.type;
                 return (
@@ -6692,17 +6845,17 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                     key={p.type}
                     type="button"
                     onClick={() => handleSelectPlatform(p.type)}
-                    className={`flex items-center gap-2.5 p-3 rounded-2xl border text-right transition cursor-pointer ${
+                    className={`flex items-center gap-2.5 p-3 rounded-2xl border text-right cursor-pointer platform-card-3d ${
                       isSelected
-                        ? 'bg-[#1e1c12] text-amber-300 border-amber-400 shadow-[0_0_20px_rgba(250,204,21,0.25)] ring-2 ring-amber-400 font-black'
+                        ? 'bg-[#1e1c12] text-amber-300 border-amber-400 ring-2 ring-amber-400 font-black platform-card-3d-active'
                         : 'bg-black/40 text-slate-300 border-amber-500/20 hover:border-amber-400/40 hover:bg-black/60'
                     }`}
                   >
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 bg-black/40 p-1">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 bg-black/40 p-1 ${isSelected ? 'animate-icon-alive' : ''}`}>
                       <PlatformBrandIcon type={p.type} className="w-6 h-6" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold truncate">{p.label}</p>
+                      <p className={`text-xs font-bold truncate ${isSelected ? 'animate-name-alive' : ''}`}>{p.label}</p>
                       <p className={`text-[10px] truncate ${isSelected ? 'text-amber-200 font-bold' : 'text-slate-400'}`}>
                         {p.hint}
                       </p>
@@ -6719,7 +6872,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
               <span>📱 منصات التواصل والتطبيقات الأخرى:</span>
               <span className="text-[11px] text-amber-400/80 font-normal">اختيار واحد فقط</span>
             </label>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 stage-3d">
               {socialPlatforms.map((p) => {
                 const isSelected = selectedType === p.type;
                 return (
@@ -6727,16 +6880,16 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                     key={p.type}
                     type="button"
                     onClick={() => handleSelectPlatform(p.type)}
-                    className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border text-xs font-semibold transition gap-1.5 cursor-pointer ${
+                    className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border text-xs font-semibold gap-1.5 cursor-pointer platform-card-3d ${
                       isSelected
-                        ? 'bg-[#1e1c12] text-amber-300 border-amber-400 shadow-[0_0_20px_rgba(250,204,21,0.25)] ring-2 ring-amber-400 font-black'
+                        ? 'bg-[#1e1c12] text-amber-300 border-amber-400 ring-2 ring-amber-400 font-black platform-card-3d-active'
                         : 'bg-black/40 text-slate-300 border-amber-500/20 hover:border-amber-400/40 hover:bg-black/60'
                     }`}
                   >
-                    <div className="w-7 h-7 flex items-center justify-center">
+                    <div className={`w-7 h-7 flex items-center justify-center ${isSelected ? 'animate-icon-alive' : ''}`}>
                       <PlatformBrandIcon type={p.type} className="w-6 h-6" />
                     </div>
-                    <span className="text-[11px] truncate w-full text-center">{p.label}</span>
+                    <span className={`text-[11px] truncate w-full text-center ${isSelected ? 'animate-name-alive' : ''}`}>{p.label}</span>
                   </button>
                 );
               })}
@@ -6885,35 +7038,31 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                         'border-amber-500/25 shadow-[0_0_15px_rgba(212,175,55,0.06)]'
                       }`}
                     >
-                      {/* Header with Provider Logo & Switcher */}
+                      {/* Header with Provider Logo */}
                       <div className="flex items-center justify-between pb-2 border-b border-white/10">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-10 h-10 rounded-xl bg-black/80 border border-white/15 p-1 flex items-center justify-center flex-shrink-0 shadow">
+                          <div className={`w-10 h-10 rounded-xl bg-black/80 border border-white/15 p-1 flex items-center justify-center flex-shrink-0 shadow ${isKnownBrand ? 'animate-icon-alive' : ''}`}>
                             <WalletProviderIcon provider={isKnownBrand ? activeProvider : 'generic'} size={28} className="w-full h-full object-contain" />
                           </div>
                           <div>
                             <span className="text-xs font-black text-white block">
                               {walletCount > 1 ? `المحفظة رقم ${index + 1}` : 'بيانات المحفظة الإلكترونية'}
                             </span>
-                            {isKnownBrand && activeMeta ? (
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 ${activeMeta.color}`}>
+                            {isKnownBrand && activeMeta && (
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 animate-name-alive ${activeMeta.color}`}>
                                 {activeMeta.nameAr}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 text-amber-300/80 bg-amber-500/10 border-amber-500/20">
-                                تحديد تلقائي عند كتابة الرقم أو الرابط
                               </span>
                             )}
                           </div>
                         </div>
 
-                        {/* Provider Switcher */}
+                        {/* Optional Admin Provider Override */}
                         <select
                           value={item.provider}
                           onChange={(e) => handleWalletProviderChange(index, e.target.value as WalletProvider)}
                           className="px-2 py-1 bg-[#121216] border border-white/15 rounded-lg text-[11px] font-bold text-amber-200 focus:outline-none focus:border-amber-400"
                         >
-                          <option value="generic">تحديد تلقائي للشبكة</option>
+                          <option value="generic">تلقائي (حسب الرقم/الرابط)</option>
                           <option value="vodafone">فودافون كاش (010)</option>
                           <option value="orange">أورانج كاش (012)</option>
                           <option value="etisalat">اتصالات كاش (011)</option>
@@ -8661,7 +8810,7 @@ export function HomeLandingView({ onGoToAdmin, onSimulateScan }: HomeLandingView
             <img 
               src="/logo.png" 
               alt="Smart Card" 
-              className="w-10 h-10 object-contain rounded-2xl shadow-lg shadow-amber-500/20 p-0.5 bg-[#121216] border border-amber-400/40" 
+              className="w-10 h-10 object-contain rounded-2xl shadow-lg shadow-amber-500/20 p-0.5 bg-[#121216] border border-amber-400/40 animate-3d-float" 
             />
             <div>
               <span className="text-base sm:text-lg font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-500 font-mono block">
@@ -8769,13 +8918,13 @@ export function HomeLandingView({ onGoToAdmin, onSimulateScan }: HomeLandingView
         />
 
         {/* Quick Customer Action Cards */}
-        <div className="bg-[#121216] border border-amber-500/30 rounded-3xl p-6 sm:p-8 space-y-6 shadow-[0_0_50px_rgba(212,175,55,0.08)] backdrop-blur-xl">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-[#121216] border border-amber-500/30 rounded-3xl p-6 sm:p-8 space-y-6 shadow-[0_0_50px_rgba(212,175,55,0.08)] backdrop-blur-xl stage-3d animate-3d-enter">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 stage-3d">
             {/* Option 1: Live Camera Scan */}
             <button
               type="button"
               onClick={() => setIsScannerOpen(true)}
-              className="p-5 rounded-2xl bg-gradient-to-tr from-amber-400/10 via-yellow-500/5 to-transparent hover:from-amber-400/20 hover:to-yellow-500/10 border border-amber-500/30 hover:border-amber-400/60 transition group text-right flex items-center gap-4 cursor-pointer"
+              className="p-5 rounded-2xl bg-gradient-to-tr from-amber-400/10 via-yellow-500/5 to-transparent hover:from-amber-400/20 hover:to-yellow-500/10 border border-amber-500/30 hover:border-amber-400/60 group text-right flex items-center gap-4 cursor-pointer card-3d-tilt"
             >
               <div className="w-12 h-12 rounded-xl bg-amber-400/15 border border-amber-400/30 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition">
                 <Camera className="w-6 h-6 text-amber-400" />
@@ -8791,7 +8940,7 @@ export function HomeLandingView({ onGoToAdmin, onSimulateScan }: HomeLandingView
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="p-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-400/40 transition group text-right flex items-center gap-4 cursor-pointer"
+              className="p-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-400/40 group text-right flex items-center gap-4 cursor-pointer card-3d-tilt"
             >
               <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition">
                 {isUploading ? (
@@ -8997,12 +9146,12 @@ export function AdminLoginView({ onLoginSuccess, onNavigateHome }: AdminLoginVie
       </button>
 
       {/* Login Card */}
-      <div className="w-full max-w-md bg-[#121216] border border-amber-500/30 rounded-3xl p-8 sm:p-10 shadow-[0_0_50px_rgba(212,175,55,0.15)] relative z-10 backdrop-blur-2xl">
+      <div className="w-full max-w-md bg-[#121216] border border-amber-500/30 rounded-3xl p-8 sm:p-10 shadow-[0_0_50px_rgba(212,175,55,0.15)] relative z-10 backdrop-blur-2xl stage-3d animate-3d-enter">
         <div className="text-center space-y-3 mb-8">
           <img 
             src="/logo.png" 
             alt="Smart Card" 
-            className="w-16 h-16 object-contain rounded-2xl mx-auto shadow-lg shadow-amber-500/25 border border-amber-400/40 p-1 bg-[#121216]" 
+            className="w-16 h-16 object-contain rounded-2xl mx-auto shadow-lg shadow-amber-500/25 border border-amber-400/40 p-1 bg-[#121216] animate-3d-float" 
           />
           <div>
             <span className="inline-block text-[11px] font-black uppercase tracking-wider text-amber-300 bg-amber-400/15 px-3 py-1 rounded-full border border-amber-400/30 mb-2">
@@ -9422,7 +9571,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             <img 
               src="/logo.png" 
               alt="Smart Card Logo" 
-              className="w-10 h-10 object-contain rounded-2xl shadow-lg shadow-amber-500/20 flex-shrink-0 p-0.5 bg-[#121216] border border-amber-400/40" 
+              className="w-10 h-10 object-contain rounded-2xl shadow-lg shadow-amber-500/20 flex-shrink-0 p-0.5 bg-[#121216] border border-amber-400/40 animate-3d-float" 
             />
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -9563,11 +9712,11 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         )}
 
         {/* KPI Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
-          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/40 shadow-lg flex items-center justify-between transition">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 stage-3d">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/45 shadow-lg flex items-center justify-between card-3d-tilt">
             <div>
               <p className="text-[11px] font-bold text-slate-400">إجمالي الرموز</p>
-              <p className="text-xl sm:text-2xl font-black text-amber-400 mt-0.5">{totalCodes}</p>
+              <p className="text-xl sm:text-2xl font-black text-amber-400 mt-0.5 tabular-nums">{totalCodes}</p>
               <p className="text-[10px] text-slate-500">معرّفات nanoid فريدة</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-400 flex items-center justify-center">
@@ -9575,10 +9724,10 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             </div>
           </div>
 
-          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-emerald-400/40 shadow-lg flex items-center justify-between transition">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-emerald-400/45 shadow-lg flex items-center justify-between card-3d-tilt">
             <div>
               <p className="text-[11px] font-bold text-slate-400">الاشتراكات النشطة</p>
-              <p className="text-xl sm:text-2xl font-black text-emerald-400 mt-0.5">{activeCodes}</p>
+              <p className="text-xl sm:text-2xl font-black text-emerald-400 mt-0.5 tabular-nums">{activeCodes}</p>
               <p className="text-[10px] text-slate-500">سارية وتعمل الآن</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 flex items-center justify-center">
@@ -9586,10 +9735,10 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             </div>
           </div>
 
-          <div className="p-4 bg-[#121216] rounded-2xl border border-rose-500/20 hover:border-rose-400/40 shadow-lg flex items-center justify-between transition">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-rose-500/20 hover:border-rose-400/45 shadow-lg flex items-center justify-between card-3d-tilt">
             <div>
               <p className="text-[11px] font-bold text-slate-400">اشتراكات منتهية</p>
-              <p className="text-xl sm:text-2xl font-black text-rose-400 mt-0.5">{expiredCodes}</p>
+              <p className="text-xl sm:text-2xl font-black text-rose-400 mt-0.5 tabular-nums">{expiredCodes}</p>
               <p className="text-[10px] text-slate-500">تتطلب التجديد</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-400 flex items-center justify-center">
@@ -9597,10 +9746,10 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             </div>
           </div>
 
-          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/40 shadow-lg flex items-center justify-between transition">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/45 shadow-lg flex items-center justify-between card-3d-tilt">
             <div>
               <p className="text-[11px] font-bold text-slate-400">بانتظار التفعيل</p>
-              <p className="text-xl sm:text-2xl font-black text-yellow-400 mt-0.5">{pendingCodes}</p>
+              <p className="text-xl sm:text-2xl font-black text-yellow-400 mt-0.5 tabular-nums">{pendingCodes}</p>
               <p className="text-[10px] text-slate-500">كروت جديدة غير معينة</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 flex items-center justify-center">
@@ -9608,7 +9757,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             </div>
           </div>
 
-          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/40 shadow-lg flex items-center justify-between transition col-span-2 md:col-span-1">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/45 shadow-lg flex items-center justify-between card-3d-tilt col-span-2 md:col-span-1">
             <div>
               <div className="flex items-center gap-1.5">
                 <p className="text-[11px] font-bold text-slate-400">إجمالي المسح</p>
@@ -9617,7 +9766,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                   مباشر
                 </span>
               </div>
-              <p className="text-xl sm:text-2xl font-black text-amber-300 mt-0.5">{totalScans}</p>
+              <p className="text-xl sm:text-2xl font-black text-amber-300 mt-0.5 tabular-nums">{totalScans}</p>
               <p className="text-[10px] text-slate-500">توجيه فوري لحظي</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center">
@@ -9627,7 +9776,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         </div>
 
         {/* Primary Action Ribbon */}
-        <div className="p-6 bg-gradient-to-r from-[#121216] via-[#191920] to-[#121216] rounded-3xl text-white shadow-xl shadow-amber-500/5 flex flex-col md:flex-row items-center justify-between gap-6 border border-amber-500/30">
+        <div className="p-6 bg-gradient-to-r from-[#121216] via-[#191920] to-[#121216] rounded-3xl text-white shadow-xl shadow-amber-500/5 flex flex-col md:flex-row items-center justify-between gap-6 border border-amber-500/30 animate-3d-enter">
           <div className="space-y-1.5 text-center md:text-right">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400/10 border border-amber-400/30 rounded-full text-xs font-bold text-amber-300">
               <Lock className="w-3.5 h-3.5 text-amber-400" />
@@ -9859,20 +10008,22 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             </div>
           ) : viewMode === 'grid' ? (
             /* Grid View */
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 stage-3d">
               {filtered.map((record) => {
                 const scanUrl = `${domainUrl}/q/${record.id}`;
                 return (
                   <div
                     key={record.id}
-                    className="p-4 bg-[#16161c] rounded-2xl border border-amber-500/20 hover:border-amber-400/50 hover:shadow-[0_0_25px_rgba(212,175,55,0.12)] transition flex flex-col justify-between group"
+                    className="p-4 bg-[#16161c] rounded-2xl border border-amber-500/20 hover:border-amber-400/55 hover:shadow-[0_0_25px_rgba(212,175,55,0.16)] flex flex-col justify-between group card-3d-tilt"
                   >
                     <div>
                       {/* Top Header of card */}
                       <div className="flex items-center justify-between pb-3 border-b border-white/5">
                         <div className="flex items-center gap-1.5">
                           {record.is_active && record.app_type && (
-                            <PlatformBrandIcon type={record.app_type as any} className="w-5 h-5 flex-shrink-0" targetUrl={record.target_url || undefined} />
+                            <div className="animate-icon-alive">
+                              <PlatformBrandIcon type={record.app_type as any} className="w-5 h-5 flex-shrink-0" targetUrl={record.target_url || undefined} />
+                            </div>
                           )}
                           <span className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold flex items-center gap-1.5 ${
                             record.is_active
@@ -9890,13 +10041,13 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                           title={`تم فتح ومسح هذا الرابط ${record.total_scans || 0} مرة بواسطة العملاء`}
                         >
                           <Eye className="w-4 h-4 text-amber-400" />
-                          <span>{record.total_scans || 0} مسحة</span>
+                          <span className="tabular-nums">{record.total_scans || 0} مسحة</span>
                         </div>
                       </div>
 
                       {/* QR Thumbnail */}
-                      <div className="my-3 flex justify-center">
-                        <div className="p-2.5 bg-white rounded-2xl shadow-inner group-hover:scale-105 transition">
+                      <div className="my-3 flex justify-center stage-3d">
+                        <div className="p-2.5 bg-white rounded-2xl shadow-inner qr-thumb-3d">
                           {qrThumbs[record.id] ? (
                             <img
                               src={qrThumbs[record.id]}
@@ -10480,6 +10631,7 @@ import {
   processSmartLink, 
   triggerSmartRedirect, 
   detectWalletInfo, 
+  detectWalletProviderFromUrl,
   isQuickPayUrl,
   sanitizeQuickPayUrl,
   formatTikTokTargetUrl,
@@ -10530,18 +10682,11 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
       if (trimmed) {
         const isUrl = isQuickPayUrl(trimmed);
         if (isUrl) {
-          const lower = trimmed.toLowerCase();
-          if (lower.includes('vodafone') || lower.includes('vfcash') || lower.includes('voda') || lower.includes('vf.eg')) newProvider = 'vodafone';
-          else if (lower.includes('orange')) newProvider = 'orange';
-          else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
-          else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) newProvider = 'we';
-          else newProvider = next[index].provider !== 'generic' ? next[index].provider : 'vodafone';
+          newProvider = detectWalletProviderFromUrl(trimmed);
         } else {
           const detected = detectWalletInfo(trimmed);
           if (detected.provider !== 'generic') {
             newProvider = detected.provider as WalletProvider;
-          } else {
-            newProvider = next[index].provider !== 'generic' ? next[index].provider : 'generic';
           }
         }
       }
@@ -10559,14 +10704,6 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
     setWallets((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], ownerName: val };
-      return next;
-    });
-  };
-
-  const handleWalletProviderChange = (index: number, prov: WalletProvider) => {
-    setWallets((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], provider: prov };
       return next;
     });
   };
@@ -10670,10 +10807,12 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
 
         // Check if quick pay url
         if (isQuickPayUrl(trimmedPhone)) {
-          const fullUrl = sanitizeQuickPayUrl(trimmedPhone, item.provider);
+          const urlProv = detectWalletProviderFromUrl(trimmedPhone);
+          const resolvedProv: WalletProvider = item.provider !== 'generic' ? item.provider : (urlProv !== 'generic' ? urlProv : 'vodafone');
+          const fullUrl = sanitizeQuickPayUrl(trimmedPhone, resolvedProv);
           activeList.push({
             phone: fullUrl,
-            provider: item.provider !== 'generic' ? item.provider : 'vodafone',
+            provider: resolvedProv,
             ownerName: trimmedOwner,
           });
         } else {
@@ -10798,12 +10937,12 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
 
   return (
     <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
-      <div className="w-full max-w-lg relative z-10">
+      <div className="w-full max-w-lg relative z-10 stage-3d">
         {!activatedRecord ? (
-          <div className="bg-[#121216] border border-amber-500/30 rounded-3xl p-5 sm:p-8 shadow-[0_0_40px_rgba(212,175,55,0.12)] space-y-6">
-            {/* Clean Header with Logo */}
+          <div className="bg-[#121216] border border-amber-500/30 rounded-3xl p-5 sm:p-8 shadow-[0_0_40px_rgba(212,175,55,0.12)] space-y-6 animate-3d-enter">
+            {/* Clean Header with 3D Floating Logo */}
             <div className="text-center space-y-2">
-              <img src="/logo.png" alt="Smart Card" className="w-16 h-16 object-contain mx-auto mb-2 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)]" />
+              <img src="/logo.png" alt="Smart Card" className="w-16 h-16 object-contain mx-auto mb-2 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)] animate-3d-float" />
               <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400/15 text-amber-300 border border-amber-400/30 rounded-full text-xs font-bold mb-1">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 تفعيل بطاقة Smart Card لأول مرة
@@ -10835,7 +10974,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 stage-3d">
                   {platforms.map((p) => {
                      const isSelected = selectedType === p.type;
                      return (
@@ -10858,9 +10997,9 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                            }
                            setErrorMsg(null);
                          }}
-                         className={`p-3 rounded-2xl border transition flex flex-col items-center justify-center gap-2 cursor-pointer text-center relative ${
+                         className={`p-3 rounded-2xl border flex flex-col items-center justify-center gap-2 cursor-pointer text-center relative platform-card-3d ${
                            isSelected
-                             ? 'bg-gradient-to-b from-amber-500/20 to-black border-amber-400 shadow-[0_0_20px_rgba(212,175,55,0.25)] ring-1 ring-amber-400/50'
+                             ? 'bg-gradient-to-b from-amber-500/20 to-black border-amber-400 ring-1 ring-amber-400/50 platform-card-3d-active'
                              : 'bg-[#18181b]/70 border-white/10 hover:border-amber-400/40 hover:bg-[#18181b]'
                          }`}
                        >
@@ -10869,8 +11008,10 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                              <Check className="w-2.5 h-2.5 stroke-[3]" />
                            </div>
                          )}
-                         <PlatformBrandIcon type={p.type} className="w-8 h-8" />
-                         <span className={`text-xs font-bold leading-tight ${isSelected ? 'text-amber-300' : 'text-slate-200'}`}>
+                         <div className={isSelected ? 'animate-icon-alive' : 'transition-transform duration-200'}>
+                           <PlatformBrandIcon type={p.type} className="w-8 h-8" />
+                         </div>
+                         <span className={`text-xs font-bold leading-tight ${isSelected ? 'text-amber-300 animate-name-alive' : 'text-slate-200'}`}>
                            {p.label}
                          </span>
                        </button>
@@ -10978,8 +11119,9 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                       const hasInput = Boolean(item.phone && item.phone.trim());
                       const detected = hasInput ? detectWalletInfo(item.phone) : null;
                       const isUrl = hasInput ? isQuickPayUrl(item.phone) : false;
+                      const urlProv = hasInput && isUrl ? detectWalletProviderFromUrl(item.phone) : 'generic';
                       const activeProvider: WalletProvider = (hasInput 
-                        ? (item.provider !== 'generic' ? item.provider : (detected && detected.provider !== 'generic' ? detected.provider : 'generic'))
+                        ? (item.provider !== 'generic' ? item.provider : (urlProv !== 'generic' ? urlProv : (detected && detected.provider !== 'generic' ? detected.provider : 'generic')))
                         : (item.provider !== 'generic' ? item.provider : 'generic')
                       ) as WalletProvider;
                       const isKnownBrand = hasInput && activeProvider !== 'generic';
@@ -10988,7 +11130,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                       return (
                         <div 
                           key={index} 
-                          className={`p-4 rounded-2xl border transition-all space-y-3 bg-black/50 ${
+                          className={`p-4 rounded-2xl border transition-all space-y-3 bg-black/50 animate-3d-enter ${
                             isKnownBrand && activeProvider === 'vodafone' ? 'border-red-500/35 shadow-[0_0_20px_rgba(230,0,0,0.1)]' :
                             isKnownBrand && activeProvider === 'orange' ? 'border-orange-500/35 shadow-[0_0_20px_rgba(255,121,0,0.1)]' :
                             isKnownBrand && activeProvider === 'etisalat' ? 'border-emerald-500/35 shadow-[0_0_20px_rgba(113,158,25,0.1)]' :
@@ -10996,40 +11138,23 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                             'border-amber-500/25 shadow-[0_0_15px_rgba(212,175,55,0.06)]'
                           }`}
                         >
-                          {/* Card Header with Provider Logo & Title */}
+                          {/* Card Header with Provider Logo & Title (100% Automatic — No Dropdown or Auto-Detect Hint Shown) */}
                           <div className="flex items-center justify-between pb-2 border-b border-white/10">
                             <div className="flex items-center gap-2.5">
-                              <div className="w-10 h-10 rounded-xl bg-black/80 border border-white/15 p-1 flex items-center justify-center flex-shrink-0 shadow">
+                              <div className={`w-10 h-10 rounded-xl bg-black/80 border border-white/15 p-1 flex items-center justify-center flex-shrink-0 shadow ${isKnownBrand ? 'animate-icon-alive' : ''}`}>
                                 <WalletProviderIcon provider={isKnownBrand ? activeProvider : 'generic'} size={28} className="w-full h-full object-contain" />
                               </div>
                               <div>
                                 <span className="text-xs font-black text-white block">
                                   {walletCount > 1 ? `المحفظة رقم ${index + 1}` : 'بيانات محفظة الكاش'}
                                 </span>
-                                {isKnownBrand && activeMeta ? (
-                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 ${activeMeta.color}`}>
+                                {isKnownBrand && activeMeta && (
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 animate-name-alive ${activeMeta.color}`}>
                                     {activeMeta.nameAr}
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 text-amber-300/80 bg-amber-500/10 border-amber-500/20">
-                                    تحديد تلقائي عند كتابة الرقم أو الرابط
                                   </span>
                                 )}
                               </div>
                             </div>
-
-                            {/* Provider Quick Switcher */}
-                            <select
-                              value={item.provider}
-                              onChange={(e) => handleWalletProviderChange(index, e.target.value as WalletProvider)}
-                              className="px-2 py-1 bg-[#09090b] border border-white/15 rounded-lg text-[10px] font-bold text-slate-200 focus:outline-none focus:border-amber-400"
-                            >
-                              <option value="generic">تحديد تلقائي للشبكة</option>
-                              <option value="vodafone">فودافون كاش (010)</option>
-                              <option value="orange">أورانج كاش (012)</option>
-                              <option value="etisalat">اتصالات كاش (011)</option>
-                              <option value="we">وي باي (015)</option>
-                            </select>
                           </div>
 
                           {/* Field 1: Phone Number OR Quick Pay Link */}
@@ -11228,7 +11353,7 @@ import {
   Sparkles,
   User
 } from 'lucide-react';
-import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo, isQuickPayUrl, sanitizeQuickPayUrl } from '../lib/deepLinks';
+import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo, detectWalletProviderFromUrl, isQuickPayUrl, sanitizeQuickPayUrl } from '../lib/deepLinks';
 import { QrCodeRecord, WalletItem, WalletProvider } from '../types/qr';
 import { PlatformBrandIcon, WalletProviderIcon } from '../components/BrandIcons';
 
@@ -11285,11 +11410,11 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     };
 
     return (
-      <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
-        <div className="w-full max-w-md bg-[#121216] border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.15)] space-y-6 animate-in zoom-in-95">
+      <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none stage-3d">
+        <div className="w-full max-w-md bg-[#121216] border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.15)] space-y-6 animate-3d-enter card-3d-tilt">
           {/* Header */}
           <div className="text-center space-y-2">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 via-yellow-500 to-amber-600 text-black flex items-center justify-center mx-auto shadow-lg shadow-amber-500/30 font-black">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 via-yellow-500 to-amber-600 text-black flex items-center justify-center mx-auto shadow-lg shadow-amber-500/30 font-black animate-3d-float">
               <Building2 className="w-8 h-8 text-black" />
             </div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400/15 border border-amber-400/30 rounded-full text-[11px] font-black text-amber-300">
@@ -11456,12 +11581,12 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     // --- CASE A: MULTI-WALLET VIEW (2, 3, or 4 Wallets) ---
     if (isMultiWallet) {
       return (
-        <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
-          <div className="w-full max-w-lg bg-[#121216] border border-amber-500/30 rounded-3xl p-5 sm:p-7 space-y-5 text-center animate-in zoom-in-95 backdrop-blur-2xl shadow-[0_0_50px_rgba(212,175,55,0.12)]">
+        <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none stage-3d">
+          <div className="w-full max-w-lg bg-[#121216] border border-amber-500/30 rounded-3xl p-5 sm:p-7 space-y-5 text-center animate-3d-enter backdrop-blur-2xl shadow-[0_0_50px_rgba(212,175,55,0.12)]">
             
             {/* Header with Smart Card Logo */}
             <div className="space-y-2">
-              <img src="/logo.png" alt="Smart Card" className="w-14 h-14 object-contain mx-auto mb-1 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)]" />
+              <img src="/logo.png" alt="Smart Card" className="w-14 h-14 object-contain mx-auto mb-1 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)] animate-3d-float" />
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-400/15 text-amber-300 border border-amber-400/30">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 <span>متاح {activeWallets.length} محافظ كاش للدفع الفوري ⚡</span>
@@ -11479,7 +11604,9 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
               {activeWallets.map((walletItem, idx) => {
                 const isUrl = isQuickPayUrl(walletItem.phone);
                 const detected = isUrl ? null : detectWalletInfo(walletItem.phone);
-                const prov = walletItem.provider || (detected ? detected.provider : 'vodafone');
+                const urlProv = isUrl ? detectWalletProviderFromUrl(walletItem.phone) : 'generic';
+                const explicitProv = walletItem.provider && walletItem.provider !== 'generic' ? walletItem.provider : null;
+                const prov: WalletProvider = explicitProv || (urlProv !== 'generic' ? urlProv : (detected && detected.provider !== 'generic' ? detected.provider : 'vodafone'));
                 const style = getProviderStyle(prov);
                 const isCopied = copiedField === `wallet_${idx}`;
                 const formatted = detected?.formattedPhone || walletItem.phone;
@@ -11506,12 +11633,12 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                 return (
                   <div
                     key={idx}
-                    className={`bg-black/70 border rounded-2xl p-4 sm:p-5 space-y-3.5 transition-all relative overflow-hidden ${style.border}`}
+                    className={`bg-black/70 border rounded-2xl p-4 sm:p-5 space-y-3.5 transition-all relative overflow-hidden card-3d-tilt ${style.border}`}
                   >
                     {/* Top Row: Brand Logo + Operator Title */}
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 rounded-xl bg-black/80 border border-white/15 p-1.5 flex items-center justify-center flex-shrink-0 shadow-md">
+                        <div className="w-14 h-14 rounded-xl bg-black/80 border border-white/15 p-1.5 flex items-center justify-center flex-shrink-0 shadow-md animate-icon-alive">
                           <WalletProviderIcon provider={prov} size={42} className="w-full h-full object-contain" />
                         </div>
                         <div>
@@ -11630,9 +11757,11 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     const singleWallet = activeWallets[0];
     const isUrl = isQuickPayUrl(singleWallet.phone);
     const detected = isUrl ? null : detectWalletInfo(singleWallet.phone);
+    const urlProv = isUrl ? detectWalletProviderFromUrl(singleWallet.phone) : 'generic';
+    const explicitProv = singleWallet.provider && singleWallet.provider !== 'generic' ? singleWallet.provider : null;
     const phone = detected?.cleanPhone || singleWallet.phone;
     const formattedPhone = detected?.formattedPhone || phone;
-    const provider = singleWallet.provider || (detected?.provider !== 'generic' ? detected?.provider : 'vodafone');
+    const provider: WalletProvider = explicitProv || (urlProv !== 'generic' ? urlProv : (detected && detected.provider !== 'generic' ? detected.provider : 'vodafone'));
     const providerNameAr = detected?.nameAr || (
       provider === 'vodafone' ? 'ڨودافون كاش' :
       provider === 'orange' ? 'أورانج كاش' :
@@ -11656,12 +11785,12 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     const cleanTargetUrl = isUrl ? sanitizeQuickPayUrl(singleWallet.phone, provider) : singleWallet.phone.trim();
 
     return (
-      <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
-        <div className={`w-full max-w-md bg-[#121216] border rounded-3xl p-6 sm:p-8 space-y-6 text-center animate-in zoom-in-95 backdrop-blur-2xl ${style.border}`}>
+      <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none stage-3d">
+        <div className={`w-full max-w-md bg-[#121216] border rounded-3xl p-6 sm:p-8 space-y-6 text-center animate-3d-enter card-3d-tilt backdrop-blur-2xl ${style.border}`}>
           
           {/* Official Company Logo */}
           <div className="relative inline-block mx-auto">
-            <div className="w-48 h-24 sm:w-56 sm:h-28 rounded-2xl bg-black/60 border border-white/15 p-3 flex items-center justify-center mx-auto shadow-2xl transition hover:scale-105 backdrop-blur-md">
+            <div className="w-48 h-24 sm:w-56 sm:h-28 rounded-2xl bg-black/60 border border-white/15 p-3 flex items-center justify-center mx-auto shadow-2xl transition hover:scale-105 backdrop-blur-md animate-3d-float">
               <WalletProviderIcon provider={provider} size={140} className="w-full h-full max-h-20 object-contain drop-shadow-lg" />
             </div>
           </div>
@@ -11791,9 +11920,9 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
   if (linkInfo.isInstaPayCard) {
     const handle = linkInfo.instaPayHandle || record.target_url || '';
     return (
-      <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none">
-        <div className="w-full max-w-md bg-[#121216] border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.15)] space-y-6 text-center animate-in zoom-in-95 backdrop-blur-2xl">
-          <div className="w-18 h-18 rounded-2xl bg-black/60 border border-amber-500/40 p-2 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/20">
+      <div className="min-h-screen bg-[#09090b] text-white selection:bg-amber-500 selection:text-black flex flex-col items-center justify-center p-4 sm:p-6 relative select-none stage-3d">
+        <div className="w-full max-w-md bg-[#121216] border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.15)] space-y-6 text-center animate-3d-enter card-3d-tilt backdrop-blur-2xl">
+          <div className="w-18 h-18 rounded-2xl bg-black/60 border border-amber-500/40 p-2 flex items-center justify-center mx-auto shadow-lg shadow-amber-500/20 animate-3d-float">
             <PlatformBrandIcon type="instapay" className="w-12 h-12" />
           </div>
 
@@ -11849,10 +11978,10 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
   const targetLink = linkInfo.schemeUrl || linkInfo.fallbackUrl;
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white flex flex-col items-center justify-center p-6 text-center select-none relative overflow-hidden">
+    <div className="min-h-screen bg-[#09090b] text-white flex flex-col items-center justify-center p-6 text-center select-none relative overflow-hidden stage-3d">
       <div className="relative mb-6">
-        <div className="w-20 h-20 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center shadow-xl shadow-amber-500/20">
-          <PlatformBrandIcon type={linkInfo.appType} className="w-12 h-12 animate-pulse" />
+        <div className="w-20 h-20 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center shadow-xl shadow-amber-500/20 animate-3d-float">
+          <PlatformBrandIcon type={linkInfo.appType} className="w-12 h-12 animate-icon-alive" />
         </div>
       </div>
 

@@ -50,12 +50,12 @@ export function AdminLoginView({ onLoginSuccess, onNavigateHome }: AdminLoginVie
       </button>
 
       {/* Login Card */}
-      <div className="w-full max-w-md bg-[#121216] border border-amber-500/30 rounded-3xl p-8 sm:p-10 shadow-[0_0_50px_rgba(212,175,55,0.15)] relative z-10 backdrop-blur-2xl">
+      <div className="w-full max-w-md bg-[#121216] border border-amber-500/30 rounded-3xl p-8 sm:p-10 shadow-[0_0_50px_rgba(212,175,55,0.15)] relative z-10 backdrop-blur-2xl stage-3d animate-3d-enter">
         <div className="text-center space-y-3 mb-8">
           <img 
             src="/logo.png" 
             alt="Smart Card" 
-            className="w-16 h-16 object-contain rounded-2xl mx-auto shadow-lg shadow-amber-500/25 border border-amber-400/40 p-1 bg-[#121216]" 
+            className="w-16 h-16 object-contain rounded-2xl mx-auto shadow-lg shadow-amber-500/25 border border-amber-400/40 p-1 bg-[#121216] animate-3d-float" 
           />
           <div>
             <span className="inline-block text-[11px] font-black uppercase tracking-wider text-amber-300 bg-amber-400/15 px-3 py-1 rounded-full border border-amber-400/30 mb-2">

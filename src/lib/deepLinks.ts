@@ -164,6 +164,27 @@ export function isQuickPayUrl(input: string): boolean {
 }
 
 /**
+ * Automatically detects the Egyptian mobile wallet operator from a Quick Pay URL or deep link.
+ */
+export function detectWalletProviderFromUrl(url: string): WalletProvider {
+  const lower = (url || '').trim().toLowerCase();
+  if (!lower) return 'generic';
+  if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) {
+    return 'vodafone';
+  }
+  if (lower.includes('orange')) {
+    return 'orange';
+  }
+  if (lower.includes('etisalat') || lower.includes('e&')) {
+    return 'etisalat';
+  }
+  if (lower.includes('te.eg') || lower.includes('telecom') || /(?:^|[^a-z])we(?:pay)?(?:[^a-z]|$)/i.test(lower)) {
+    return 'we';
+  }
+  return 'generic';
+}
+
+/**
  * Robustly sanitizes and converts any Quick Pay Link (including Android app links,
  * share intents, and web links) into a safe, clickable URL that never triggers
  * Chrome's DNS_PROBE_FINISHED_NXDOMAIN or failed custom schemes.
@@ -511,12 +532,8 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
     // 1. Check if input is a Web URL or Quick Payment Link (e.g. https://... or vf.eg or web.vodafone.com.eg/...)
     if (isQuickPayUrl(cleanTrimmed)) {
       // Detect operator from URL domain / keywords
-      let detectedProv: WalletProvider = 'vodafone';
-      const lower = cleanTrimmed.toLowerCase();
-      if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) detectedProv = 'vodafone';
-      else if (lower.includes('orange')) detectedProv = 'orange';
-      else if (lower.includes('etisalat') || lower.includes('e&')) detectedProv = 'etisalat';
-      else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProv = 'we';
+      const urlProv = detectWalletProviderFromUrl(cleanTrimmed);
+      const detectedProv: WalletProvider = urlProv !== 'generic' ? urlProv : 'vodafone';
 
       const fullUrl = sanitizeQuickPayUrl(cleanTrimmed, detectedProv);
 

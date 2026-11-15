@@ -1035,18 +1035,34 @@ app.get('/q/:id', async (req, res, next) => {
   next();
 });
 
-// Start dev server with Vite or static production
+// Start dev server with immediate port binding so startup health probes succeed right away
 async function startServer() {
   if (!isProd) {
-    const { createServer } = await import('vite');
-    const vite = await createServer({
-      server: { 
-        middlewareMode: true,
-        hmr: false,
-      },
-      appType: 'spa',
+    let resolvedMiddlewares: express.RequestHandler | null = null;
+    const viteInitPromise = import('vite')
+      .then(({ createServer }) =>
+        createServer({
+          server: {
+            middlewareMode: true,
+            hmr: false,
+            ...(process.env.DISABLE_HMR === 'true' ? { watch: null } : {}),
+          },
+          appType: 'spa',
+        })
+      )
+      .then((vite) => {
+        resolvedMiddlewares = vite.middlewares;
+        return vite.middlewares;
+      });
+
+    app.use((req, res, next) => {
+      if (resolvedMiddlewares) {
+        return resolvedMiddlewares(req, res, next);
+      }
+      viteInitPromise
+        .then((middlewares) => middlewares(req, res, next))
+        .catch(next);
     });
-    app.use(vite.middlewares);
   } else {
     app.use(express.static(path.join(__dirname, 'dist')));
     app.get('*', (req, res) => {
@@ -1054,8 +1070,12 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
+  });
+
+  server.on('error', (err) => {
+    console.error('Server listen error:', err);
   });
 }
 

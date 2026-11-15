@@ -121,7 +121,7 @@ export function HomeLandingView({ onGoToAdmin, onSimulateScan }: HomeLandingView
             <img 
               src="/logo.png" 
               alt="Smart Card" 
-              className="w-10 h-10 object-contain rounded-2xl shadow-lg shadow-amber-500/20 p-0.5 bg-[#121216] border border-amber-400/40" 
+              className="w-10 h-10 object-contain rounded-2xl shadow-lg shadow-amber-500/20 p-0.5 bg-[#121216] border border-amber-400/40 animate-3d-float" 
             />
             <div>
               <span className="text-base sm:text-lg font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-500 font-mono block">
@@ -229,13 +229,13 @@ export function HomeLandingView({ onGoToAdmin, onSimulateScan }: HomeLandingView
         />
 
         {/* Quick Customer Action Cards */}
-        <div className="bg-[#121216] border border-amber-500/30 rounded-3xl p-6 sm:p-8 space-y-6 shadow-[0_0_50px_rgba(212,175,55,0.08)] backdrop-blur-xl">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-[#121216] border border-amber-500/30 rounded-3xl p-6 sm:p-8 space-y-6 shadow-[0_0_50px_rgba(212,175,55,0.08)] backdrop-blur-xl stage-3d animate-3d-enter">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 stage-3d">
             {/* Option 1: Live Camera Scan */}
             <button
               type="button"
               onClick={() => setIsScannerOpen(true)}
-              className="p-5 rounded-2xl bg-gradient-to-tr from-amber-400/10 via-yellow-500/5 to-transparent hover:from-amber-400/20 hover:to-yellow-500/10 border border-amber-500/30 hover:border-amber-400/60 transition group text-right flex items-center gap-4 cursor-pointer"
+              className="p-5 rounded-2xl bg-gradient-to-tr from-amber-400/10 via-yellow-500/5 to-transparent hover:from-amber-400/20 hover:to-yellow-500/10 border border-amber-500/30 hover:border-amber-400/60 group text-right flex items-center gap-4 cursor-pointer card-3d-tilt"
             >
               <div className="w-12 h-12 rounded-xl bg-amber-400/15 border border-amber-400/30 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition">
                 <Camera className="w-6 h-6 text-amber-400" />
@@ -251,7 +251,7 @@ export function HomeLandingView({ onGoToAdmin, onSimulateScan }: HomeLandingView
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="p-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-400/40 transition group text-right flex items-center gap-4 cursor-pointer"
+              className="p-5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-amber-400/40 group text-right flex items-center gap-4 cursor-pointer card-3d-tilt"
             >
               <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition">
                 {isUploading ? (

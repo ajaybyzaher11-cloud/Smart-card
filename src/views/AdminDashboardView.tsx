@@ -341,7 +341,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             <img 
               src="/logo.png" 
               alt="Smart Card Logo" 
-              className="w-10 h-10 object-contain rounded-2xl shadow-lg shadow-amber-500/20 flex-shrink-0 p-0.5 bg-[#121216] border border-amber-400/40" 
+              className="w-10 h-10 object-contain rounded-2xl shadow-lg shadow-amber-500/20 flex-shrink-0 p-0.5 bg-[#121216] border border-amber-400/40 animate-3d-float" 
             />
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -482,11 +482,11 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         )}
 
         {/* KPI Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
-          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/40 shadow-lg flex items-center justify-between transition">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 stage-3d">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/45 shadow-lg flex items-center justify-between card-3d-tilt">
             <div>
               <p className="text-[11px] font-bold text-slate-400">إجمالي الرموز</p>
-              <p className="text-xl sm:text-2xl font-black text-amber-400 mt-0.5">{totalCodes}</p>
+              <p className="text-xl sm:text-2xl font-black text-amber-400 mt-0.5 tabular-nums">{totalCodes}</p>
               <p className="text-[10px] text-slate-500">معرّفات nanoid فريدة</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-400 flex items-center justify-center">
@@ -494,10 +494,10 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             </div>
           </div>
 
-          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-emerald-400/40 shadow-lg flex items-center justify-between transition">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-emerald-400/45 shadow-lg flex items-center justify-between card-3d-tilt">
             <div>
               <p className="text-[11px] font-bold text-slate-400">الاشتراكات النشطة</p>
-              <p className="text-xl sm:text-2xl font-black text-emerald-400 mt-0.5">{activeCodes}</p>
+              <p className="text-xl sm:text-2xl font-black text-emerald-400 mt-0.5 tabular-nums">{activeCodes}</p>
               <p className="text-[10px] text-slate-500">سارية وتعمل الآن</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 flex items-center justify-center">
@@ -505,10 +505,10 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             </div>
           </div>
 
-          <div className="p-4 bg-[#121216] rounded-2xl border border-rose-500/20 hover:border-rose-400/40 shadow-lg flex items-center justify-between transition">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-rose-500/20 hover:border-rose-400/45 shadow-lg flex items-center justify-between card-3d-tilt">
             <div>
               <p className="text-[11px] font-bold text-slate-400">اشتراكات منتهية</p>
-              <p className="text-xl sm:text-2xl font-black text-rose-400 mt-0.5">{expiredCodes}</p>
+              <p className="text-xl sm:text-2xl font-black text-rose-400 mt-0.5 tabular-nums">{expiredCodes}</p>
               <p className="text-[10px] text-slate-500">تتطلب التجديد</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-400 flex items-center justify-center">
@@ -516,10 +516,10 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             </div>
           </div>
 
-          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/40 shadow-lg flex items-center justify-between transition">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/45 shadow-lg flex items-center justify-between card-3d-tilt">
             <div>
               <p className="text-[11px] font-bold text-slate-400">بانتظار التفعيل</p>
-              <p className="text-xl sm:text-2xl font-black text-yellow-400 mt-0.5">{pendingCodes}</p>
+              <p className="text-xl sm:text-2xl font-black text-yellow-400 mt-0.5 tabular-nums">{pendingCodes}</p>
               <p className="text-[10px] text-slate-500">كروت جديدة غير معينة</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 flex items-center justify-center">
@@ -527,7 +527,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             </div>
           </div>
 
-          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/40 shadow-lg flex items-center justify-between transition col-span-2 md:col-span-1">
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/45 shadow-lg flex items-center justify-between card-3d-tilt col-span-2 md:col-span-1">
             <div>
               <div className="flex items-center gap-1.5">
                 <p className="text-[11px] font-bold text-slate-400">إجمالي المسح</p>
@@ -536,7 +536,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                   مباشر
                 </span>
               </div>
-              <p className="text-xl sm:text-2xl font-black text-amber-300 mt-0.5">{totalScans}</p>
+              <p className="text-xl sm:text-2xl font-black text-amber-300 mt-0.5 tabular-nums">{totalScans}</p>
               <p className="text-[10px] text-slate-500">توجيه فوري لحظي</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center">
@@ -546,7 +546,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         </div>
 
         {/* Primary Action Ribbon */}
-        <div className="p-6 bg-gradient-to-r from-[#121216] via-[#191920] to-[#121216] rounded-3xl text-white shadow-xl shadow-amber-500/5 flex flex-col md:flex-row items-center justify-between gap-6 border border-amber-500/30">
+        <div className="p-6 bg-gradient-to-r from-[#121216] via-[#191920] to-[#121216] rounded-3xl text-white shadow-xl shadow-amber-500/5 flex flex-col md:flex-row items-center justify-between gap-6 border border-amber-500/30 animate-3d-enter">
           <div className="space-y-1.5 text-center md:text-right">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400/10 border border-amber-400/30 rounded-full text-xs font-bold text-amber-300">
               <Lock className="w-3.5 h-3.5 text-amber-400" />
@@ -778,20 +778,22 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             </div>
           ) : viewMode === 'grid' ? (
             /* Grid View */
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 stage-3d">
               {filtered.map((record) => {
                 const scanUrl = `${domainUrl}/q/${record.id}`;
                 return (
                   <div
                     key={record.id}
-                    className="p-4 bg-[#16161c] rounded-2xl border border-amber-500/20 hover:border-amber-400/50 hover:shadow-[0_0_25px_rgba(212,175,55,0.12)] transition flex flex-col justify-between group"
+                    className="p-4 bg-[#16161c] rounded-2xl border border-amber-500/20 hover:border-amber-400/55 hover:shadow-[0_0_25px_rgba(212,175,55,0.16)] flex flex-col justify-between group card-3d-tilt"
                   >
                     <div>
                       {/* Top Header of card */}
                       <div className="flex items-center justify-between pb-3 border-b border-white/5">
                         <div className="flex items-center gap-1.5">
                           {record.is_active && record.app_type && (
-                            <PlatformBrandIcon type={record.app_type as any} className="w-5 h-5 flex-shrink-0" targetUrl={record.target_url || undefined} />
+                            <div className="animate-icon-alive">
+                              <PlatformBrandIcon type={record.app_type as any} className="w-5 h-5 flex-shrink-0" targetUrl={record.target_url || undefined} />
+                            </div>
                           )}
                           <span className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold flex items-center gap-1.5 ${
                             record.is_active
@@ -809,13 +811,13 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                           title={`تم فتح ومسح هذا الرابط ${record.total_scans || 0} مرة بواسطة العملاء`}
                         >
                           <Eye className="w-4 h-4 text-amber-400" />
-                          <span>{record.total_scans || 0} مسحة</span>
+                          <span className="tabular-nums">{record.total_scans || 0} مسحة</span>
                         </div>
                       </div>
 
                       {/* QR Thumbnail */}
-                      <div className="my-3 flex justify-center">
-                        <div className="p-2.5 bg-white rounded-2xl shadow-inner group-hover:scale-105 transition">
+                      <div className="my-3 flex justify-center stage-3d">
+                        <div className="p-2.5 bg-white rounded-2xl shadow-inner qr-thumb-3d">
                           {qrThumbs[record.id] ? (
                             <img
                               src={qrThumbs[record.id]}

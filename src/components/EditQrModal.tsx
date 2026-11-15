@@ -35,6 +35,7 @@ import {
   encodeBankDetails, 
   decodeBankDetails, 
   detectWalletInfo, 
+  detectWalletProviderFromUrl,
   isQuickPayUrl,
   sanitizeQuickPayUrl,
   formatTikTokTargetUrl,
@@ -194,18 +195,14 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
       if (trimmed) {
         const isUrl = isQuickPayUrl(trimmed);
         if (isUrl) {
-          const lower = trimmed.toLowerCase();
-          if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) newProvider = 'vodafone';
-          else if (lower.includes('orange')) newProvider = 'orange';
-          else if (lower.includes('etisalat') || lower.includes('e&')) newProvider = 'etisalat';
-          else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) newProvider = 'we';
-          else newProvider = next[index].provider !== 'generic' ? next[index].provider : 'vodafone';
+          const urlProv = detectWalletProviderFromUrl(trimmed);
+          newProvider = urlProv !== 'generic' ? urlProv : (next[index].provider !== 'generic' ? next[index].provider : 'vodafone');
         } else {
           const detected = detectWalletInfo(trimmed);
           if (detected.provider !== 'generic') {
             newProvider = detected.provider as WalletProvider;
           } else {
-            newProvider = next[index].provider !== 'generic' ? next[index].provider : 'generic';
+            newProvider = 'generic';
           }
         }
       }
@@ -633,8 +630,8 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-[#0e0e12] rounded-3xl shadow-[0_0_50px_rgba(212,175,55,0.2)] border border-amber-500/35 overflow-hidden flex flex-col max-h-[94vh] text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200 stage-3d">
+      <div className="relative w-full max-w-2xl bg-[#0e0e12] rounded-3xl shadow-[0_0_50px_rgba(212,175,55,0.2)] border border-amber-500/35 overflow-hidden flex flex-col max-h-[94vh] text-white animate-3d-enter">
         {/* Ambient Gold Glow */}
         <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
         <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-yellow-500/10 rounded-full blur-2xl pointer-events-none" />
@@ -724,7 +721,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
               <span>🏦 خيارات البنوك والمدفوعات الإلكترونية:</span>
               <span className="text-[11px] text-amber-400/80 font-normal">اختيار واحد فقط</span>
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 stage-3d">
               {paymentPlatforms.map((p) => {
                 const isSelected = selectedType === p.type;
                 return (
@@ -732,17 +729,17 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                     key={p.type}
                     type="button"
                     onClick={() => handleSelectPlatform(p.type)}
-                    className={`flex items-center gap-2.5 p-3 rounded-2xl border text-right transition cursor-pointer ${
+                    className={`flex items-center gap-2.5 p-3 rounded-2xl border text-right cursor-pointer platform-card-3d ${
                       isSelected
-                        ? 'bg-[#1e1c12] text-amber-300 border-amber-400 shadow-[0_0_20px_rgba(250,204,21,0.25)] ring-2 ring-amber-400 font-black'
+                        ? 'bg-[#1e1c12] text-amber-300 border-amber-400 ring-2 ring-amber-400 font-black platform-card-3d-active'
                         : 'bg-black/40 text-slate-300 border-amber-500/20 hover:border-amber-400/40 hover:bg-black/60'
                     }`}
                   >
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 bg-black/40 p-1">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 bg-black/40 p-1 ${isSelected ? 'animate-icon-alive' : ''}`}>
                       <PlatformBrandIcon type={p.type} className="w-6 h-6" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold truncate">{p.label}</p>
+                      <p className={`text-xs font-bold truncate ${isSelected ? 'animate-name-alive' : ''}`}>{p.label}</p>
                       <p className={`text-[10px] truncate ${isSelected ? 'text-amber-200 font-bold' : 'text-slate-400'}`}>
                         {p.hint}
                       </p>
@@ -759,7 +756,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
               <span>📱 منصات التواصل والتطبيقات الأخرى:</span>
               <span className="text-[11px] text-amber-400/80 font-normal">اختيار واحد فقط</span>
             </label>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 stage-3d">
               {socialPlatforms.map((p) => {
                 const isSelected = selectedType === p.type;
                 return (
@@ -767,16 +764,16 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                     key={p.type}
                     type="button"
                     onClick={() => handleSelectPlatform(p.type)}
-                    className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border text-xs font-semibold transition gap-1.5 cursor-pointer ${
+                    className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border text-xs font-semibold gap-1.5 cursor-pointer platform-card-3d ${
                       isSelected
-                        ? 'bg-[#1e1c12] text-amber-300 border-amber-400 shadow-[0_0_20px_rgba(250,204,21,0.25)] ring-2 ring-amber-400 font-black'
+                        ? 'bg-[#1e1c12] text-amber-300 border-amber-400 ring-2 ring-amber-400 font-black platform-card-3d-active'
                         : 'bg-black/40 text-slate-300 border-amber-500/20 hover:border-amber-400/40 hover:bg-black/60'
                     }`}
                   >
-                    <div className="w-7 h-7 flex items-center justify-center">
+                    <div className={`w-7 h-7 flex items-center justify-center ${isSelected ? 'animate-icon-alive' : ''}`}>
                       <PlatformBrandIcon type={p.type} className="w-6 h-6" />
                     </div>
-                    <span className="text-[11px] truncate w-full text-center">{p.label}</span>
+                    <span className={`text-[11px] truncate w-full text-center ${isSelected ? 'animate-name-alive' : ''}`}>{p.label}</span>
                   </button>
                 );
               })}
@@ -925,35 +922,31 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                         'border-amber-500/25 shadow-[0_0_15px_rgba(212,175,55,0.06)]'
                       }`}
                     >
-                      {/* Header with Provider Logo & Switcher */}
+                      {/* Header with Provider Logo */}
                       <div className="flex items-center justify-between pb-2 border-b border-white/10">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-10 h-10 rounded-xl bg-black/80 border border-white/15 p-1 flex items-center justify-center flex-shrink-0 shadow">
+                          <div className={`w-10 h-10 rounded-xl bg-black/80 border border-white/15 p-1 flex items-center justify-center flex-shrink-0 shadow ${isKnownBrand ? 'animate-icon-alive' : ''}`}>
                             <WalletProviderIcon provider={isKnownBrand ? activeProvider : 'generic'} size={28} className="w-full h-full object-contain" />
                           </div>
                           <div>
                             <span className="text-xs font-black text-white block">
                               {walletCount > 1 ? `المحفظة رقم ${index + 1}` : 'بيانات المحفظة الإلكترونية'}
                             </span>
-                            {isKnownBrand && activeMeta ? (
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 ${activeMeta.color}`}>
+                            {isKnownBrand && activeMeta && (
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 animate-name-alive ${activeMeta.color}`}>
                                 {activeMeta.nameAr}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md border inline-block mt-0.5 text-amber-300/80 bg-amber-500/10 border-amber-500/20">
-                                تحديد تلقائي عند كتابة الرقم أو الرابط
                               </span>
                             )}
                           </div>
                         </div>
 
-                        {/* Provider Switcher */}
+                        {/* Optional Admin Provider Override */}
                         <select
                           value={item.provider}
                           onChange={(e) => handleWalletProviderChange(index, e.target.value as WalletProvider)}
                           className="px-2 py-1 bg-[#121216] border border-white/15 rounded-lg text-[11px] font-bold text-amber-200 focus:outline-none focus:border-amber-400"
                         >
-                          <option value="generic">تحديد تلقائي للشبكة</option>
+                          <option value="generic">تلقائي (حسب الرقم/الرابط)</option>
                           <option value="vodafone">فودافون كاش (010)</option>
                           <option value="orange">أورانج كاش (012)</option>
                           <option value="etisalat">اتصالات كاش (011)</option>
