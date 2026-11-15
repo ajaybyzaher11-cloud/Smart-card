@@ -23,10 +23,9 @@ const filesToInclude = [
   'src/App.tsx',
   'src/index.css',
 
-  // Types & Hooks
+  // Types
   'src/types/qr.ts',
   'src/types/jsqr.d.ts',
-  'src/hooks/usePWAInstall.ts',
 
   // Libraries & Services
   'src/lib/firebase.ts',
@@ -42,8 +41,6 @@ const filesToInclude = [
   'src/components/PrintSheetModal.tsx',
   'src/components/UploadQrModal.tsx',
   'src/components/DeveloperSettingsModal.tsx',
-  'src/components/PWAInstallBanner.tsx',
-  'src/components/PWAInstallModal.tsx',
 
   // Views
   'src/views/HomeLandingView.tsx',

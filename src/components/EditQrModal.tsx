@@ -26,9 +26,10 @@ import {
   RotateCcw,
   Clock,
   Calendar,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
-import { adminUpdateQrCode, generateQrDataUrl, resetQrScanCount } from '../lib/qrService';
+import { adminUpdateQrCode, generateQrDataUrl, resetQrScanCount, purgeQrTargetInDatabase } from '../lib/qrService';
 import { 
   processSmartLink, 
   encodeBankDetails, 
@@ -57,6 +58,7 @@ interface EditQrModalProps {
   record: QrCodeRecord | null;
   domainUrl: string;
   onSaved: (updatedRecord: QrCodeRecord) => void;
+  onPurged?: (updatedRecord: QrCodeRecord) => void;
   onDelete?: (id: string) => void;
 }
 
@@ -151,11 +153,13 @@ export const PLATFORM_META: Record<AppType, { labelAr: string; labelEn: string; 
   },
 };
 
-export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDelete }: EditQrModalProps) {
+export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPurged, onDelete }: EditQrModalProps) {
   const [selectedType, setSelectedType] = useState<AppType>('website');
   const [targetUrl, setTargetUrl] = useState('');
   const [label, setLabel] = useState('');
   const [loading, setLoading] = useState(false);
+  const [purgingTarget, setPurgingTarget] = useState(false);
+  const [purgeNotice, setPurgeNotice] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
@@ -235,14 +239,73 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
     });
   };
 
+  const handleClearWalletInput = async (index: number) => {
+    const nextWallets = wallets.map((w, idx) =>
+      idx === index ? { ...w, phone: '', provider: 'generic' as WalletProvider } : w
+    );
+    setWallets(nextWallets);
+    if (index === 0) {
+      setWalletPhone('');
+      setTargetUrl('');
+    }
+    setErrorMsg(null);
+    setPurgeNotice(null);
+
+    if (!record) return;
+    setPurgingTarget(true);
+    try {
+      const res = await purgeQrTargetInDatabase(record.id, {
+        appType: 'wallet',
+        remainingWallets: nextWallets.slice(0, walletCount),
+        label: label.trim(),
+        expiresAt,
+      });
+      if (res.success && res.record) {
+        setPurgeNotice('تم حذف الرابط/الرقم القديم نهائياً من قاعدة البيانات ✓ اكتب الرقم أو الرابط الجديد ثم اضغط حفظ التعديلات.');
+        onPurged?.(res.record);
+      }
+    } catch (err) {
+      console.error('Failed to purge wallet target:', err);
+    } finally {
+      setPurgingTarget(false);
+    }
+  };
+
+  const handleClearTargetUrl = async () => {
+    setTargetUrl('');
+    setErrorMsg(null);
+    setPurgeNotice(null);
+
+    if (!record) return;
+    setPurgingTarget(true);
+    try {
+      const res = await purgeQrTargetInDatabase(record.id, {
+        appType: selectedType,
+        remainingWallets: [],
+        label: label.trim(),
+        expiresAt,
+      });
+      if (res.success && res.record) {
+        setPurgeNotice('تم حذف الرابط القديم نهائياً من قاعدة البيانات ✓ أدخل الرابط الجديد ثم اضغط حفظ التعديلات.');
+        onPurged?.(res.record);
+      }
+    } catch (err) {
+      console.error('Failed to purge target URL:', err);
+    } finally {
+      setPurgingTarget(false);
+    }
+  };
+
   useEffect(() => {
-    if (record) {
+    if (isOpen && record) {
       const hasStoredWallets = Array.isArray(record.wallets) && record.wallets.length > 0;
       const type = (hasStoredWallets || record.app_type === 'wallet') ? 'wallet' : (record.app_type || 'website');
       setSelectedType(type);
       setLabel(record.label || '');
       setSavedSuccess(false);
       setErrorMsg(null);
+      setPurgeNotice(null);
+      setPurgingTarget(false);
       setCurrentScans(record.total_scans || 0);
       setExpiresAt(record.expires_at || null);
 
@@ -305,7 +368,9 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       const fullScanUrl = `${domainUrl}/q/${record.id}`;
       generateQrDataUrl(fullScanUrl, 400).then((url) => setQrDataUrl(url));
     }
-  }, [record, domainUrl]);
+    // Depend on record?.id & isOpen so background database syncs after purging don't reset active edits
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [record?.id, isOpen, domainUrl]);
 
   if (!isOpen || !record) return null;
 
@@ -331,6 +396,8 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
     if (newType === selectedType) return;
 
     setSelectedType(newType);
+    setErrorMsg(null);
+    setPurgeNotice(null);
 
     // If switching back to the card's originally saved platform, restore its saved values.
     // If switching to a new/different platform, completely purge and clear all fields clean!
@@ -411,6 +478,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
     setLoading(true);
     setSavedSuccess(false);
     setErrorMsg(null);
+    setPurgeNotice(null);
 
     let finalRawInput = targetUrl.trim();
     let activeWalletsToSave: WalletItem[] | undefined = undefined;
@@ -905,11 +973,13 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                           {item.phone && (
                             <button
                               type="button"
-                              onClick={() => handleWalletPhoneChange(index, '')}
-                              className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer"
+                              disabled={purgingTarget}
+                              onClick={() => handleClearWalletInput(index)}
+                              className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                              title="حذف الرابط أو الرقم القديم من قاعدة البيانات"
                             >
-                              <X className="w-3 h-3" />
-                              <span>مسح</span>
+                              {purgingTarget ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                              <span>حذف من قاعدة البيانات</span>
                             </button>
                           )}
                         </div>
@@ -927,8 +997,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                           {item.phone && (
                             <button
                               type="button"
-                              onClick={() => handleWalletPhoneChange(index, '')}
-                              className="absolute left-3 top-2.5 text-slate-400 hover:text-amber-300 transition"
+                              disabled={purgingTarget}
+                              onClick={() => handleClearWalletInput(index)}
+                              className="absolute left-3 top-2.5 text-slate-400 hover:text-rose-400 transition disabled:opacity-50"
+                              title="حذف الرابط القديم من قاعدة البيانات"
                             >
                               <X className="w-3.5 h-3.5" />
                             </button>
@@ -997,11 +1069,13 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                 {targetUrl && (
                   <button
                     type="button"
-                    onClick={() => setTargetUrl('')}
-                    className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer"
+                    disabled={purgingTarget}
+                    onClick={handleClearTargetUrl}
+                    className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    title="حذف رابط إنستاباي القديم من قاعدة البيانات"
                   >
-                    <X className="w-3.5 h-3.5" />
-                    <span>مسح</span>
+                    {purgingTarget ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                    <span>حذف الرابط من قاعدة البيانات</span>
                   </button>
                 )}
               </div>
@@ -1019,9 +1093,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                 {targetUrl && (
                   <button
                     type="button"
-                    onClick={() => setTargetUrl('')}
-                    className="absolute left-3 top-3 text-slate-400 hover:text-amber-300 transition cursor-pointer"
-                    title="تفريغ الحقل"
+                    disabled={purgingTarget}
+                    onClick={handleClearTargetUrl}
+                    className="absolute left-3 top-3 text-slate-400 hover:text-rose-400 transition cursor-pointer disabled:opacity-50"
+                    title="حذف الرابط القديم نهائياً من قاعدة البيانات"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -1046,12 +1121,13 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                   {targetUrl && (
                     <button
                       type="button"
-                      onClick={() => setTargetUrl('')}
-                      className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer transition"
-                      title="مسح وتفريغ الحقل"
+                      disabled={purgingTarget}
+                      onClick={handleClearTargetUrl}
+                      className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
+                      title="حذف الرابط القديم نهائياً من قاعدة البيانات"
                     >
-                      <X className="w-3.5 h-3.5" />
-                      <span>مسح الرابط القديم</span>
+                      {purgingTarget ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                      <span>حذف الرابط القديم من قاعدة البيانات</span>
                     </button>
                   )}
                 </div>
@@ -1072,9 +1148,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                   {targetUrl && (
                     <button
                       type="button"
-                      onClick={() => setTargetUrl('')}
-                      className="absolute left-3 top-3.5 text-slate-400 hover:text-amber-300 transition cursor-pointer"
-                      title="تفريغ الحقل"
+                      disabled={purgingTarget}
+                      onClick={handleClearTargetUrl}
+                      className="absolute left-3 top-3.5 text-slate-400 hover:text-rose-400 transition cursor-pointer disabled:opacity-50"
+                      title="حذف الرابط القديم نهائياً من قاعدة البيانات"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -1266,6 +1343,14 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
               تنزيل الصورة (PNG)
             </button>
           </div>
+
+          {/* Purge Confirmation Banner */}
+          {purgeNotice && (
+            <div className="p-3 bg-emerald-500/15 border border-emerald-500/40 rounded-2xl text-xs text-emerald-300 font-bold flex items-center gap-2 animate-in fade-in">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>{purgeNotice}</span>
+            </div>
+          )}
 
           {/* Error Banner */}
           {errorMsg && (

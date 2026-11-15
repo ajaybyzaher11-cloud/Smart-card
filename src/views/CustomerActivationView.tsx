@@ -382,7 +382,19 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                          key={p.type}
                          type="button"
                          onClick={() => {
-                           setSelectedType(p.type);
+                           if (p.type !== selectedType) {
+                             setSelectedType(p.type);
+                             setRawInput('');
+                             setAccountNumber('');
+                             setAccountName('');
+                             setWalletCount(1);
+                             setWallets([
+                               { phone: '', provider: 'generic', ownerName: '' },
+                               { phone: '', provider: 'generic', ownerName: '' },
+                               { phone: '', provider: 'generic', ownerName: '' },
+                               { phone: '', provider: 'generic', ownerName: '' },
+                             ]);
+                           }
                            setErrorMsg(null);
                          }}
                          className={`p-3 rounded-2xl border transition flex flex-col items-center justify-center gap-2 cursor-pointer text-center relative ${

@@ -62,6 +62,54 @@ function cleanForFirestore<T>(val: T): T {
   return val;
 }
 
+/**
+ * Builds a strictly canonical QrCodeRecord so deleted/legacy fields (old wallets, old URLs, old bank details)
+ * are NEVER carried over when replacing a link with a number, vice versa, or switching platforms.
+ */
+function buildCanonicalQrRecord(params: {
+  id: string;
+  is_active: boolean;
+  target_url: string | null;
+  app_type: AppType;
+  created_at: string;
+  updated_at: string;
+  total_scans: number;
+  last_scanned_at?: string;
+  label?: string;
+  expires_at?: string | null;
+  subscription_months?: number;
+  wallets?: WalletItem[];
+}): QrCodeRecord {
+  const canonical: Record<string, any> = {
+    id: params.id,
+    is_active: params.is_active,
+    target_url: params.target_url,
+    app_type: params.app_type,
+    created_at: params.created_at,
+    updated_at: params.updated_at,
+    total_scans: params.total_scans,
+    label: params.label ?? '',
+    expires_at: params.expires_at !== undefined ? params.expires_at : null,
+    subscription_months: params.subscription_months !== undefined ? params.subscription_months : 1,
+  };
+
+  if (params.last_scanned_at) {
+    canonical.last_scanned_at = params.last_scanned_at;
+  }
+
+  // Only include wallets when app_type is 'wallet' and non-empty wallets exist;
+  // omitting it ensures full-document writes permanently delete old wallets from Firestore.
+  if (params.app_type === 'wallet' && Array.isArray(params.wallets) && params.wallets.length > 0) {
+    canonical.wallets = params.wallets.map((w) => ({
+      phone: (w.phone || '').trim(),
+      provider: w.provider || 'vodafone',
+      ownerName: (w.ownerName || '').trim(),
+    }));
+  }
+
+  return cleanForFirestore(canonical) as QrCodeRecord;
+}
+
 function getFirestoreRestConfig() {
   const pId = firebaseConfig?.projectId || 'clean-plateau-dv4kj';
   const dbId = firebaseConfig?.firestoreDatabaseId || 'ai-studio-41f04a06-1999-41b9-b7be-e25b21dc1fd0';
@@ -333,20 +381,22 @@ export async function lookupExistingQrCode(id: string): Promise<QrCodeRecord | n
   const cleanId = id.trim();
   if (!cleanId) return null;
 
-  // 1. Check local cache
-  const cache = getLocalCache();
-  if (cache[cleanId] && cache[cleanId].id) {
-    return cache[cleanId];
-  }
-
-  // 2. Query Firestore and Server concurrently
-  const firestoreFetch = getDoc(doc(db, 'qr_codes', cleanId))
+  // 1. Always query live Firestore REST, Firestore SDK, and Express Server first
+  const docRef = doc(db, 'qr_codes', cleanId);
+  const firestoreSdkFetch = getDocFromServer(docRef)
     .then((snap) => (snap.exists() ? (snap.data() as QrCodeRecord) : null))
-    .catch(() => null);
+    .catch(() =>
+      getDoc(docRef)
+        .then((snap) => (snap.exists() ? (snap.data() as QrCodeRecord) : null))
+        .catch(() => null)
+    );
 
-  const serverFetch = fetch(`/api/qr/${encodeURIComponent(cleanId)}`)
+  const firestoreRestFetch = fetchQrFromFirestoreRest(cleanId);
+
+  const serverFetch = fetch(`/api/qr/${encodeURIComponent(cleanId)}?t=${Date.now()}`, { cache: 'no-store' })
     .then(async (res) => {
-      if (res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
         const json = await res.json();
         return (json.success && json.data) ? (json.data as QrCodeRecord) : null;
       }
@@ -355,17 +405,30 @@ export async function lookupExistingQrCode(id: string): Promise<QrCodeRecord | n
     .catch(() => null);
 
   try {
-    const results = await Promise.allSettled([firestoreFetch, serverFetch]);
-    const fsRecord = results[0].status === 'fulfilled' ? results[0].value : null;
-    const srvRecord = results[1].status === 'fulfilled' ? results[1].value : null;
+    const results = await Promise.allSettled([firestoreRestFetch, firestoreSdkFetch, serverFetch]);
+    const candidates = results
+      .filter((r): r is PromiseFulfilledResult<QrCodeRecord | null> => r.status === 'fulfilled')
+      .map((r) => r.value)
+      .filter((r): r is QrCodeRecord => Boolean(r && r.id));
 
-    const found = fsRecord || srvRecord;
-    if (found) {
+    if (candidates.length > 0) {
+      const found = candidates.reduce((best, curr) => {
+        const bestTime = new Date(best.updated_at || best.created_at || 0).getTime();
+        const currTime = new Date(curr.updated_at || curr.created_at || 0).getTime();
+        return currTime > bestTime ? curr : best;
+      });
+      const cache = getLocalCache();
       cache[cleanId] = found;
       saveLocalCache(cache);
       return found;
     }
   } catch {}
+
+  // 2. Offline fallback to local cache
+  const cache = getLocalCache();
+  if (cache[cleanId] && cache[cleanId].id) {
+    return cache[cleanId];
+  }
 
   return null;
 }
@@ -466,26 +529,29 @@ export async function activateQrCode(
     : (smartLink.schemeUrl || smartLink.fallbackUrl || effectiveRawInput.trim());
 
   const cleanWallets = (isWallet && Array.isArray(wallets) && wallets.length > 0)
-    ? wallets.map((w) => ({
-        phone: (w.phone || '').trim(),
-        provider: w.provider || 'vodafone',
-        ownerName: (w.ownerName || '').trim(),
-      }))
+    ? wallets
+        .map((w) => ({
+          phone: (w.phone || '').trim(),
+          provider: w.provider || 'vodafone',
+          ownerName: (w.ownerName || '').trim(),
+        }))
+        .filter((w) => w.phone.length > 0)
     : [];
 
-  const updatedRecord: QrCodeRecord = cleanForFirestore({
+  const updatedRecord = buildCanonicalQrRecord({
     id: cleanId,
     is_active: true,
-    target_url: effectiveTargetUrl,
+    target_url: effectiveTargetUrl || null,
     app_type: effectiveAppType,
-    updated_at: now.toISOString(),
     created_at: existing?.created_at || now.toISOString(),
+    updated_at: now.toISOString(),
     total_scans: (existing && existing.is_active && existing.total_scans !== undefined) 
       ? existing.total_scans 
       : 0,
+    last_scanned_at: existing?.last_scanned_at,
     expires_at,
     subscription_months,
-    wallets: cleanWallets,
+    wallets: isWallet ? cleanWallets : undefined,
   });
 
   // 1. Write to Cloud Firestore via SDK (full replace) + REST API concurrently
@@ -499,11 +565,11 @@ export async function activateQrCode(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      target_url: effectiveTargetUrl,
+      target_url: updatedRecord.target_url,
       app_type: effectiveAppType,
       expires_at,
       subscription_months,
-      wallets: cleanWallets,
+      wallets: isWallet ? cleanWallets : [],
     }),
   }).catch(() => {});
 
@@ -513,14 +579,108 @@ export async function activateQrCode(
   const cache = getLocalCache();
   cache[cleanId] = updatedRecord;
   saveLocalCache(cache);
+  if (typeof window !== 'undefined' && (window as any).__INITIAL_QR_RECORD__?.id === cleanId) {
+    (window as any).__INITIAL_QR_RECORD__ = updatedRecord;
+  }
 
   return { success: true, record: updatedRecord };
 }
 
 /**
+ * Permanently purges an old Quick Pay URL or target URL from the database (Cloud Firestore SDK + REST,
+ * Express server JSON DB, and local cache) when the admin clicks Clear/Delete on a wallet link, InstaPay link,
+ * or any other platform URL before replacing it with a phone number or new link.
+ */
+export async function purgeQrTargetInDatabase(
+  id: string,
+  options: {
+    appType: AppType;
+    remainingWallets?: WalletItem[];
+    label?: string;
+    expiresAt?: string | null;
+  }
+): Promise<{ success: boolean; record?: QrCodeRecord }> {
+  const cleanId = id.trim();
+  if (!cleanId) return { success: false };
+
+  const current: QrCodeRecord = (await getQrCode(cleanId)) || {
+    id: cleanId,
+    created_at: new Date().toISOString(),
+    total_scans: 0,
+    is_active: true,
+    target_url: null,
+  };
+
+  const isWallet = options.appType === 'wallet';
+  const cleanedWallets = isWallet && Array.isArray(options.remainingWallets)
+    ? options.remainingWallets
+        .map((w) => ({
+          phone: (w.phone || '').trim(),
+          provider: w.provider || 'generic',
+          ownerName: (w.ownerName || '').trim(),
+        }))
+        .filter((w) => w.phone.length > 0)
+    : [];
+
+  const nextTargetUrl = isWallet
+    ? (cleanedWallets[0]?.phone || null)
+    : null;
+
+  const purgedRecord = buildCanonicalQrRecord({
+    id: cleanId,
+    is_active: current.is_active,
+    target_url: nextTargetUrl,
+    app_type: options.appType,
+    created_at: current.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    total_scans: current.total_scans ?? 0,
+    last_scanned_at: current.last_scanned_at,
+    label: options.label !== undefined ? options.label : (current.label ?? ''),
+    expires_at: options.expiresAt !== undefined ? options.expiresAt : (current.expires_at ?? null),
+    subscription_months: current.subscription_months ?? 1,
+    wallets: isWallet && cleanedWallets.length > 0 ? cleanedWallets : undefined,
+  });
+
+  // 1. Overwrite full Firestore doc via SDK + REST (permanently deleting cleared URLs/fields)
+  const sdkWrite = setDoc(doc(db, 'qr_codes', cleanId), purgedRecord).catch((fsErr) => {
+    console.warn('Firestore purge write warning:', fsErr);
+  });
+  const restWrite = writeQrToFirestoreRest(cleanId, purgedRecord);
+
+  // 2. Sync purge to Express Server DB
+  const serverWrite = authFetch(`/api/qr/${encodeURIComponent(cleanId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      target_url: nextTargetUrl,
+      app_type: options.appType,
+      label: purgedRecord.label,
+      expires_at: purgedRecord.expires_at,
+      subscription_months: purgedRecord.subscription_months,
+      wallets: isWallet ? cleanedWallets : [],
+      is_active: current.is_active,
+    }),
+  }).catch((err) => {
+    console.warn('Server purge sync failed:', err);
+  });
+
+  await Promise.allSettled([sdkWrite, restWrite, serverWrite]);
+
+  // 3. Overwrite local cache cleanly
+  const cache = getLocalCache();
+  cache[cleanId] = purgedRecord;
+  saveLocalCache(cache);
+  if (typeof window !== 'undefined' && (window as any).__INITIAL_QR_RECORD__?.id === cleanId) {
+    (window as any).__INITIAL_QR_RECORD__ = purgedRecord;
+  }
+
+  return { success: true, record: purgedRecord };
+}
+
+/**
  * Admin Quick Edit: Modify Target URL, label, and subscription expiry.
  * ID is strictly read-only and immutable.
- * Saves simultaneously to Firestore (SDK + REST) AND Server API with full field overwrite so no stale link ever remains.
+ * Saves simultaneously to Firestore (SDK + REST full replacement) AND Server API so no stale link or old field ever remains.
  */
 export async function adminUpdateQrCode(
   id: string,
@@ -532,17 +692,32 @@ export async function adminUpdateQrCode(
   wallets?: WalletItem[]
 ): Promise<{ success: boolean; record?: QrCodeRecord }> {
   const cleanId = id.trim();
-  const isWallet = preferredType === 'wallet' || (Array.isArray(wallets) && wallets.length > 0);
+  const isWallet = preferredType === 'wallet';
   const effectiveAppType: AppType = isWallet ? 'wallet' : (preferredType || 'website');
 
-  const sourceInput = (isWallet && Array.isArray(wallets) && wallets.length > 0)
-    ? wallets[0].phone
-    : rawTargetUrl;
+  const resolvedWallets: WalletItem[] = isWallet
+    ? (wallets !== undefined
+        ? wallets
+            .map((w) => ({
+              phone: (w.phone || '').trim(),
+              provider: w.provider || 'vodafone',
+              ownerName: (w.ownerName || '').trim(),
+            }))
+            .filter((w) => w.phone.length > 0)
+        : [])
+    : [];
 
-  const smartLink = processSmartLink(sourceInput, effectiveAppType);
-  const effectiveTargetUrl = (smartLink.isWalletCard && smartLink.walletPhone)
-    ? smartLink.walletPhone
-    : (smartLink.schemeUrl || smartLink.fallbackUrl || sourceInput.trim());
+  const sourceInput = (isWallet && resolvedWallets.length > 0)
+    ? resolvedWallets[0].phone
+    : rawTargetUrl.trim();
+
+  let effectiveTargetUrl: string | null = null;
+  if (sourceInput) {
+    const smartLink = processSmartLink(sourceInput, effectiveAppType);
+    effectiveTargetUrl = (smartLink.isWalletCard && smartLink.walletPhone)
+      ? smartLink.walletPhone
+      : (smartLink.schemeUrl || smartLink.fallbackUrl || sourceInput);
+  }
 
   const current: QrCodeRecord = (await getQrCode(cleanId)) || {
     id: cleanId,
@@ -552,32 +727,24 @@ export async function adminUpdateQrCode(
     target_url: null,
   };
 
-  const resolvedWallets: WalletItem[] = isWallet
-    ? (wallets !== undefined
-        ? wallets.map((w) => ({
-            phone: (w.phone || '').trim(),
-            provider: w.provider || 'vodafone',
-            ownerName: (w.ownerName || '').trim(),
-          }))
-        : (current.wallets || []))
-    : [];
-
-  const updatedRecord: QrCodeRecord = cleanForFirestore({
-    ...current,
+  const updatedRecord = buildCanonicalQrRecord({
     id: cleanId,
+    is_active: true,
     target_url: effectiveTargetUrl,
     app_type: effectiveAppType,
-    is_active: true,
+    created_at: current.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    total_scans: current.total_scans ?? 0,
+    last_scanned_at: current.last_scanned_at,
     label: label !== undefined ? label : (current.label ?? ''),
     expires_at: expiresAt !== undefined ? expiresAt : (current.expires_at ?? null),
     subscription_months: subscriptionMonths !== undefined
       ? subscriptionMonths
       : (current.subscription_months ?? 1),
-    updated_at: new Date().toISOString(),
-    wallets: resolvedWallets,
+    wallets: isWallet && resolvedWallets.length > 0 ? resolvedWallets : undefined,
   });
 
-  // 1. ALWAYS write full sanitized record to Cloud Firestore (SDK setDoc overwrite + REST PATCH)
+  // 1. ALWAYS write full canonical record to Cloud Firestore (SDK setDoc overwrite + REST PATCH)
   const sdkWrite = setDoc(doc(db, 'qr_codes', cleanId), updatedRecord).catch((fsErr) => {
     console.warn('Firestore admin update warning:', fsErr);
   });
@@ -593,7 +760,8 @@ export async function adminUpdateQrCode(
       label: updatedRecord.label,
       expires_at: updatedRecord.expires_at,
       subscription_months: updatedRecord.subscription_months,
-      wallets: resolvedWallets,
+      wallets: isWallet ? resolvedWallets : [],
+      is_active: true,
     }),
   }).catch((err) => {
     console.warn('Server admin update sync failed:', err);
@@ -601,10 +769,13 @@ export async function adminUpdateQrCode(
 
   await Promise.allSettled([sdkWrite, restWrite, serverWrite]);
 
-  // 3. Update local cache
+  // 3. Update local cache cleanly
   const cache = getLocalCache();
   cache[cleanId] = updatedRecord;
   saveLocalCache(cache);
+  if (typeof window !== 'undefined' && (window as any).__INITIAL_QR_RECORD__?.id === cleanId) {
+    (window as any).__INITIAL_QR_RECORD__ = updatedRecord;
+  }
 
   return { success: true, record: updatedRecord };
 }

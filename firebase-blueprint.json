@@ -2,7 +2,7 @@
   "entities": {
     "QrCode": {
       "title": "QR Code",
-      "description": "Dynamic QR Code record containing unique ID, activation state, and deep link URL",
+      "description": "Dynamic QR Code record containing unique ID, activation state, destination target URL or wallets, and subscription metadata",
       "type": "object",
       "properties": {
         "id": {
@@ -16,13 +16,18 @@
         },
         "target_url": {
           "type": "string",
-          "description": "Smart deep link or web target URL",
+          "description": "Smart deep link, phone number, bank URI, or web target URL",
           "maxLength": 2048
         },
         "app_type": {
           "type": "string",
-          "description": "Category or app type (whatsapp, instagram, facebook, instapay, etc.)",
+          "description": "Category or app type (whatsapp, instagram, facebook, telegram, tiktok, snapchat, phone, website, instapay, wallet, bank, other)",
           "maxLength": 64
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional admin label or internal note",
+          "maxLength": 256
         },
         "created_at": {
           "type": "string",
@@ -34,13 +39,27 @@
           "description": "Last updated ISO date timestamp",
           "maxLength": 64
         },
+        "last_scanned_at": {
+          "type": "string",
+          "description": "Last scan ISO date timestamp",
+          "maxLength": 64
+        },
         "total_scans": {
           "type": "number",
           "description": "Counter of scans"
         },
+        "expires_at": {
+          "type": "string",
+          "description": "Subscription expiration ISO timestamp or null for permanent",
+          "maxLength": 64
+        },
+        "subscription_months": {
+          "type": "number",
+          "description": "Subscription duration in months"
+        },
         "wallets": {
           "type": "array",
-          "description": "List of electronic wallet accounts (phone, provider, ownerName)"
+          "description": "List of electronic wallet accounts (phone, provider, ownerName) present only for wallet cards"
         }
       },
       "required": ["id", "is_active"]
@@ -50,6 +69,10 @@
     "/qr_codes/{qrId}": {
       "schema": "QrCode",
       "description": "Collection of dynamic QR codes indexed by unique immutable nanoid"
+    },
+    "/settings/{docId}": {
+      "schema": "QrCode",
+      "description": "Global application settings and admin authentication hash"
     },
     "/platform_settings/{docId}": {
       "schema": "QrCode",

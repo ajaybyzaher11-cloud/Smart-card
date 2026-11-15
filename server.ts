@@ -761,12 +761,12 @@ app.post('/api/qr/:id/activate', (req, res) => {
   res.json({ success: true, data: current });
 });
 
-// Admin Exclusive Quick Edit (PROTECTED with requireAdminAuth)
+// Admin Exclusive Quick Edit & Purge (PROTECTED with requireAdminAuth)
 app.put('/api/qr/:id', requireAdminAuth, (req, res) => {
   const { id } = req.params;
-  const { target_url, app_type, label, expires_at, subscription_months, wallets } = req.body;
+  const { target_url, app_type, label, expires_at, subscription_months, wallets, is_active } = req.body;
 
-  if (target_url && !isSafeUrlScheme(target_url)) {
+  if (target_url && typeof target_url === 'string' && !isSafeUrlScheme(target_url)) {
     return res.status(400).json({ success: false, error: 'الرابط يحتوي على بروتوكول غير آمن' });
   }
 
@@ -777,32 +777,45 @@ app.put('/api/qr/:id', requireAdminAuth, (req, res) => {
   if (!current) {
     current = {
       id,
-      is_active: true,
+      is_active: is_active !== undefined ? Boolean(is_active) : true,
       target_url: target_url || null,
       app_type: app_type || 'website',
       created_at: now,
       total_scans: 0,
-      wallets: Array.isArray(wallets) ? wallets : undefined,
     };
     db[id] = current;
   }
 
-  let normalizedTarget = target_url;
+  let normalizedTarget: string | null | undefined = target_url;
   const effectiveType = app_type || current?.app_type || 'website';
-  if (normalizedTarget && typeof normalizedTarget === 'string') {
+  if (normalizedTarget && typeof normalizedTarget === 'string' && normalizedTarget.trim()) {
     if (effectiveType === 'tiktok') normalizedTarget = formatTikTokTargetUrl(normalizedTarget);
     else if (effectiveType === 'instagram') normalizedTarget = formatInstagramTargetUrl(normalizedTarget);
     else if (effectiveType === 'telegram') normalizedTarget = formatTelegramTargetUrl(normalizedTarget);
     else if (effectiveType === 'snapchat') normalizedTarget = formatSnapchatTargetUrl(normalizedTarget);
+  } else if (target_url === null || target_url === '') {
+    normalizedTarget = null;
   }
 
-  if (target_url !== undefined) current.target_url = normalizedTarget;
+  if (target_url !== undefined) current.target_url = normalizedTarget ?? null;
   if (app_type !== undefined) current.app_type = app_type;
   if (label !== undefined) current.label = label;
   if (expires_at !== undefined) current.expires_at = expires_at;
   if (subscription_months !== undefined) current.subscription_months = subscription_months;
-  if (Array.isArray(wallets)) current.wallets = wallets;
-  current.is_active = true;
+
+  if (effectiveType !== 'wallet') {
+    delete current.wallets;
+  } else if (Array.isArray(wallets)) {
+    const cleanWallets = wallets.filter((w: any) => w && typeof w.phone === 'string' && w.phone.trim().length > 0);
+    if (cleanWallets.length > 0) {
+      current.wallets = cleanWallets;
+    } else {
+      delete current.wallets;
+    }
+  }
+
+  if (is_active !== undefined) current.is_active = Boolean(is_active);
+  else current.is_active = true;
   current.updated_at = now;
 
   saveDatabase(db);

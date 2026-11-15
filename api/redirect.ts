@@ -108,6 +108,11 @@ export default async function handler(req: any, res: any) {
       return res.writeHead(302, { Location: `/?view=${id}&scanned=1` }).end();
     }
 
+    // If targetUrl was explicitly purged/deleted from the database before setting a replacement
+    if (!targetUrl.trim()) {
+      return res.writeHead(302, { Location: `/?view=${id}&scanned=1` }).end();
+    }
+
     // Check for dangerous schemes (javascript:, data:, vbscript:)
     const sanitizedUrl = targetUrl.trim().replace(/[\x00-\x1f\x7f]/g, '');
     if (/^(?:javascript|data|vbscript|file|blob|about):/i.test(sanitizedUrl.toLowerCase()) || targetUrl.startsWith('intent:')) {

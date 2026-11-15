@@ -1,48 +1,45 @@
 ################################################################################
 # SMART CARD PLATFORM - COMPLETE UNIFIED SOURCE CODE (SINGLE COPYABLE FILE)
-# Total Files: 37
-# Generated At: 2026-11-14T15:31:28.833Z
+# Total Files: 34
+# Generated At: 2026-11-15T00:06:39.929Z
 # Live URL: https://smart-card-inky.vercel.app
 ################################################################################
 #
 # TABLE OF CONTENTS:
-#   01. package.json (49 lines)
-#   02. index.html (165 lines)
-#   03. vite.config.ts (105 lines)
+#   01. package.json (48 lines)
+#   02. index.html (158 lines)
+#   03. vite.config.ts (26 lines)
 #   04. tsconfig.json (29 lines)
 #   05. vercel.json (13 lines)
 #   06. metadata.json (11 lines)
 #   07. .env.example (10 lines)
 #   08. firestore.rules (26 lines)
-#   09. firebase-blueprint.json (64 lines)
+#   09. firebase-blueprint.json (87 lines)
 #   10. firebase-applet-config.json (12 lines)
-#   11. server.ts (1050 lines)
-#   12. api/redirect.ts (288 lines)
+#   11. server.ts (1063 lines)
+#   12. api/redirect.ts (293 lines)
 #   13. src/main.tsx (6 lines)
-#   14. src/App.tsx (263 lines)
+#   14. src/App.tsx (253 lines)
 #   15. src/index.css (62 lines)
 #   16. src/types/qr.ts (78 lines)
 #   17. src/types/jsqr.d.ts (37 lines)
-#   18. src/hooks/usePWAInstall.ts (74 lines)
-#   19. src/lib/firebase.ts (74 lines)
-#   20. src/lib/auth.ts (374 lines)
-#   21. src/lib/deepLinks.ts (822 lines)
-#   22. src/lib/qrService.ts (1121 lines)
-#   23. src/components/BrandIcons.tsx (656 lines)
-#   24. src/components/QrScannerModal.tsx (413 lines)
-#   25. src/components/EditQrModal.tsx (1325 lines)
-#   26. src/components/BulkGenerateModal.tsx (389 lines)
-#   27. src/components/PrintSheetModal.tsx (194 lines)
-#   28. src/components/UploadQrModal.tsx (320 lines)
-#   29. src/components/DeveloperSettingsModal.tsx (252 lines)
-#   30. src/components/PWAInstallBanner.tsx (85 lines)
-#   31. src/components/PWAInstallModal.tsx (205 lines)
-#   32. src/views/HomeLandingView.tsx (407 lines)
-#   33. src/views/AdminLoginView.tsx (131 lines)
-#   34. src/views/AdminDashboardView.tsx (1376 lines)
-#   35. src/views/CustomerActivationView.tsx (731 lines)
-#   36. src/views/SmartRedirectView.tsx (674 lines)
-#   37. src/views/CardExpiredView.tsx (140 lines)
+#   18. src/lib/firebase.ts (74 lines)
+#   19. src/lib/auth.ts (374 lines)
+#   20. src/lib/deepLinks.ts (822 lines)
+#   21. src/lib/qrService.ts (1292 lines)
+#   22. src/components/BrandIcons.tsx (656 lines)
+#   23. src/components/QrScannerModal.tsx (413 lines)
+#   24. src/components/EditQrModal.tsx (1410 lines)
+#   25. src/components/BulkGenerateModal.tsx (389 lines)
+#   26. src/components/PrintSheetModal.tsx (194 lines)
+#   27. src/components/UploadQrModal.tsx (320 lines)
+#   28. src/components/DeveloperSettingsModal.tsx (252 lines)
+#   29. src/views/HomeLandingView.tsx (404 lines)
+#   30. src/views/AdminLoginView.tsx (131 lines)
+#   31. src/views/AdminDashboardView.tsx (1377 lines)
+#   32. src/views/CustomerActivationView.tsx (743 lines)
+#   33. src/views/SmartRedirectView.tsx (674 lines)
+#   34. src/views/CardExpiredView.tsx (140 lines)
 #
 ################################################################################
 
@@ -93,8 +90,7 @@ FILE: package.json
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "^7.0.2",
-    "vite-plugin-pwa": "^2.0.0"
+    "typescript": "^7.0.2"
   }
 }
 
@@ -109,18 +105,11 @@ FILE: index.html
     <title>Smart Card - البطاقة الذكية</title>
     <meta name="description" content="منصة Smart Card لتوليد وإدارة رموز QR الديناميكية الذكية مع التوجيه المباشر للتطبيقات." />
     <meta name="theme-color" content="#09090b" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Smart Card" />
     <meta property="og:title" content="Smart Card - البطاقة الذكية" />
     <meta property="og:description" content="منصة Smart Card لتوليد وإدارة رموز QR الديناميكية الذكية مع التوجيه المباشر للتطبيقات." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <link rel="icon" type="image/png" href="/pwa-192x192.png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/manifest.webmanifest" />
     <meta property="og:image" content="/logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -254,7 +243,7 @@ FILE: index.html
       if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(regs) {
           for (var i = 0; i < regs.length; i++) {
-            regs[i].update();
+            regs[i].unregister();
           }
         }).catch(function() {});
       }
@@ -273,91 +262,12 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
-import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
   return {
     plugins: [
       react(),
       tailwindcss(),
-      VitePWA({
-        registerType: 'autoUpdate',
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo.png'],
-        manifest: {
-          id: '/',
-          name: 'Smart Card - البطاقة الذكية',
-          short_name: 'Smart Card',
-          description: 'منظومة إدارة وبرمجة كروت وبطاقات الدفع الذكية وتحويل الأموال الفوري',
-          theme_color: '#09090b',
-          background_color: '#09090b',
-          display: 'standalone',
-          orientation: 'portrait',
-          start_url: '/',
-          scope: '/',
-          icons: [
-            {
-              src: '/pwa-192x192.png',
-              sizes: '192x192',
-              type: 'image/png',
-              purpose: 'any',
-            },
-            {
-              src: '/pwa-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'any',
-            },
-            {
-              src: '/pwa-maskable-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'maskable',
-            },
-          ],
-        },
-        workbox: {
-          skipWaiting: true,
-          clientsClaim: true,
-          cleanupOutdatedCaches: true,
-          navigateFallbackDenylist: [/^\/q\//, /^\/api\//],
-          maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,ttf,woff,woff2}'],
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'google-fonts-cache',
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            {
-              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'gstatic-fonts-cache',
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-          ],
-        },
-        devOptions: {
-          enabled: true,
-          type: 'module',
-        },
-      }),
     ],
     resolve: {
       alias: {
@@ -383,7 +293,7 @@ FILE: tsconfig.json
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
     "module": "ESNext",
-    "types": ["vite/client", "vite-plugin-pwa/client"],
+    "types": ["vite/client"],
     "lib": [
       "ES2022",
       "DOM",
@@ -485,7 +395,7 @@ FILE: firebase-blueprint.json
   "entities": {
     "QrCode": {
       "title": "QR Code",
-      "description": "Dynamic QR Code record containing unique ID, activation state, and deep link URL",
+      "description": "Dynamic QR Code record containing unique ID, activation state, destination target URL or wallets, and subscription metadata",
       "type": "object",
       "properties": {
         "id": {
@@ -499,13 +409,18 @@ FILE: firebase-blueprint.json
         },
         "target_url": {
           "type": "string",
-          "description": "Smart deep link or web target URL",
+          "description": "Smart deep link, phone number, bank URI, or web target URL",
           "maxLength": 2048
         },
         "app_type": {
           "type": "string",
-          "description": "Category or app type (whatsapp, instagram, facebook, instapay, etc.)",
+          "description": "Category or app type (whatsapp, instagram, facebook, telegram, tiktok, snapchat, phone, website, instapay, wallet, bank, other)",
           "maxLength": 64
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional admin label or internal note",
+          "maxLength": 256
         },
         "created_at": {
           "type": "string",
@@ -517,13 +432,27 @@ FILE: firebase-blueprint.json
           "description": "Last updated ISO date timestamp",
           "maxLength": 64
         },
+        "last_scanned_at": {
+          "type": "string",
+          "description": "Last scan ISO date timestamp",
+          "maxLength": 64
+        },
         "total_scans": {
           "type": "number",
           "description": "Counter of scans"
         },
+        "expires_at": {
+          "type": "string",
+          "description": "Subscription expiration ISO timestamp or null for permanent",
+          "maxLength": 64
+        },
+        "subscription_months": {
+          "type": "number",
+          "description": "Subscription duration in months"
+        },
         "wallets": {
           "type": "array",
-          "description": "List of electronic wallet accounts (phone, provider, ownerName)"
+          "description": "List of electronic wallet accounts (phone, provider, ownerName) present only for wallet cards"
         }
       },
       "required": ["id", "is_active"]
@@ -533,6 +462,10 @@ FILE: firebase-blueprint.json
     "/qr_codes/{qrId}": {
       "schema": "QrCode",
       "description": "Collection of dynamic QR codes indexed by unique immutable nanoid"
+    },
+    "/settings/{docId}": {
+      "schema": "QrCode",
+      "description": "Global application settings and admin authentication hash"
     },
     "/platform_settings/{docId}": {
       "schema": "QrCode",
@@ -1327,12 +1260,12 @@ app.post('/api/qr/:id/activate', (req, res) => {
   res.json({ success: true, data: current });
 });
 
-// Admin Exclusive Quick Edit (PROTECTED with requireAdminAuth)
+// Admin Exclusive Quick Edit & Purge (PROTECTED with requireAdminAuth)
 app.put('/api/qr/:id', requireAdminAuth, (req, res) => {
   const { id } = req.params;
-  const { target_url, app_type, label, expires_at, subscription_months, wallets } = req.body;
+  const { target_url, app_type, label, expires_at, subscription_months, wallets, is_active } = req.body;
 
-  if (target_url && !isSafeUrlScheme(target_url)) {
+  if (target_url && typeof target_url === 'string' && !isSafeUrlScheme(target_url)) {
     return res.status(400).json({ success: false, error: 'الرابط يحتوي على بروتوكول غير آمن' });
   }
 
@@ -1343,32 +1276,45 @@ app.put('/api/qr/:id', requireAdminAuth, (req, res) => {
   if (!current) {
     current = {
       id,
-      is_active: true,
+      is_active: is_active !== undefined ? Boolean(is_active) : true,
       target_url: target_url || null,
       app_type: app_type || 'website',
       created_at: now,
       total_scans: 0,
-      wallets: Array.isArray(wallets) ? wallets : undefined,
     };
     db[id] = current;
   }
 
-  let normalizedTarget = target_url;
+  let normalizedTarget: string | null | undefined = target_url;
   const effectiveType = app_type || current?.app_type || 'website';
-  if (normalizedTarget && typeof normalizedTarget === 'string') {
+  if (normalizedTarget && typeof normalizedTarget === 'string' && normalizedTarget.trim()) {
     if (effectiveType === 'tiktok') normalizedTarget = formatTikTokTargetUrl(normalizedTarget);
     else if (effectiveType === 'instagram') normalizedTarget = formatInstagramTargetUrl(normalizedTarget);
     else if (effectiveType === 'telegram') normalizedTarget = formatTelegramTargetUrl(normalizedTarget);
     else if (effectiveType === 'snapchat') normalizedTarget = formatSnapchatTargetUrl(normalizedTarget);
+  } else if (target_url === null || target_url === '') {
+    normalizedTarget = null;
   }
 
-  if (target_url !== undefined) current.target_url = normalizedTarget;
+  if (target_url !== undefined) current.target_url = normalizedTarget ?? null;
   if (app_type !== undefined) current.app_type = app_type;
   if (label !== undefined) current.label = label;
   if (expires_at !== undefined) current.expires_at = expires_at;
   if (subscription_months !== undefined) current.subscription_months = subscription_months;
-  if (Array.isArray(wallets)) current.wallets = wallets;
-  current.is_active = true;
+
+  if (effectiveType !== 'wallet') {
+    delete current.wallets;
+  } else if (Array.isArray(wallets)) {
+    const cleanWallets = wallets.filter((w: any) => w && typeof w.phone === 'string' && w.phone.trim().length > 0);
+    if (cleanWallets.length > 0) {
+      current.wallets = cleanWallets;
+    } else {
+      delete current.wallets;
+    }
+  }
+
+  if (is_active !== undefined) current.is_active = Boolean(is_active);
+  else current.is_active = true;
   current.updated_at = now;
 
   saveDatabase(db);
@@ -1727,6 +1673,11 @@ export default async function handler(req: any, res: any) {
       return res.writeHead(302, { Location: `/?view=${id}&scanned=1` }).end();
     }
 
+    // If targetUrl was explicitly purged/deleted from the database before setting a replacement
+    if (!targetUrl.trim()) {
+      return res.writeHead(302, { Location: `/?view=${id}&scanned=1` }).end();
+    }
+
     // Check for dangerous schemes (javascript:, data:, vbscript:)
     const sanitizedUrl = targetUrl.trim().replace(/[\x00-\x1f\x7f]/g, '');
     if (/^(?:javascript|data|vbscript|file|blob|about):/i.test(sanitizedUrl.toLowerCase()) || targetUrl.startsWith('intent:')) {
@@ -1927,7 +1878,6 @@ import { CustomerActivationView } from './views/CustomerActivationView';
 import { SmartRedirectView } from './views/SmartRedirectView';
 import { CardExpiredView } from './views/CardExpiredView';
 import { HomeLandingView } from './views/HomeLandingView';
-import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { QrCodeRecord, PlatformSettings } from './types/qr';
 import { Loader2 } from 'lucide-react';
 
@@ -2134,49 +2084,40 @@ export default function App() {
   // Route 2: Admin Login
   if (isLoginPath) {
     return (
-      <>
-        <AdminLoginView
-          onLoginSuccess={() => navigate('/admin')}
-          onNavigateHome={() => navigate('/')}
-        />
-        <PWAInstallBanner />
-      </>
+      <AdminLoginView
+        onLoginSuccess={() => navigate('/admin')}
+        onNavigateHome={() => navigate('/')}
+      />
     );
   }
 
   // Route 3: Admin Dashboard (Protected)
   if (isAdminPath) {
     return (
-      <>
-        <AdminDashboardView
-          onLogout={() => {
-            logoutAdmin();
-            navigate('/admin/login');
-          }}
-          domainUrl={effectiveDomainUrl}
-          onSimulateScan={handleSimulateScan}
-        />
-        <PWAInstallBanner />
-      </>
+      <AdminDashboardView
+        onLogout={() => {
+          logoutAdmin();
+          navigate('/admin/login');
+        }}
+        domainUrl={effectiveDomainUrl}
+        onSimulateScan={handleSimulateScan}
+      />
     );
   }
 
   // Route 4: Home Landing View
   return (
-    <>
-      <HomeLandingView
-        onGoToAdmin={() => {
-          if (isAdminAuthenticated()) {
-            navigate('/admin');
-          } else {
-            navigate('/admin/login');
-          }
-        }}
-        onSimulateScan={handleSimulateScan}
-        domainUrl={effectiveDomainUrl}
-      />
-      <PWAInstallBanner />
-    </>
+    <HomeLandingView
+      onGoToAdmin={() => {
+        if (isAdminAuthenticated()) {
+          navigate('/admin');
+        } else {
+          navigate('/admin/login');
+        }
+      }}
+      onSimulateScan={handleSimulateScan}
+      domainUrl={effectiveDomainUrl}
+    />
   );
 }
 
@@ -2363,83 +2304,6 @@ declare module 'jsqr' {
   ): QRCode | null;
 
   export default jsQR;
-}
-
-================================================================================
-FILE: src/hooks/usePWAInstall.ts
-================================================================================
-import { useEffect, useState } from 'react';
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
-}
-
-export function usePWAInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
-
-  useEffect(() => {
-    // Check if running in standalone mode (already installed on phone)
-    const standaloneCheck =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
-      document.referrer.includes('android-app://');
-
-    setIsInstalled(standaloneCheck);
-    setIsStandalone(standaloneCheck);
-
-    // Detect iOS
-    const ua = window.navigator.userAgent.toLowerCase();
-    const isIOSDevice = /iphone|ipad|ipod/.test(ua) && !(window as any).MSStream;
-    setIsIOS(isIOSDevice);
-
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-    };
-
-    const handleAppInstalled = () => {
-      setIsInstalled(true);
-      setIsStandalone(true);
-      setDeferredPrompt(null);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-    };
-  }, []);
-
-  const install = async (): Promise<boolean> => {
-    if (!deferredPrompt) return false;
-    try {
-      await deferredPrompt.prompt();
-      const choice = await deferredPrompt.userChoice;
-      if (choice.outcome === 'accepted') {
-        setIsInstalled(true);
-        setIsStandalone(true);
-        setDeferredPrompt(null);
-        return true;
-      }
-    } catch (err) {
-      console.warn('PWA install prompt error:', err);
-    }
-    return false;
-  };
-
-  return {
-    isInstallable: !!deferredPrompt,
-    isInstalled,
-    isStandalone,
-    isIOS,
-    install,
-  };
 }
 
 ================================================================================
@@ -3788,6 +3652,54 @@ function cleanForFirestore<T>(val: T): T {
   return val;
 }
 
+/**
+ * Builds a strictly canonical QrCodeRecord so deleted/legacy fields (old wallets, old URLs, old bank details)
+ * are NEVER carried over when replacing a link with a number, vice versa, or switching platforms.
+ */
+function buildCanonicalQrRecord(params: {
+  id: string;
+  is_active: boolean;
+  target_url: string | null;
+  app_type: AppType;
+  created_at: string;
+  updated_at: string;
+  total_scans: number;
+  last_scanned_at?: string;
+  label?: string;
+  expires_at?: string | null;
+  subscription_months?: number;
+  wallets?: WalletItem[];
+}): QrCodeRecord {
+  const canonical: Record<string, any> = {
+    id: params.id,
+    is_active: params.is_active,
+    target_url: params.target_url,
+    app_type: params.app_type,
+    created_at: params.created_at,
+    updated_at: params.updated_at,
+    total_scans: params.total_scans,
+    label: params.label ?? '',
+    expires_at: params.expires_at !== undefined ? params.expires_at : null,
+    subscription_months: params.subscription_months !== undefined ? params.subscription_months : 1,
+  };
+
+  if (params.last_scanned_at) {
+    canonical.last_scanned_at = params.last_scanned_at;
+  }
+
+  // Only include wallets when app_type is 'wallet' and non-empty wallets exist;
+  // omitting it ensures full-document writes permanently delete old wallets from Firestore.
+  if (params.app_type === 'wallet' && Array.isArray(params.wallets) && params.wallets.length > 0) {
+    canonical.wallets = params.wallets.map((w) => ({
+      phone: (w.phone || '').trim(),
+      provider: w.provider || 'vodafone',
+      ownerName: (w.ownerName || '').trim(),
+    }));
+  }
+
+  return cleanForFirestore(canonical) as QrCodeRecord;
+}
+
 function getFirestoreRestConfig() {
   const pId = firebaseConfig?.projectId || 'clean-plateau-dv4kj';
   const dbId = firebaseConfig?.firestoreDatabaseId || 'ai-studio-41f04a06-1999-41b9-b7be-e25b21dc1fd0';
@@ -4059,20 +3971,22 @@ export async function lookupExistingQrCode(id: string): Promise<QrCodeRecord | n
   const cleanId = id.trim();
   if (!cleanId) return null;
 
-  // 1. Check local cache
-  const cache = getLocalCache();
-  if (cache[cleanId] && cache[cleanId].id) {
-    return cache[cleanId];
-  }
-
-  // 2. Query Firestore and Server concurrently
-  const firestoreFetch = getDoc(doc(db, 'qr_codes', cleanId))
+  // 1. Always query live Firestore REST, Firestore SDK, and Express Server first
+  const docRef = doc(db, 'qr_codes', cleanId);
+  const firestoreSdkFetch = getDocFromServer(docRef)
     .then((snap) => (snap.exists() ? (snap.data() as QrCodeRecord) : null))
-    .catch(() => null);
+    .catch(() =>
+      getDoc(docRef)
+        .then((snap) => (snap.exists() ? (snap.data() as QrCodeRecord) : null))
+        .catch(() => null)
+    );
 
-  const serverFetch = fetch(`/api/qr/${encodeURIComponent(cleanId)}`)
+  const firestoreRestFetch = fetchQrFromFirestoreRest(cleanId);
+
+  const serverFetch = fetch(`/api/qr/${encodeURIComponent(cleanId)}?t=${Date.now()}`, { cache: 'no-store' })
     .then(async (res) => {
-      if (res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
         const json = await res.json();
         return (json.success && json.data) ? (json.data as QrCodeRecord) : null;
       }
@@ -4081,17 +3995,30 @@ export async function lookupExistingQrCode(id: string): Promise<QrCodeRecord | n
     .catch(() => null);
 
   try {
-    const results = await Promise.allSettled([firestoreFetch, serverFetch]);
-    const fsRecord = results[0].status === 'fulfilled' ? results[0].value : null;
-    const srvRecord = results[1].status === 'fulfilled' ? results[1].value : null;
+    const results = await Promise.allSettled([firestoreRestFetch, firestoreSdkFetch, serverFetch]);
+    const candidates = results
+      .filter((r): r is PromiseFulfilledResult<QrCodeRecord | null> => r.status === 'fulfilled')
+      .map((r) => r.value)
+      .filter((r): r is QrCodeRecord => Boolean(r && r.id));
 
-    const found = fsRecord || srvRecord;
-    if (found) {
+    if (candidates.length > 0) {
+      const found = candidates.reduce((best, curr) => {
+        const bestTime = new Date(best.updated_at || best.created_at || 0).getTime();
+        const currTime = new Date(curr.updated_at || curr.created_at || 0).getTime();
+        return currTime > bestTime ? curr : best;
+      });
+      const cache = getLocalCache();
       cache[cleanId] = found;
       saveLocalCache(cache);
       return found;
     }
   } catch {}
+
+  // 2. Offline fallback to local cache
+  const cache = getLocalCache();
+  if (cache[cleanId] && cache[cleanId].id) {
+    return cache[cleanId];
+  }
 
   return null;
 }
@@ -4192,26 +4119,29 @@ export async function activateQrCode(
     : (smartLink.schemeUrl || smartLink.fallbackUrl || effectiveRawInput.trim());
 
   const cleanWallets = (isWallet && Array.isArray(wallets) && wallets.length > 0)
-    ? wallets.map((w) => ({
-        phone: (w.phone || '').trim(),
-        provider: w.provider || 'vodafone',
-        ownerName: (w.ownerName || '').trim(),
-      }))
+    ? wallets
+        .map((w) => ({
+          phone: (w.phone || '').trim(),
+          provider: w.provider || 'vodafone',
+          ownerName: (w.ownerName || '').trim(),
+        }))
+        .filter((w) => w.phone.length > 0)
     : [];
 
-  const updatedRecord: QrCodeRecord = cleanForFirestore({
+  const updatedRecord = buildCanonicalQrRecord({
     id: cleanId,
     is_active: true,
-    target_url: effectiveTargetUrl,
+    target_url: effectiveTargetUrl || null,
     app_type: effectiveAppType,
-    updated_at: now.toISOString(),
     created_at: existing?.created_at || now.toISOString(),
+    updated_at: now.toISOString(),
     total_scans: (existing && existing.is_active && existing.total_scans !== undefined) 
       ? existing.total_scans 
       : 0,
+    last_scanned_at: existing?.last_scanned_at,
     expires_at,
     subscription_months,
-    wallets: cleanWallets,
+    wallets: isWallet ? cleanWallets : undefined,
   });
 
   // 1. Write to Cloud Firestore via SDK (full replace) + REST API concurrently
@@ -4225,11 +4155,11 @@ export async function activateQrCode(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      target_url: effectiveTargetUrl,
+      target_url: updatedRecord.target_url,
       app_type: effectiveAppType,
       expires_at,
       subscription_months,
-      wallets: cleanWallets,
+      wallets: isWallet ? cleanWallets : [],
     }),
   }).catch(() => {});
 
@@ -4239,14 +4169,108 @@ export async function activateQrCode(
   const cache = getLocalCache();
   cache[cleanId] = updatedRecord;
   saveLocalCache(cache);
+  if (typeof window !== 'undefined' && (window as any).__INITIAL_QR_RECORD__?.id === cleanId) {
+    (window as any).__INITIAL_QR_RECORD__ = updatedRecord;
+  }
 
   return { success: true, record: updatedRecord };
 }
 
 /**
+ * Permanently purges an old Quick Pay URL or target URL from the database (Cloud Firestore SDK + REST,
+ * Express server JSON DB, and local cache) when the admin clicks Clear/Delete on a wallet link, InstaPay link,
+ * or any other platform URL before replacing it with a phone number or new link.
+ */
+export async function purgeQrTargetInDatabase(
+  id: string,
+  options: {
+    appType: AppType;
+    remainingWallets?: WalletItem[];
+    label?: string;
+    expiresAt?: string | null;
+  }
+): Promise<{ success: boolean; record?: QrCodeRecord }> {
+  const cleanId = id.trim();
+  if (!cleanId) return { success: false };
+
+  const current: QrCodeRecord = (await getQrCode(cleanId)) || {
+    id: cleanId,
+    created_at: new Date().toISOString(),
+    total_scans: 0,
+    is_active: true,
+    target_url: null,
+  };
+
+  const isWallet = options.appType === 'wallet';
+  const cleanedWallets = isWallet && Array.isArray(options.remainingWallets)
+    ? options.remainingWallets
+        .map((w) => ({
+          phone: (w.phone || '').trim(),
+          provider: w.provider || 'generic',
+          ownerName: (w.ownerName || '').trim(),
+        }))
+        .filter((w) => w.phone.length > 0)
+    : [];
+
+  const nextTargetUrl = isWallet
+    ? (cleanedWallets[0]?.phone || null)
+    : null;
+
+  const purgedRecord = buildCanonicalQrRecord({
+    id: cleanId,
+    is_active: current.is_active,
+    target_url: nextTargetUrl,
+    app_type: options.appType,
+    created_at: current.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    total_scans: current.total_scans ?? 0,
+    last_scanned_at: current.last_scanned_at,
+    label: options.label !== undefined ? options.label : (current.label ?? ''),
+    expires_at: options.expiresAt !== undefined ? options.expiresAt : (current.expires_at ?? null),
+    subscription_months: current.subscription_months ?? 1,
+    wallets: isWallet && cleanedWallets.length > 0 ? cleanedWallets : undefined,
+  });
+
+  // 1. Overwrite full Firestore doc via SDK + REST (permanently deleting cleared URLs/fields)
+  const sdkWrite = setDoc(doc(db, 'qr_codes', cleanId), purgedRecord).catch((fsErr) => {
+    console.warn('Firestore purge write warning:', fsErr);
+  });
+  const restWrite = writeQrToFirestoreRest(cleanId, purgedRecord);
+
+  // 2. Sync purge to Express Server DB
+  const serverWrite = authFetch(`/api/qr/${encodeURIComponent(cleanId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      target_url: nextTargetUrl,
+      app_type: options.appType,
+      label: purgedRecord.label,
+      expires_at: purgedRecord.expires_at,
+      subscription_months: purgedRecord.subscription_months,
+      wallets: isWallet ? cleanedWallets : [],
+      is_active: current.is_active,
+    }),
+  }).catch((err) => {
+    console.warn('Server purge sync failed:', err);
+  });
+
+  await Promise.allSettled([sdkWrite, restWrite, serverWrite]);
+
+  // 3. Overwrite local cache cleanly
+  const cache = getLocalCache();
+  cache[cleanId] = purgedRecord;
+  saveLocalCache(cache);
+  if (typeof window !== 'undefined' && (window as any).__INITIAL_QR_RECORD__?.id === cleanId) {
+    (window as any).__INITIAL_QR_RECORD__ = purgedRecord;
+  }
+
+  return { success: true, record: purgedRecord };
+}
+
+/**
  * Admin Quick Edit: Modify Target URL, label, and subscription expiry.
  * ID is strictly read-only and immutable.
- * Saves simultaneously to Firestore (SDK + REST) AND Server API with full field overwrite so no stale link ever remains.
+ * Saves simultaneously to Firestore (SDK + REST full replacement) AND Server API so no stale link or old field ever remains.
  */
 export async function adminUpdateQrCode(
   id: string,
@@ -4258,17 +4282,32 @@ export async function adminUpdateQrCode(
   wallets?: WalletItem[]
 ): Promise<{ success: boolean; record?: QrCodeRecord }> {
   const cleanId = id.trim();
-  const isWallet = preferredType === 'wallet' || (Array.isArray(wallets) && wallets.length > 0);
+  const isWallet = preferredType === 'wallet';
   const effectiveAppType: AppType = isWallet ? 'wallet' : (preferredType || 'website');
 
-  const sourceInput = (isWallet && Array.isArray(wallets) && wallets.length > 0)
-    ? wallets[0].phone
-    : rawTargetUrl;
+  const resolvedWallets: WalletItem[] = isWallet
+    ? (wallets !== undefined
+        ? wallets
+            .map((w) => ({
+              phone: (w.phone || '').trim(),
+              provider: w.provider || 'vodafone',
+              ownerName: (w.ownerName || '').trim(),
+            }))
+            .filter((w) => w.phone.length > 0)
+        : [])
+    : [];
 
-  const smartLink = processSmartLink(sourceInput, effectiveAppType);
-  const effectiveTargetUrl = (smartLink.isWalletCard && smartLink.walletPhone)
-    ? smartLink.walletPhone
-    : (smartLink.schemeUrl || smartLink.fallbackUrl || sourceInput.trim());
+  const sourceInput = (isWallet && resolvedWallets.length > 0)
+    ? resolvedWallets[0].phone
+    : rawTargetUrl.trim();
+
+  let effectiveTargetUrl: string | null = null;
+  if (sourceInput) {
+    const smartLink = processSmartLink(sourceInput, effectiveAppType);
+    effectiveTargetUrl = (smartLink.isWalletCard && smartLink.walletPhone)
+      ? smartLink.walletPhone
+      : (smartLink.schemeUrl || smartLink.fallbackUrl || sourceInput);
+  }
 
   const current: QrCodeRecord = (await getQrCode(cleanId)) || {
     id: cleanId,
@@ -4278,32 +4317,24 @@ export async function adminUpdateQrCode(
     target_url: null,
   };
 
-  const resolvedWallets: WalletItem[] = isWallet
-    ? (wallets !== undefined
-        ? wallets.map((w) => ({
-            phone: (w.phone || '').trim(),
-            provider: w.provider || 'vodafone',
-            ownerName: (w.ownerName || '').trim(),
-          }))
-        : (current.wallets || []))
-    : [];
-
-  const updatedRecord: QrCodeRecord = cleanForFirestore({
-    ...current,
+  const updatedRecord = buildCanonicalQrRecord({
     id: cleanId,
+    is_active: true,
     target_url: effectiveTargetUrl,
     app_type: effectiveAppType,
-    is_active: true,
+    created_at: current.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    total_scans: current.total_scans ?? 0,
+    last_scanned_at: current.last_scanned_at,
     label: label !== undefined ? label : (current.label ?? ''),
     expires_at: expiresAt !== undefined ? expiresAt : (current.expires_at ?? null),
     subscription_months: subscriptionMonths !== undefined
       ? subscriptionMonths
       : (current.subscription_months ?? 1),
-    updated_at: new Date().toISOString(),
-    wallets: resolvedWallets,
+    wallets: isWallet && resolvedWallets.length > 0 ? resolvedWallets : undefined,
   });
 
-  // 1. ALWAYS write full sanitized record to Cloud Firestore (SDK setDoc overwrite + REST PATCH)
+  // 1. ALWAYS write full canonical record to Cloud Firestore (SDK setDoc overwrite + REST PATCH)
   const sdkWrite = setDoc(doc(db, 'qr_codes', cleanId), updatedRecord).catch((fsErr) => {
     console.warn('Firestore admin update warning:', fsErr);
   });
@@ -4319,7 +4350,8 @@ export async function adminUpdateQrCode(
       label: updatedRecord.label,
       expires_at: updatedRecord.expires_at,
       subscription_months: updatedRecord.subscription_months,
-      wallets: resolvedWallets,
+      wallets: isWallet ? resolvedWallets : [],
+      is_active: true,
     }),
   }).catch((err) => {
     console.warn('Server admin update sync failed:', err);
@@ -4327,10 +4359,13 @@ export async function adminUpdateQrCode(
 
   await Promise.allSettled([sdkWrite, restWrite, serverWrite]);
 
-  // 3. Update local cache
+  // 3. Update local cache cleanly
   const cache = getLocalCache();
   cache[cleanId] = updatedRecord;
   saveLocalCache(cache);
+  if (typeof window !== 'undefined' && (window as any).__INITIAL_QR_RECORD__?.id === cleanId) {
+    (window as any).__INITIAL_QR_RECORD__ = updatedRecord;
+  }
 
   return { success: true, record: updatedRecord };
 }
@@ -5951,9 +5986,10 @@ import {
   RotateCcw,
   Clock,
   Calendar,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
-import { adminUpdateQrCode, generateQrDataUrl, resetQrScanCount } from '../lib/qrService';
+import { adminUpdateQrCode, generateQrDataUrl, resetQrScanCount, purgeQrTargetInDatabase } from '../lib/qrService';
 import { 
   processSmartLink, 
   encodeBankDetails, 
@@ -5982,6 +6018,7 @@ interface EditQrModalProps {
   record: QrCodeRecord | null;
   domainUrl: string;
   onSaved: (updatedRecord: QrCodeRecord) => void;
+  onPurged?: (updatedRecord: QrCodeRecord) => void;
   onDelete?: (id: string) => void;
 }
 
@@ -6076,11 +6113,13 @@ export const PLATFORM_META: Record<AppType, { labelAr: string; labelEn: string; 
   },
 };
 
-export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDelete }: EditQrModalProps) {
+export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPurged, onDelete }: EditQrModalProps) {
   const [selectedType, setSelectedType] = useState<AppType>('website');
   const [targetUrl, setTargetUrl] = useState('');
   const [label, setLabel] = useState('');
   const [loading, setLoading] = useState(false);
+  const [purgingTarget, setPurgingTarget] = useState(false);
+  const [purgeNotice, setPurgeNotice] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
@@ -6160,14 +6199,73 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
     });
   };
 
+  const handleClearWalletInput = async (index: number) => {
+    const nextWallets = wallets.map((w, idx) =>
+      idx === index ? { ...w, phone: '', provider: 'generic' as WalletProvider } : w
+    );
+    setWallets(nextWallets);
+    if (index === 0) {
+      setWalletPhone('');
+      setTargetUrl('');
+    }
+    setErrorMsg(null);
+    setPurgeNotice(null);
+
+    if (!record) return;
+    setPurgingTarget(true);
+    try {
+      const res = await purgeQrTargetInDatabase(record.id, {
+        appType: 'wallet',
+        remainingWallets: nextWallets.slice(0, walletCount),
+        label: label.trim(),
+        expiresAt,
+      });
+      if (res.success && res.record) {
+        setPurgeNotice('تم حذف الرابط/الرقم القديم نهائياً من قاعدة البيانات ✓ اكتب الرقم أو الرابط الجديد ثم اضغط حفظ التعديلات.');
+        onPurged?.(res.record);
+      }
+    } catch (err) {
+      console.error('Failed to purge wallet target:', err);
+    } finally {
+      setPurgingTarget(false);
+    }
+  };
+
+  const handleClearTargetUrl = async () => {
+    setTargetUrl('');
+    setErrorMsg(null);
+    setPurgeNotice(null);
+
+    if (!record) return;
+    setPurgingTarget(true);
+    try {
+      const res = await purgeQrTargetInDatabase(record.id, {
+        appType: selectedType,
+        remainingWallets: [],
+        label: label.trim(),
+        expiresAt,
+      });
+      if (res.success && res.record) {
+        setPurgeNotice('تم حذف الرابط القديم نهائياً من قاعدة البيانات ✓ أدخل الرابط الجديد ثم اضغط حفظ التعديلات.');
+        onPurged?.(res.record);
+      }
+    } catch (err) {
+      console.error('Failed to purge target URL:', err);
+    } finally {
+      setPurgingTarget(false);
+    }
+  };
+
   useEffect(() => {
-    if (record) {
+    if (isOpen && record) {
       const hasStoredWallets = Array.isArray(record.wallets) && record.wallets.length > 0;
       const type = (hasStoredWallets || record.app_type === 'wallet') ? 'wallet' : (record.app_type || 'website');
       setSelectedType(type);
       setLabel(record.label || '');
       setSavedSuccess(false);
       setErrorMsg(null);
+      setPurgeNotice(null);
+      setPurgingTarget(false);
       setCurrentScans(record.total_scans || 0);
       setExpiresAt(record.expires_at || null);
 
@@ -6230,7 +6328,9 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
       const fullScanUrl = `${domainUrl}/q/${record.id}`;
       generateQrDataUrl(fullScanUrl, 400).then((url) => setQrDataUrl(url));
     }
-  }, [record, domainUrl]);
+    // Depend on record?.id & isOpen so background database syncs after purging don't reset active edits
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [record?.id, isOpen, domainUrl]);
 
   if (!isOpen || !record) return null;
 
@@ -6256,6 +6356,8 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
     if (newType === selectedType) return;
 
     setSelectedType(newType);
+    setErrorMsg(null);
+    setPurgeNotice(null);
 
     // If switching back to the card's originally saved platform, restore its saved values.
     // If switching to a new/different platform, completely purge and clear all fields clean!
@@ -6336,6 +6438,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
     setLoading(true);
     setSavedSuccess(false);
     setErrorMsg(null);
+    setPurgeNotice(null);
 
     let finalRawInput = targetUrl.trim();
     let activeWalletsToSave: WalletItem[] | undefined = undefined;
@@ -6830,11 +6933,13 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                           {item.phone && (
                             <button
                               type="button"
-                              onClick={() => handleWalletPhoneChange(index, '')}
-                              className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer"
+                              disabled={purgingTarget}
+                              onClick={() => handleClearWalletInput(index)}
+                              className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                              title="حذف الرابط أو الرقم القديم من قاعدة البيانات"
                             >
-                              <X className="w-3 h-3" />
-                              <span>مسح</span>
+                              {purgingTarget ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                              <span>حذف من قاعدة البيانات</span>
                             </button>
                           )}
                         </div>
@@ -6852,8 +6957,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                           {item.phone && (
                             <button
                               type="button"
-                              onClick={() => handleWalletPhoneChange(index, '')}
-                              className="absolute left-3 top-2.5 text-slate-400 hover:text-amber-300 transition"
+                              disabled={purgingTarget}
+                              onClick={() => handleClearWalletInput(index)}
+                              className="absolute left-3 top-2.5 text-slate-400 hover:text-rose-400 transition disabled:opacity-50"
+                              title="حذف الرابط القديم من قاعدة البيانات"
                             >
                               <X className="w-3.5 h-3.5" />
                             </button>
@@ -6922,11 +7029,13 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                 {targetUrl && (
                   <button
                     type="button"
-                    onClick={() => setTargetUrl('')}
-                    className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer"
+                    disabled={purgingTarget}
+                    onClick={handleClearTargetUrl}
+                    className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    title="حذف رابط إنستاباي القديم من قاعدة البيانات"
                   >
-                    <X className="w-3.5 h-3.5" />
-                    <span>مسح</span>
+                    {purgingTarget ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                    <span>حذف الرابط من قاعدة البيانات</span>
                   </button>
                 )}
               </div>
@@ -6944,9 +7053,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                 {targetUrl && (
                   <button
                     type="button"
-                    onClick={() => setTargetUrl('')}
-                    className="absolute left-3 top-3 text-slate-400 hover:text-amber-300 transition cursor-pointer"
-                    title="تفريغ الحقل"
+                    disabled={purgingTarget}
+                    onClick={handleClearTargetUrl}
+                    className="absolute left-3 top-3 text-slate-400 hover:text-rose-400 transition cursor-pointer disabled:opacity-50"
+                    title="حذف الرابط القديم نهائياً من قاعدة البيانات"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -6971,12 +7081,13 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                   {targetUrl && (
                     <button
                       type="button"
-                      onClick={() => setTargetUrl('')}
-                      className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer transition"
-                      title="مسح وتفريغ الحقل"
+                      disabled={purgingTarget}
+                      onClick={handleClearTargetUrl}
+                      className="text-[11px] text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
+                      title="حذف الرابط القديم نهائياً من قاعدة البيانات"
                     >
-                      <X className="w-3.5 h-3.5" />
-                      <span>مسح الرابط القديم</span>
+                      {purgingTarget ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                      <span>حذف الرابط القديم من قاعدة البيانات</span>
                     </button>
                   )}
                 </div>
@@ -6997,9 +7108,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
                   {targetUrl && (
                     <button
                       type="button"
-                      onClick={() => setTargetUrl('')}
-                      className="absolute left-3 top-3.5 text-slate-400 hover:text-amber-300 transition cursor-pointer"
-                      title="تفريغ الحقل"
+                      disabled={purgingTarget}
+                      onClick={handleClearTargetUrl}
+                      className="absolute left-3 top-3.5 text-slate-400 hover:text-rose-400 transition cursor-pointer disabled:opacity-50"
+                      title="حذف الرابط القديم نهائياً من قاعدة البيانات"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -7191,6 +7303,14 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onDel
               تنزيل الصورة (PNG)
             </button>
           </div>
+
+          {/* Purge Confirmation Banner */}
+          {purgeNotice && (
+            <div className="p-3 bg-emerald-500/15 border border-emerald-500/40 rounded-2xl text-xs text-emerald-300 font-bold flex items-center gap-2 animate-in fade-in">
+              <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>{purgeNotice}</span>
+            </div>
+          )}
 
           {/* Error Banner */}
           {errorMsg && (
@@ -8416,302 +8536,6 @@ export function DeveloperSettingsModal({
 }
 
 ================================================================================
-FILE: src/components/PWAInstallBanner.tsx
-================================================================================
-import React, { useState } from 'react';
-import { Smartphone, Download, Sparkles, X } from 'lucide-react';
-import { usePWAInstall } from '../hooks/usePWAInstall';
-import { PWAInstallModal } from './PWAInstallModal';
-
-export const PWAInstallBanner: React.FC = () => {
-  const { isInstalled, isStandalone } = usePWAInstall();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(false);
-
-  // If running as standalone app, do not display install banners
-  if (isInstalled || isStandalone || isDismissed) {
-    return null;
-  }
-
-  return (
-    <>
-      {/* Floating Bottom Action Banner on Mobile */}
-      <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 z-40 animate-in slide-in-from-bottom-5 duration-300 select-none">
-        <div className="bg-[#121216]/95 border border-amber-500/40 rounded-2xl p-3 sm:py-3 sm:px-4 shadow-[0_4px_30px_rgba(212,175,55,0.25)] backdrop-blur-xl flex items-center justify-between gap-3 text-white">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-black/60 border border-amber-500/30 p-1 flex items-center justify-center flex-shrink-0 shadow-md">
-              <img src="/logo.png" alt="Smart Card" className="w-8 h-8 object-contain rounded-lg" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black text-amber-300">تطبيق Smart Card</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-              </div>
-              <p className="text-[11px] text-slate-300 truncate">تثبيت التطبيق على هاتفك للوصول السريع</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(true)}
-              className="py-2 px-3.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-amber-400 text-black font-black text-xs rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-black" />
-              <span>تثبيت التطبيق</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsDismissed(true)}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition cursor-pointer"
-              title="إخفاء"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <PWAInstallModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
-    </>
-  );
-};
-
-export const PWAHeaderButton: React.FC = () => {
-  const { isInstalled, isStandalone } = usePWAInstall();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  if (isInstalled || isStandalone) {
-    return null;
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setIsModalOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/40 text-amber-300 font-bold text-xs transition cursor-pointer shadow-sm shadow-amber-500/10"
-        title="تثبيت التطبيق على هاتفك"
-      >
-        <Smartphone className="w-3.5 h-3.5 text-amber-400" />
-        <span className="hidden sm:inline">تطبيق الهاتف 📲</span>
-        <span className="sm:hidden">التطبيق</span>
-      </button>
-
-      <PWAInstallModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
-    </>
-  );
-};
-
-================================================================================
-FILE: src/components/PWAInstallModal.tsx
-================================================================================
-import React, { useState } from 'react';
-import { Smartphone, Download, CheckCircle2, X, Sparkles, Share2, PlusSquare, ShieldCheck, ArrowRight, Layers } from 'lucide-react';
-import { usePWAInstall } from '../hooks/usePWAInstall';
-
-interface PWAInstallModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ isOpen, onClose }) => {
-  const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
-  const [installSuccess, setInstallSuccess] = useState(false);
-  const [activeTab, setActiveTab] = useState<'pwa' | 'apk'>('pwa');
-
-  if (!isOpen) return null;
-
-  const handleInstallClick = async () => {
-    if (isInstallable) {
-      const ok = await install();
-      if (ok) {
-        setInstallSuccess(true);
-        setTimeout(() => {
-          onClose();
-        }, 1500);
-      }
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in select-none">
-      <div className="relative w-full max-w-md bg-[#121216] border border-amber-500/35 rounded-3xl p-6 sm:p-7 shadow-[0_0_50px_rgba(212,175,55,0.2)] text-white space-y-5 overflow-hidden">
-        {/* Glow */}
-        <div className="absolute -top-12 -right-12 w-36 h-36 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute -bottom-12 -left-12 w-36 h-36 bg-yellow-500/10 rounded-full blur-2xl pointer-events-none" />
-
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-black/60 border border-amber-500/30 p-1 flex items-center justify-center shadow-lg shadow-amber-500/10">
-              <img src="/logo.png" alt="Smart Card App" className="w-10 h-10 object-contain rounded-xl" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h3 className="text-base font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-500">
-                  تطبيق Smart Card
-                </h3>
-                <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/30">
-                  تطبيق هاتف رسمي
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">تثبيت فوري على شاشة الموبايل الرئيسية</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Tab switch: Direct Phone App (PWA) vs Native APK Info */}
-        <div className="flex items-center gap-1 p-1 bg-black/60 border border-amber-500/20 rounded-2xl text-xs font-bold">
-          <button
-            type="button"
-            onClick={() => setActiveTab('pwa')}
-            className={`flex-1 py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'pwa'
-                ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-black font-black shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Smartphone className="w-4 h-4" />
-            <span>التثبيت الفوري (PWA)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('apk')}
-            className={`flex-1 py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'apk'
-                ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-black font-black shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>حزمة أندرويد (APK)</span>
-          </button>
-        </div>
-
-        {activeTab === 'pwa' ? (
-          <div className="space-y-4">
-            {/* Features */}
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="p-3 bg-black/50 border border-amber-500/20 rounded-2xl space-y-1">
-                <div className="flex items-center gap-1.5 text-amber-300 font-bold">
-                  <ShieldCheck className="w-4 h-4 text-amber-400" />
-                  <span>يعمل كتطبيق كامل</span>
-                </div>
-                <p className="text-[11px] text-slate-400">بدون شريط المتصفح (Standalone) مع لوجو وأيقونة مستقلة.</p>
-              </div>
-              <div className="p-3 bg-black/50 border border-amber-500/20 rounded-2xl space-y-1">
-                <div className="flex items-center gap-1.5 text-amber-300 font-bold">
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                  <span>سرعة فائقة وذاكرة</span>
-                </div>
-                <p className="text-[11px] text-slate-400">تخزين مؤقت وسرعة استجابة فورية 0.0 ثانية.</p>
-              </div>
-            </div>
-
-            {/* Install Button & Status */}
-            {isInstalled ? (
-              <div className="p-4 bg-emerald-500/15 border border-emerald-500/30 rounded-2xl text-center space-y-2">
-                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
-                <p className="text-sm font-black text-emerald-300">التطبيق مثبت بالفعل على جهازك! 🎉</p>
-                <p className="text-xs text-slate-300">يمكنك فتحه مباشرة من الشاشة الرئيسية لهاتفك في أي وقت.</p>
-              </div>
-            ) : installSuccess ? (
-              <div className="p-4 bg-emerald-500/15 border border-emerald-500/30 rounded-2xl text-center space-y-2 animate-in zoom-in-95">
-                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto animate-bounce" />
-                <p className="text-sm font-black text-emerald-300">تم تثبيت التطبيق بنجاح! 🚀</p>
-                <p className="text-xs text-slate-300">أيقونة Smart Card موجودة الآن على شاشة هاتفك.</p>
-              </div>
-            ) : isInstallable ? (
-              <button
-                type="button"
-                onClick={handleInstallClick}
-                className="w-full py-4 px-6 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-black text-sm rounded-2xl shadow-xl shadow-amber-500/25 transition flex items-center justify-center gap-2.5 cursor-pointer"
-              >
-                <Download className="w-5 h-5 text-black" />
-                <span>تثبيت التطبيق على الهاتف الآن بنقرة واحدة</span>
-              </button>
-            ) : isIOS ? (
-              <div className="p-4 bg-black/60 border border-amber-500/20 rounded-2xl space-y-3 text-right">
-                <div className="flex items-center gap-2 text-xs font-black text-amber-300">
-                  <Smartphone className="w-4 h-4 text-amber-400" />
-                  <span>طريقة التثبيت على آيفون (iPhone / Safari):</span>
-                </div>
-                <ol className="list-decimal list-inside space-y-2 text-xs text-slate-300 leading-relaxed">
-                  <li>
-                    اضغط على زر <strong>المشاركة (Share)</strong> <Share2 className="w-3.5 h-3.5 inline text-amber-400" /> في أسفل شاشة سفاري.
-                  </li>
-                  <li>
-                    مرر لأسفل واختر <strong>إضافة إلى الصفحة الرئيسية (Add to Home Screen)</strong> <PlusSquare className="w-3.5 h-3.5 inline text-amber-400" />.
-                  </li>
-                  <li>
-                    اضغط <strong>إضافة (Add)</strong> بالأعلى ليظهر التطبيق في شاشتك الرئيسية فوراً.
-                  </li>
-                </ol>
-              </div>
-            ) : (
-              <div className="p-4 bg-black/60 border border-amber-500/20 rounded-2xl space-y-2 text-center text-xs">
-                <p className="font-bold text-amber-300">لتثبيت التطبيق من متصفحك (Brave / Chrome):</p>
-                <p className="text-slate-300">
-                  اضغط على <strong>القائمة (⋮)</strong> في متصفحك ثم اختر <strong>"تثبيت التطبيق"</strong> أو <strong>"إضافة إلى الشاشة الرئيسية"</strong>.
-                </p>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* Native APK Tab */
-          <div className="space-y-3.5 text-xs">
-            <div className="p-4 bg-black/60 border border-amber-500/20 rounded-2xl space-y-2.5">
-              <div className="flex items-center gap-2 text-amber-300 font-bold">
-                <Layers className="w-4 h-4 text-amber-400" />
-                <span>تحويل الموقع إلى ملف APK حقيقي لأندرويد:</span>
-              </div>
-              <p className="text-slate-300 leading-relaxed text-[11px]">
-                تم تجهيز الموقع بملف <strong>Web App Manifest</strong> متكامل وخدمة <strong>Service Worker</strong> مطابقة 100% لمعايير Google Play و TWA (Trusted Web Activity).
-              </p>
-              <div className="p-2.5 bg-black/80 rounded-xl border border-white/10 space-y-1.5 font-mono text-[10px] text-amber-200">
-                <p className="text-slate-400 font-sans font-bold">رابط الموقع الرسمي لتوليد APK:</p>
-                <p className="select-all bg-black/90 p-1.5 rounded border border-amber-500/30">https://smart-card-inky.vercel.app</p>
-              </div>
-              <p className="text-slate-400 text-[11px] leading-relaxed">
-                💡 يمكنك تحويله إلى ملف <strong className="text-amber-300">.APK</strong> قابل للتثبيت أو النشر على متجر Google Play في دقيقة واحدة مجاناً عبر أداة <strong>PWABuilder</strong> الرسمية من مايكروسوفت أو <strong>Bubblewrap</strong> من جوجل.
-              </p>
-            </div>
-
-            <a
-              href="https://www.pwabuilder.com/?url=https://smart-card-inky.vercel.app"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-3 px-4 bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/40 rounded-xl text-amber-300 font-bold text-xs flex items-center justify-center gap-2 transition"
-            >
-              <span>فتح مولد الـ APK المباشر (PWABuilder)</span>
-              <ArrowRight className="w-4 h-4 rotate-180" />
-            </a>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="pt-2 text-center">
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-xs text-slate-400 hover:text-white transition font-bold"
-          >
-            إغلاق
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-================================================================================
 FILE: src/views/HomeLandingView.tsx
 ================================================================================
 import { useState, useRef, useEffect } from 'react';
@@ -8736,7 +8560,6 @@ import {
 } from 'lucide-react';
 import { decodeQrFromImageFile, extractQrIdFromUrl, getQrCode, fetchPlatformSettings } from '../lib/qrService';
 import { QrScannerModal } from '../components/QrScannerModal';
-import { PWAHeaderButton } from '../components/PWAInstallBanner';
 import { PlatformSettings } from '../types/qr';
 
 interface HomeLandingViewProps {
@@ -8848,8 +8671,6 @@ export function HomeLandingView({ onGoToAdmin, onSimulateScan }: HomeLandingView
           </div>
 
           <div className="flex items-center gap-2">
-            <PWAHeaderButton />
-
             <a
               href={getWaLink()}
               target="_blank"
@@ -9305,7 +9126,6 @@ import { EditQrModal } from '../components/EditQrModal';
 import { PrintSheetModal } from '../components/PrintSheetModal';
 import { QrScannerModal } from '../components/QrScannerModal';
 import { DeveloperSettingsModal } from '../components/DeveloperSettingsModal';
-import { PWAHeaderButton } from '../components/PWAInstallBanner';
 import { QrCodeRecord, PlatformSettings } from '../types/qr';
 import { PlatformBrandIcon } from '../components/BrandIcons';
 
@@ -9619,8 +9439,6 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
 
           {/* Top Actions */}
           <div className="flex items-center gap-2 flex-wrap">
-            <PWAHeaderButton />
-
             {/* Developer Contact & WhatsApp Settings Button */}
             <button
               onClick={() => setIsSettingsModalOpen(true)}
@@ -10428,6 +10246,10 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         record={selectedEditRecord}
         domainUrl={domainUrl}
         onClose={() => setSelectedEditRecord(null)}
+        onPurged={(purged) => {
+          setRecords((prev) => prev.map((r) => (r.id === purged.id ? purged : r)));
+          setSelectedEditRecord((prev) => (prev && prev.id === purged.id ? purged : prev));
+        }}
         onSaved={(updated) => {
           setRecords((prev) => {
             const exists = prev.some((r) => r.id === updated.id);
@@ -11021,7 +10843,19 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                          key={p.type}
                          type="button"
                          onClick={() => {
-                           setSelectedType(p.type);
+                           if (p.type !== selectedType) {
+                             setSelectedType(p.type);
+                             setRawInput('');
+                             setAccountNumber('');
+                             setAccountName('');
+                             setWalletCount(1);
+                             setWallets([
+                               { phone: '', provider: 'generic', ownerName: '' },
+                               { phone: '', provider: 'generic', ownerName: '' },
+                               { phone: '', provider: 'generic', ownerName: '' },
+                               { phone: '', provider: 'generic', ownerName: '' },
+                             ]);
+                           }
                            setErrorMsg(null);
                          }}
                          className={`p-3 rounded-2xl border transition flex flex-col items-center justify-center gap-2 cursor-pointer text-center relative ${
