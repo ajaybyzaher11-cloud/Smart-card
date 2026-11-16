@@ -145,6 +145,31 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
     }
   };
 
+  const handleDownloadAdminApk = async () => {
+    try {
+      const res = await fetch('/downloads/SmartCard-Admin.apk', {
+        method: 'HEAD',
+        cache: 'no-store',
+      });
+      const contentType = (res.headers.get('content-type') || '').toLowerCase();
+      if (res.ok && contentType.includes('android.package-archive')) {
+        const a = document.createElement('a');
+        a.href = '/downloads/SmartCard-Admin.apk';
+        a.download = 'SmartCard-Admin.apk';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+    } catch {
+      // Fallback notice below
+    }
+    setAdminNotice({
+      type: 'info',
+      text: 'كود تطبيق الأدمن بلغة Dart/Flutter جاهز بالكامل داخل مجلد smart_card_admin_dart/. لبناء ملف SmartCard-Admin.apk القابل للتثبيت نفّذ ./build_apk.sh من مستودع GitHub في بيئة تطوير بذاكرة 8GB+ ليتم حفظه في public/downloads/SmartCard-Admin.apk.',
+    });
+  };
+
   const handleConfirmDelete = async () => {
     if (!codeToDelete) return;
     setIsDeleting(true);
@@ -407,6 +432,17 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
               <FileText className="w-3.5 h-3.5" />
               <span className="text-[11px] hidden sm:inline">تقرير التوثيق (PDF)</span>
             </a>
+
+            {/* Download Android Admin APK (Admin-Only) */}
+            <button
+              type="button"
+              onClick={handleDownloadAdminApk}
+              className="px-2.5 py-1.5 text-yellow-200 hover:text-black hover:bg-amber-400 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 rounded-xl transition text-xs font-black flex items-center gap-1.5 border border-amber-400/50 shadow-[0_0_12px_rgba(251,191,36,0.18)]"
+              title="تحميل تطبيق الأدمن للأندرويد (APK) المخصص للإدارة فقط"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span className="text-[11px]">تطبيق الأدمن (.apk)</span>
+            </button>
 
             <button
               onClick={() => setIsPasswordModalOpen(true)}

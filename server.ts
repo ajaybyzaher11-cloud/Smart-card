@@ -1035,6 +1035,21 @@ app.get('/q/:id', async (req, res, next) => {
   next();
 });
 
+// Explicit APK download handler with Android MIME type
+app.get('/downloads/SmartCard-Admin.apk', (req, res) => {
+  const apkPath = path.join(__dirname, 'public', 'downloads', 'SmartCard-Admin.apk');
+  if (!fs.existsSync(apkPath)) {
+    return res.status(404).json({
+      success: false,
+      error: 'ملف التثبيت SmartCard-Admin.apk غير مُجمع بعد. قم ببناء الملف عبر smart_card_admin_dart/build_apk.sh.',
+    });
+  }
+  res.set('Content-Type', 'application/vnd.android.package-archive');
+  res.set('Content-Disposition', 'attachment; filename="SmartCard-Admin.apk"');
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  return res.sendFile(apkPath);
+});
+
 // Start dev server with immediate port binding so startup health probes succeed right away
 async function startServer() {
   if (!isProd) {

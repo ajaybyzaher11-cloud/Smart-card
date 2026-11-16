@@ -10,3 +10,4 @@ coverage/
 *.mp4
 public/assets/
 data/sessions.json
+data/auth.json

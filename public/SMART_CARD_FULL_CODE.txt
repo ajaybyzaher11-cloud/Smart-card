@@ -1,7 +1,7 @@
 ################################################################################
 # SMART CARD PLATFORM - COMPLETE UNIFIED SOURCE CODE (SINGLE COPYABLE FILE)
-# Total Files: 34
-# Generated At: 2026-11-15T12:08:06.859Z
+# Total Files: 46
+# Generated At: 2026-11-16T22:18:08.861Z
 # Live URL: https://smart-card-inky.vercel.app
 ################################################################################
 #
@@ -10,13 +10,13 @@
 #   02. index.html (158 lines)
 #   03. vite.config.ts (27 lines)
 #   04. tsconfig.json (29 lines)
-#   05. vercel.json (33 lines)
+#   05. vercel.json (50 lines)
 #   06. metadata.json (11 lines)
 #   07. .env.example (10 lines)
 #   08. firestore.rules (26 lines)
 #   09. firebase-blueprint.json (87 lines)
 #   10. firebase-applet-config.json (12 lines)
-#   11. server.ts (1084 lines)
+#   11. server.ts (1099 lines)
 #   12. api/redirect.ts (293 lines)
 #   13. src/main.tsx (6 lines)
 #   14. src/App.tsx (253 lines)
@@ -36,10 +36,22 @@
 #   28. src/components/DeveloperSettingsModal.tsx (252 lines)
 #   29. src/views/HomeLandingView.tsx (404 lines)
 #   30. src/views/AdminLoginView.tsx (131 lines)
-#   31. src/views/AdminDashboardView.tsx (1379 lines)
+#   31. src/views/AdminDashboardView.tsx (1415 lines)
 #   32. src/views/CustomerActivationView.tsx (717 lines)
 #   33. src/views/SmartRedirectView.tsx (678 lines)
 #   34. src/views/CardExpiredView.tsx (140 lines)
+#   35. smart_card_admin_dart/pubspec.yaml (32 lines)
+#   36. smart_card_admin_dart/lib/main.dart (74 lines)
+#   37. smart_card_admin_dart/lib/models/qr_models.dart (383 lines)
+#   38. smart_card_admin_dart/lib/utils/deep_links.dart (298 lines)
+#   39. smart_card_admin_dart/lib/services/auth_service.dart (146 lines)
+#   40. smart_card_admin_dart/lib/services/firestore_service.dart (432 lines)
+#   41. smart_card_admin_dart/lib/widgets/three_d_widgets.dart (361 lines)
+#   42. smart_card_admin_dart/lib/screens/admin_login_screen.dart (213 lines)
+#   43. smart_card_admin_dart/lib/screens/admin_dashboard_screen.dart (562 lines)
+#   44. smart_card_admin_dart/lib/screens/qr_scanner_screen.dart (247 lines)
+#   45. smart_card_admin_dart/lib/screens/edit_qr_sheet.dart (917 lines)
+#   46. smart_card_admin_dart/lib/screens/settings_screen.dart (275 lines)
 #
 ################################################################################
 
@@ -328,6 +340,23 @@ FILE: vercel.json
         {
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/downloads/(.*)\\.apk",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/vnd.android.package-archive"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "attachment; filename=\"SmartCard-Admin.apk\""
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, max-age=0"
         }
       ]
     },
@@ -1553,6 +1582,21 @@ app.get('/q/:id', async (req, res, next) => {
   }
 
   next();
+});
+
+// Explicit APK download handler with Android MIME type
+app.get('/downloads/SmartCard-Admin.apk', (req, res) => {
+  const apkPath = path.join(__dirname, 'public', 'downloads', 'SmartCard-Admin.apk');
+  if (!fs.existsSync(apkPath)) {
+    return res.status(404).json({
+      success: false,
+      error: 'ملف التثبيت SmartCard-Admin.apk غير مُجمع بعد. قم ببناء الملف عبر smart_card_admin_dart/build_apk.sh.',
+    });
+  }
+  res.set('Content-Type', 'application/vnd.android.package-archive');
+  res.set('Content-Disposition', 'attachment; filename="SmartCard-Admin.apk"');
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  return res.sendFile(apkPath);
 });
 
 // Start dev server with immediate port binding so startup health probes succeed right away
@@ -9383,6 +9427,31 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
     }
   };
 
+  const handleDownloadAdminApk = async () => {
+    try {
+      const res = await fetch('/downloads/SmartCard-Admin.apk', {
+        method: 'HEAD',
+        cache: 'no-store',
+      });
+      const contentType = (res.headers.get('content-type') || '').toLowerCase();
+      if (res.ok && contentType.includes('android.package-archive')) {
+        const a = document.createElement('a');
+        a.href = '/downloads/SmartCard-Admin.apk';
+        a.download = 'SmartCard-Admin.apk';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+    } catch {
+      // Fallback notice below
+    }
+    setAdminNotice({
+      type: 'info',
+      text: 'كود تطبيق الأدمن بلغة Dart/Flutter جاهز بالكامل داخل مجلد smart_card_admin_dart/. لبناء ملف SmartCard-Admin.apk القابل للتثبيت نفّذ ./build_apk.sh من مستودع GitHub في بيئة تطوير بذاكرة 8GB+ ليتم حفظه في public/downloads/SmartCard-Admin.apk.',
+    });
+  };
+
   const handleConfirmDelete = async () => {
     if (!codeToDelete) return;
     setIsDeleting(true);
@@ -9645,6 +9714,17 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
               <FileText className="w-3.5 h-3.5" />
               <span className="text-[11px] hidden sm:inline">تقرير التوثيق (PDF)</span>
             </a>
+
+            {/* Download Android Admin APK (Admin-Only) */}
+            <button
+              type="button"
+              onClick={handleDownloadAdminApk}
+              className="px-2.5 py-1.5 text-yellow-200 hover:text-black hover:bg-amber-400 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 rounded-xl transition text-xs font-black flex items-center gap-1.5 border border-amber-400/50 shadow-[0_0_12px_rgba(251,191,36,0.18)]"
+              title="تحميل تطبيق الأدمن للأندرويد (APK) المخصص للإدارة فقط"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span className="text-[11px]">تطبيق الأدمن (.apk)</span>
+            </button>
 
             <button
               onClick={() => setIsPasswordModalOpen(true)}
@@ -12157,4 +12237,3980 @@ export function CardExpiredView({ record, settings }: CardExpiredViewProps) {
       </footer>
     </div>
   );
+}
+
+================================================================================
+FILE: smart_card_admin_dart/pubspec.yaml
+================================================================================
+name: smart_card_admin
+description: تطبيق إدارة Smart Card المخصص للأدمن فقط (لوحة تحكم كاملة بصيغة APK).
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.2
+  crypto: ^3.0.6
+  shared_preferences: ^2.3.3
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^6.0.2
+  permission_handler: ^11.3.1
+  url_launcher: ^6.3.1
+  share_plus: ^10.1.2
+  path_provider: ^2.1.5
+  image_picker: ^1.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.png
+
+================================================================================
+FILE: smart_card_admin_dart/lib/main.dart
+================================================================================
+import 'package:flutter/material.dart';
+import 'screens/admin_dashboard_screen.dart';
+import 'screens/admin_login_screen.dart';
+import 'services/auth_service.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const SmartCardAdminApp());
+}
+
+class SmartCardAdminApp extends StatefulWidget {
+  const SmartCardAdminApp({super.key});
+
+  @override
+  State<SmartCardAdminApp> createState() => _SmartCardAdminAppState();
+}
+
+class _SmartCardAdminAppState extends State<SmartCardAdminApp> {
+  bool _checkingAuth = true;
+  bool _authenticated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSession();
+  }
+
+  Future<void> _checkSession() async {
+    final authed = await AuthService.isAdminAuthenticated();
+    if (!mounted) return;
+    setState(() {
+      _authenticated = authed;
+      _checkingAuth = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Smart Card Admin',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF09090B),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFF59E0B),
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+      ),
+      builder: (context, child) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+      home: _checkingAuth
+          ? const Scaffold(
+              backgroundColor: Color(0xFF09090B),
+              body: Center(
+                child: CircularProgressIndicator(color: Color(0xFFFBBF24)),
+              ),
+            )
+          : _authenticated
+              ? AdminDashboardScreen(
+                  onLogout: () => setState(() => _authenticated = false),
+                )
+              : AdminLoginScreen(
+                  onLoginSuccess: () => setState(() => _authenticated = true),
+                ),
+    );
+  }
+}
+
+================================================================================
+FILE: smart_card_admin_dart/lib/models/qr_models.dart
+================================================================================
+import 'package:flutter/material.dart';
+
+enum AppType {
+  whatsapp,
+  instapay,
+  wallet,
+  bank,
+  instagram,
+  facebook,
+  tiktok,
+  telegram,
+  snapchat,
+  phone,
+  website,
+  other;
+
+  static AppType fromString(String? value) {
+    final v = (value ?? '').trim().toLowerCase();
+    for (final t in AppType.values) {
+      if (t.name == v) return t;
+    }
+    return AppType.website;
+  }
+
+  String get labelAr {
+    switch (this) {
+      case AppType.whatsapp:
+        return 'واتساب';
+      case AppType.instapay:
+        return 'إنستاباي';
+      case AppType.wallet:
+        return 'محفظة كاش';
+      case AppType.bank:
+        return 'حساب بنكي';
+      case AppType.instagram:
+        return 'إنستغرام';
+      case AppType.facebook:
+        return 'فيسبوك';
+      case AppType.tiktok:
+        return 'تيك توك';
+      case AppType.telegram:
+        return 'تيليجرام';
+      case AppType.snapchat:
+        return 'سناب شات';
+      case AppType.phone:
+        return 'اتصال هاتفي';
+      case AppType.website:
+        return 'موقع ويب';
+      case AppType.other:
+        return 'رابط مخصص';
+    }
+  }
+
+  String get placeholder {
+    switch (this) {
+      case AppType.whatsapp:
+        return '01012345678 أو wa.me/2010...';
+      case AppType.instapay:
+        return 'https://ipn.eg/S/... (رابط الدفع السريع)';
+      case AppType.wallet:
+        return '010... أو رابط الدفع السريع https://...';
+      case AppType.bank:
+        return 'رقم الحساب البنكي';
+      case AppType.instagram:
+        return '@username أو رابط instagram.com/...';
+      case AppType.facebook:
+        return 'https://facebook.com/yourpage';
+      case AppType.tiktok:
+        return '@username أو رابط tiktok.com/@...';
+      case AppType.telegram:
+        return '@username أو t.me/...';
+      case AppType.snapchat:
+        return '@username أو snapchat.com/add/...';
+      case AppType.phone:
+        return '01012345678 أو +2010...';
+      case AppType.website:
+      case AppType.other:
+        return 'https://yourwebsite.com';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case AppType.whatsapp:
+        return Icons.chat_rounded;
+      case AppType.instapay:
+        return Icons.bolt_rounded;
+      case AppType.wallet:
+        return Icons.account_balance_wallet_rounded;
+      case AppType.bank:
+        return Icons.account_balance_rounded;
+      case AppType.instagram:
+        return Icons.camera_alt_rounded;
+      case AppType.facebook:
+        return Icons.facebook_rounded;
+      case AppType.tiktok:
+        return Icons.music_note_rounded;
+      case AppType.telegram:
+        return Icons.send_rounded;
+      case AppType.snapchat:
+        return Icons.notifications_active_rounded;
+      case AppType.phone:
+        return Icons.phone_in_talk_rounded;
+      case AppType.website:
+        return Icons.language_rounded;
+      case AppType.other:
+        return Icons.link_rounded;
+    }
+  }
+
+  Color get brandColor {
+    switch (this) {
+      case AppType.whatsapp:
+        return const Color(0xFF25D366);
+      case AppType.instapay:
+        return const Color(0xFFA855F7);
+      case AppType.wallet:
+        return const Color(0xFFF59E0B);
+      case AppType.bank:
+        return const Color(0xFFFBBF24);
+      case AppType.instagram:
+        return const Color(0xFFE1306C);
+      case AppType.facebook:
+        return const Color(0xFF1877F2);
+      case AppType.tiktok:
+        return const Color(0xFF25F4EE);
+      case AppType.telegram:
+        return const Color(0xFF229ED9);
+      case AppType.snapchat:
+        return const Color(0xFFFFFC00);
+      case AppType.phone:
+        return const Color(0xFF10B981);
+      case AppType.website:
+      case AppType.other:
+        return const Color(0xFF38BDF8);
+    }
+  }
+}
+
+enum WalletProvider {
+  vodafone,
+  orange,
+  etisalat,
+  we,
+  generic;
+
+  static WalletProvider fromString(String? value) {
+    final v = (value ?? '').trim().toLowerCase();
+    for (final p in WalletProvider.values) {
+      if (p.name == v) return p;
+    }
+    return WalletProvider.generic;
+  }
+
+  String get nameAr {
+    switch (this) {
+      case WalletProvider.vodafone:
+        return 'ڨودافون كاش';
+      case WalletProvider.orange:
+        return 'أورانج كاش';
+      case WalletProvider.etisalat:
+        return 'اتصالات كاش';
+      case WalletProvider.we:
+        return 'وي باي (WE Pay)';
+      case WalletProvider.generic:
+        return 'محفظة كاش';
+    }
+  }
+
+  String get nameEn {
+    switch (this) {
+      case WalletProvider.vodafone:
+        return 'Vodafone Cash';
+      case WalletProvider.orange:
+        return 'Orange Cash';
+      case WalletProvider.etisalat:
+        return 'Etisalat Cash';
+      case WalletProvider.we:
+        return 'WE Pay';
+      case WalletProvider.generic:
+        return 'Cash Wallet';
+    }
+  }
+
+  String get prefix {
+    switch (this) {
+      case WalletProvider.vodafone:
+        return '010';
+      case WalletProvider.orange:
+        return '012';
+      case WalletProvider.etisalat:
+        return '011';
+      case WalletProvider.we:
+        return '015';
+      case WalletProvider.generic:
+        return '01X';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case WalletProvider.vodafone:
+        return const Color(0xFFE60000);
+      case WalletProvider.orange:
+        return const Color(0xFFFF7900);
+      case WalletProvider.etisalat:
+        return const Color(0xFF719E19);
+      case WalletProvider.we:
+        return const Color(0xFF7E22CE);
+      case WalletProvider.generic:
+        return const Color(0xFFF59E0B);
+    }
+  }
+}
+
+class WalletItem {
+  final String phone;
+  final WalletProvider provider;
+  final String ownerName;
+
+  const WalletItem({
+    required this.phone,
+    required this.provider,
+    required this.ownerName,
+  });
+
+  factory WalletItem.fromJson(Map<String, dynamic> json) {
+    return WalletItem(
+      phone: (json['phone'] ?? '').toString(),
+      provider: WalletProvider.fromString(json['provider']?.toString()),
+      ownerName: (json['ownerName'] ?? '').toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'phone': phone.trim(),
+        'provider': provider.name,
+        'ownerName': ownerName.trim(),
+      };
+}
+
+class BankDetails {
+  final String bankName;
+  final String accountNumber;
+  final String accountName;
+  final String iban;
+  final String notes;
+
+  const BankDetails({
+    required this.bankName,
+    required this.accountNumber,
+    this.accountName = '',
+    this.iban = '',
+    this.notes = '',
+  });
+}
+
+class QrCodeRecord {
+  final String id;
+  final bool isActive;
+  final String? targetUrl;
+  final AppType appType;
+  final String label;
+  final String createdAt;
+  final String updatedAt;
+  final String? lastScannedAt;
+  final int totalScans;
+  final String? expiresAt;
+  final int subscriptionMonths;
+  final List<WalletItem> wallets;
+
+  const QrCodeRecord({
+    required this.id,
+    required this.isActive,
+    this.targetUrl,
+    this.appType = AppType.website,
+    this.label = '',
+    required this.createdAt,
+    required this.updatedAt,
+    this.lastScannedAt,
+    this.totalScans = 0,
+    this.expiresAt,
+    this.subscriptionMonths = 1,
+    this.wallets = const [],
+  });
+
+  bool get isExpired {
+    if (expiresAt == null || expiresAt!.trim().isEmpty) return false;
+    final parsed = DateTime.tryParse(expiresAt!);
+    if (parsed == null) return false;
+    return parsed.isBefore(DateTime.now());
+  }
+
+  factory QrCodeRecord.fromJson(Map<String, dynamic> json) {
+    final rawWallets = json['wallets'];
+    final parsedWallets = <WalletItem>[];
+    if (rawWallets is List) {
+      for (final item in rawWallets) {
+        if (item is Map<String, dynamic>) {
+          parsedWallets.add(WalletItem.fromJson(item));
+        } else if (item is Map) {
+          parsedWallets.add(WalletItem.fromJson(Map<String, dynamic>.from(item)));
+        }
+      }
+    }
+
+    return QrCodeRecord(
+      id: (json['id'] ?? '').toString(),
+      isActive: json['is_active'] == true,
+      targetUrl: json['target_url']?.toString(),
+      appType: AppType.fromString(json['app_type']?.toString()),
+      label: (json['label'] ?? '').toString(),
+      createdAt: (json['created_at'] ?? DateTime.now().toIso8601String()).toString(),
+      updatedAt: (json['updated_at'] ?? json['created_at'] ?? DateTime.now().toIso8601String()).toString(),
+      lastScannedAt: json['last_scanned_at']?.toString(),
+      totalScans: (json['total_scans'] is num)
+          ? (json['total_scans'] as num).toInt()
+          : int.tryParse(json['total_scans']?.toString() ?? '0') ?? 0,
+      expiresAt: json['expires_at']?.toString(),
+      subscriptionMonths: (json['subscription_months'] is num)
+          ? (json['subscription_months'] as num).toInt()
+          : int.tryParse(json['subscription_months']?.toString() ?? '1') ?? 1,
+      wallets: parsedWallets,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{
+      'id': id,
+      'is_active': isActive,
+      'target_url': targetUrl,
+      'app_type': appType.name,
+      'label': label,
+      'created_at': createdAt,
+      'updated_at': updatedAt,
+      'total_scans': totalScans,
+      'expires_at': expiresAt,
+      'subscription_months': subscriptionMonths,
+    };
+    if (lastScannedAt != null && lastScannedAt!.isNotEmpty) {
+      map['last_scanned_at'] = lastScannedAt;
+    }
+    if (appType == AppType.wallet && wallets.isNotEmpty) {
+      map['wallets'] = wallets.map((w) => w.toJson()).toList();
+    }
+    return map;
+  }
+}
+
+class PlatformSettings {
+  final String developerWhatsapp;
+  final String developerContactUrl;
+  final String developerTitle;
+  final String supportMessage;
+  final String publicDomainUrl;
+
+  const PlatformSettings({
+    this.developerWhatsapp = '01550523365',
+    this.developerContactUrl = 'https://wa.me/201550523365',
+    this.developerTitle = 'تواصل مع المطور',
+    this.supportMessage = 'مرحباً، أود التواصل بخصوص البطاقة الذكية',
+    this.publicDomainUrl = 'https://smart-card-inky.vercel.app',
+  });
+
+  factory PlatformSettings.fromJson(Map<String, dynamic> json) {
+    return PlatformSettings(
+      developerWhatsapp: (json['developer_whatsapp'] ?? '01550523365').toString(),
+      developerContactUrl: (json['developer_contact_url'] ?? 'https://wa.me/201550523365').toString(),
+      developerTitle: (json['developer_title'] ?? 'تواصل مع المطور').toString(),
+      supportMessage: (json['support_message'] ?? 'مرحباً، أود التواصل بخصوص البطاقة الذكية').toString(),
+      publicDomainUrl: (json['public_domain_url'] ?? 'https://smart-card-inky.vercel.app').toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'developer_whatsapp': developerWhatsapp,
+        'developer_contact_url': developerContactUrl,
+        'developer_title': developerTitle,
+        'support_message': supportMessage,
+        'public_domain_url': publicDomainUrl,
+      };
+}
+
+================================================================================
+FILE: smart_card_admin_dart/lib/utils/deep_links.dart
+================================================================================
+import '../models/qr_models.dart';
+
+String normalizeArabicNumerals(String input) {
+  const arabic = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  var out = input;
+  for (var i = 0; i < arabic.length; i++) {
+    out = out.replaceAll(arabic[i], i.toString());
+  }
+  return out;
+}
+
+bool isSafeUrlScheme(String url) {
+  if (url.trim().isEmpty) return false;
+  final lower = url.trim().toLowerCase();
+  return !RegExp(r'^(?:javascript|data|vbscript|file|blob|about):').hasMatch(lower);
+}
+
+bool isQuickPayUrl(String input) {
+  final s = normalizeArabicNumerals(input).trim();
+  if (s.isEmpty) return false;
+  final lower = s.toLowerCase();
+  if (lower.startsWith('http://') || lower.startsWith('https://')) return true;
+  if (lower.startsWith('intent://') || lower.startsWith('android-app://') || lower.startsWith('android-app//')) {
+    return true;
+  }
+  if (RegExp(r'^(vfcash|orangecash|etisalatcash|wepay|ipn)://', caseSensitive: false).hasMatch(lower)) {
+    return true;
+  }
+  final hasDomain = lower.contains('.eg') ||
+      lower.contains('.com') ||
+      lower.contains('.net') ||
+      lower.contains('.me') ||
+      lower.contains('.io') ||
+      lower.startsWith('www.') ||
+      lower.contains('/');
+  final digitsOnly = s.replaceAll(RegExp(r'[^\d]'), '');
+  return hasDomain && (s.contains('/') || lower.startsWith('www.') || digitsOnly.length < 8);
+}
+
+WalletProvider detectWalletProviderFromUrl(String url) {
+  final lower = url.trim().toLowerCase();
+  if (lower.isEmpty) return WalletProvider.generic;
+  if (lower.contains('vodafone') || lower.contains('voda') || lower.contains('vf.eg') || lower.contains('vfcash')) {
+    return WalletProvider.vodafone;
+  }
+  if (lower.contains('orange')) {
+    return WalletProvider.orange;
+  }
+  if (lower.contains('etisalat') || lower.contains('e&')) {
+    return WalletProvider.etisalat;
+  }
+  if (lower.contains('te.eg') || lower.contains('telecom') || RegExp(r'(?:^|[^a-z])we(?:pay)?(?:[^a-z]|$)').hasMatch(lower)) {
+    return WalletProvider.we;
+  }
+  return WalletProvider.generic;
+}
+
+class DetectedWalletInfo {
+  final WalletProvider provider;
+  final String cleanPhone;
+  final String formattedPhone;
+
+  const DetectedWalletInfo({
+    required this.provider,
+    required this.cleanPhone,
+    required this.formattedPhone,
+  });
+}
+
+DetectedWalletInfo detectWalletInfo(String rawPhone) {
+  final normalized = normalizeArabicNumerals(rawPhone);
+  var cleanPhone = normalized.replaceAll(RegExp(r'[^\d]'), '');
+
+  if (cleanPhone.startsWith('0020') && cleanPhone.length == 14) {
+    cleanPhone = cleanPhone.substring(4);
+  } else if (cleanPhone.startsWith('20') && cleanPhone.length == 12) {
+    cleanPhone = cleanPhone.substring(2);
+  }
+  if (cleanPhone.length == 10 && cleanPhone.startsWith('1')) {
+    cleanPhone = '0$cleanPhone';
+  }
+
+  var formattedPhone = cleanPhone;
+  if (cleanPhone.length == 11) {
+    formattedPhone = '${cleanPhone.substring(0, 3)} ${cleanPhone.substring(3, 7)} ${cleanPhone.substring(7)}';
+  }
+
+  if (cleanPhone.startsWith('010')) {
+    return DetectedWalletInfo(provider: WalletProvider.vodafone, cleanPhone: cleanPhone, formattedPhone: formattedPhone);
+  }
+  if (cleanPhone.startsWith('012')) {
+    return DetectedWalletInfo(provider: WalletProvider.orange, cleanPhone: cleanPhone, formattedPhone: formattedPhone);
+  }
+  if (cleanPhone.startsWith('011')) {
+    return DetectedWalletInfo(provider: WalletProvider.etisalat, cleanPhone: cleanPhone, formattedPhone: formattedPhone);
+  }
+  if (cleanPhone.startsWith('015')) {
+    return DetectedWalletInfo(provider: WalletProvider.we, cleanPhone: cleanPhone, formattedPhone: formattedPhone);
+  }
+  return DetectedWalletInfo(
+    provider: WalletProvider.generic,
+    cleanPhone: cleanPhone.isNotEmpty ? cleanPhone : rawPhone.trim(),
+    formattedPhone: cleanPhone.isNotEmpty ? cleanPhone : rawPhone.trim(),
+  );
+}
+
+WalletProvider resolveWalletProvider(String input, [WalletProvider? explicit]) {
+  final trimmed = input.trim();
+  if (trimmed.isEmpty) return WalletProvider.generic;
+  if (isQuickPayUrl(trimmed)) {
+    final urlProv = detectWalletProviderFromUrl(trimmed);
+    if (urlProv != WalletProvider.generic) return urlProv;
+    if (explicit != null && explicit != WalletProvider.generic) return explicit;
+    return WalletProvider.vodafone;
+  }
+  final phoneInfo = detectWalletInfo(trimmed);
+  if (phoneInfo.provider != WalletProvider.generic) return phoneInfo.provider;
+  if (explicit != null && explicit != WalletProvider.generic) return explicit;
+  return WalletProvider.generic;
+}
+
+String sanitizeQuickPayUrl(String raw, [WalletProvider? provider]) {
+  var s = raw.trim();
+  if (s.isEmpty) return '';
+
+  s = s.replaceFirst(RegExp(r'^https?:\/\/+android-app:?\/\/', caseSensitive: false), 'android-app://');
+  s = s.replaceFirst(RegExp(r'^android-app\/\/', caseSensitive: false), 'android-app://');
+  s = s.replaceFirst(RegExp(r'^https?:\/\/+(https?:\/\/)', caseSensitive: false), r'$1');
+
+  final embeddedMatch = RegExp(r'https?:\/\/[^\s"<>]+', caseSensitive: false).firstMatch(s);
+  if (embeddedMatch != null) {
+    return embeddedMatch.group(0) ?? s;
+  }
+
+  if (s.startsWith('android-app://')) {
+    final pkg = s.replaceFirst('android-app://', '').split('/').first.trim().toLowerCase();
+    if (pkg.contains('vf') || pkg.contains('vodafone') || provider == WalletProvider.vodafone) {
+      return 'intent://#Intent;package=com.vf.eg;scheme=anafodafone;S.browser_fallback_url=https%3A%2F%2Fweb.vodafone.com.eg%2Far%2Fvodafone-cash;end';
+    }
+    if (pkg.contains('orange') || provider == WalletProvider.orange) {
+      return 'intent://#Intent;package=com.orange.mail.egypt;scheme=orangecash;S.browser_fallback_url=https%3A%2F%2Fwww.orange.eg%2Far%2Forange-cash;end';
+    }
+    if (pkg.contains('etisalat') || provider == WalletProvider.etisalat) {
+      return 'intent://#Intent;package=com.etisalat;scheme=etisalatcash;S.browser_fallback_url=https%3A%2F%2Fwww.etisalat.eg;end';
+    }
+    if (pkg.contains('we') || pkg.contains('telecom') || provider == WalletProvider.we) {
+      return 'intent://#Intent;package=eg.telecom.we;scheme=wepay;S.browser_fallback_url=https%3A%2F%2Fte.eg;end';
+    }
+    if (pkg.isNotEmpty) {
+      return 'https://play.google.com/store/apps/details?id=$pkg';
+    }
+    return 'https://web.vodafone.com.eg/ar/vodafone-cash';
+  }
+
+  if (s.startsWith('intent://')) return s;
+  if (!s.startsWith('http://') && !s.startsWith('https://')) {
+    return 'https://$s';
+  }
+  return s;
+}
+
+String encodeBankDetails(BankDetails details) {
+  final params = <String, String>{};
+  if (details.bankName.isNotEmpty) params['b'] = details.bankName;
+  if (details.accountNumber.isNotEmpty) params['acc'] = details.accountNumber;
+  if (details.accountName.isNotEmpty) params['name'] = details.accountName;
+  if (details.iban.isNotEmpty) params['iban'] = details.iban;
+  if (details.notes.isNotEmpty) params['notes'] = details.notes;
+  return Uri(scheme: 'bank', host: 'account', queryParameters: params).toString();
+}
+
+BankDetails? decodeBankDetails(String? uriStr) {
+  if (uriStr == null || !uriStr.startsWith('bank://')) return null;
+  try {
+    final uri = Uri.parse(uriStr);
+    return BankDetails(
+      bankName: uri.queryParameters['b'] ?? 'البنك الأهلي المصري (NBE)',
+      accountNumber: uri.queryParameters['acc'] ?? '',
+      accountName: uri.queryParameters['name'] ?? '',
+      iban: uri.queryParameters['iban'] ?? '',
+      notes: uri.queryParameters['notes'] ?? '',
+    );
+  } catch (_) {
+    return null;
+  }
+}
+
+String _stripBidi(String input) {
+  return input
+      .replaceAll(RegExp(r'[\u200B-\u200D\uFEFF\u200E\u200F\u202A-\u202E]'), '')
+      .trim()
+      .replaceAll(RegExp(r'^["\x27]|["\x27]$'), '')
+      .trim();
+}
+
+String formatTikTokTargetUrl(String input) {
+  final clean = _stripBidi(normalizeArabicNumerals(input));
+  if (clean.isEmpty) return '';
+  if (RegExp(r'^(?:https?:\/\/)?(?:vm|vt)\.tiktok\.com\/', caseSensitive: false).hasMatch(clean)) {
+    return clean.startsWith('http') ? clean : 'https://$clean';
+  }
+  if (clean.contains('tiktok.com')) {
+    final match = RegExp(r'tiktok\.com\/(?:@)?([a-zA-Z0-9_.-]+)', caseSensitive: false).firstMatch(clean);
+    if (match != null && match.group(1) != null) {
+      final seg = match.group(1)!.replaceFirst('@', '').toLowerCase();
+      return 'https://www.tiktok.com/@$seg';
+    }
+    return clean.startsWith('http') ? clean : 'https://$clean';
+  }
+  final user = clean.replaceFirst(RegExp(r'^[/@]+'), '').split('?').first.split('/').first.replaceAll(RegExp(r'[^\w.-]'), '').toLowerCase();
+  return user.isNotEmpty ? 'https://www.tiktok.com/@$user' : clean;
+}
+
+String formatInstagramTargetUrl(String input) {
+  final clean = _stripBidi(normalizeArabicNumerals(input));
+  if (clean.isEmpty) return '';
+  if (clean.contains('instagram.com/')) {
+    final match = RegExp(r'instagram\.com\/([a-zA-Z0-9._]+)', caseSensitive: false).firstMatch(clean);
+    if (match != null && match.group(1) != null) {
+      return 'https://www.instagram.com/${match.group(1)!.toLowerCase()}/';
+    }
+    return clean.startsWith('http') ? clean : 'https://$clean';
+  }
+  final user = clean.replaceFirst(RegExp(r'^[/@]+'), '').split('?').first.split('/').first.replaceAll(RegExp(r'[^\w.]'), '').toLowerCase();
+  return user.isNotEmpty ? 'https://www.instagram.com/$user/' : clean;
+}
+
+String formatTelegramTargetUrl(String input) {
+  final clean = _stripBidi(input);
+  if (clean.isEmpty) return '';
+  if (clean.contains('t.me/') || clean.contains('telegram.me/')) {
+    final match = RegExp(r'(?:t\.me|telegram\.me)\/([a-zA-Z0-9_]+)', caseSensitive: false).firstMatch(clean);
+    if (match != null && match.group(1) != null) {
+      return 'https://t.me/${match.group(1)!.toLowerCase()}';
+    }
+    return clean.startsWith('http') ? clean : 'https://$clean';
+  }
+  final user = clean.replaceFirst(RegExp(r'^[/@]+'), '').split('?').first.split('/').first.replaceAll(RegExp(r'[^\w]'), '').toLowerCase();
+  return user.isNotEmpty ? 'https://t.me/$user' : clean;
+}
+
+String formatSnapchatTargetUrl(String input) {
+  final clean = _stripBidi(input);
+  if (clean.isEmpty) return '';
+  if (clean.contains('snapchat.com/add/')) {
+    final match = RegExp(r'snapchat\.com\/add\/([a-zA-Z0-9_.-]+)', caseSensitive: false).firstMatch(clean);
+    if (match != null && match.group(1) != null) {
+      return 'https://www.snapchat.com/add/${match.group(1)!.toLowerCase()}';
+    }
+    return clean.startsWith('http') ? clean : 'https://$clean';
+  }
+  final user = clean.replaceFirst(RegExp(r'^[/@]+'), '').split('?').first.split('/').first.replaceAll(RegExp(r'[^\w.-]'), '').toLowerCase();
+  return user.isNotEmpty ? 'https://www.snapchat.com/add/$user' : clean;
+}
+
+String formatWhatsappTargetUrl(String input) {
+  final clean = _stripBidi(normalizeArabicNumerals(input));
+  if (clean.isEmpty) return '';
+  if (clean.startsWith('http://') || clean.startsWith('https://')) return clean;
+  if (clean.toLowerCase().startsWith('wa.me/')) return 'https://$clean';
+  var digits = clean.replaceAll(RegExp(r'[^\d]'), '');
+  if (digits.startsWith('00')) digits = digits.substring(2);
+  if (digits.startsWith('01') && digits.length == 11) digits = '2$digits';
+  if (digits.isNotEmpty) return 'https://wa.me/$digits';
+  return clean;
+}
+
+String formatPhoneTargetUrl(String input) {
+  final clean = _stripBidi(normalizeArabicNumerals(input));
+  if (clean.isEmpty) return '';
+  if (clean.startsWith('tel:')) return clean;
+  final num = clean.replaceAll(RegExp(r'[^\d+]'), '');
+  return num.isNotEmpty ? 'tel:$num' : clean;
+}
+
+String? extractQrIdFromUrl(String rawText) {
+  final trimmed = rawText.trim();
+  if (trimmed.isEmpty) return null;
+
+  final qMatch = RegExp(r'/q/([a-zA-Z0-9_-]+)').firstMatch(trimmed);
+  if (qMatch != null) return qMatch.group(1);
+
+  try {
+    final uri = Uri.tryParse(trimmed);
+    if (uri != null) {
+      for (final key in ['activate', 'view', 'scan', 'expired']) {
+        final v = uri.queryParameters[key];
+        if (v != null && v.isNotEmpty) return v;
+      }
+    }
+  } catch (_) {}
+
+  if (RegExp(r'^[a-zA-Z0-9_-]{5,24}$').hasMatch(trimmed)) {
+    return trimmed;
+  }
+  return null;
+}
+
+================================================================================
+FILE: smart_card_admin_dart/lib/services/auth_service.dart
+================================================================================
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
+class AuthService {
+  static const String projectId = 'clean-plateau-dv4kj';
+  static const String databaseId = 'ai-studio-41f04a06-1999-41b9-b7be-e25b21dc1fd0';
+  static const String apiKey = 'AIzaSyAjyCP484AEQ52-9CDgp8TDkAw5woA1TFc';
+
+  // SHA-256 of default password "admin1234"
+  static const String defaultBaseHash = 'ac9689e2272427085e35b9d3e3e8bed88cb3434828b43b86fc0596cad4c6e270';
+
+  static const String _sessionKey = 'smart_card_admin_session_active';
+  static const String _sessionExpiryKey = 'smart_card_admin_session_expiry';
+  static const String _cachedHashKey = 'smart_card_admin_pwd_hash';
+
+  static String hashPassword(String plain) {
+    final bytes = utf8.encode(plain);
+    return sha256.convert(bytes).toString();
+  }
+
+  static Future<bool> isAdminAuthenticated() async {
+    final prefs = await SharedPreferences.getInstance();
+    final active = prefs.getBool(_sessionKey) ?? false;
+    if (!active) return false;
+    final expiry = prefs.getInt(_sessionExpiryKey) ?? 0;
+    if (expiry > 0 && DateTime.now().millisecondsSinceEpoch > expiry) {
+      await logoutAdmin();
+      return false;
+    }
+    return true;
+  }
+
+  static Future<String> getActivePasswordHash() async {
+    try {
+      final url = Uri.parse(
+        'https://firestore.googleapis.com/v1/projects/$projectId/databases/$databaseId/documents/settings/auth?key=$apiKey',
+      );
+      final res = await http.get(url).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final hashVal = data['fields']?['hash']?['stringValue']?.toString();
+        if (hashVal != null && hashVal.length == 64) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_cachedHashKey, hashVal);
+          return hashVal;
+        }
+      }
+    } catch (_) {}
+
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString(_cachedHashKey);
+    if (cached != null && cached.length == 64) {
+      return cached;
+    }
+    return defaultBaseHash;
+  }
+
+  static Future<bool> loginAdmin(String passwordAttempt) async {
+    final clean = passwordAttempt.trim();
+    if (clean.isEmpty) return false;
+
+    final attemptHash = hashPassword(clean);
+    final activeHash = await getActivePasswordHash();
+
+    if (attemptHash == activeHash) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_sessionKey, true);
+      await prefs.setInt(
+        _sessionExpiryKey,
+        DateTime.now().add(const Duration(days: 7)).millisecondsSinceEpoch,
+      );
+      await prefs.setString(_cachedHashKey, attemptHash);
+      return true;
+    }
+    return false;
+  }
+
+  static Future<({bool success, String message})> changeAdminPassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
+    final cur = currentPassword.trim();
+    final next = newPassword.trim();
+
+    if (cur.isEmpty) {
+      return (success: false, message: 'الرجاء إدخال كلمة المرور الحالية.');
+    }
+    if (next.length < 4) {
+      return (success: false, message: 'كلمة المرور الجديدة يجب ألا تقل عن 4 أحرف أو أرقام.');
+    }
+
+    final curHash = hashPassword(cur);
+    final activeHash = await getActivePasswordHash();
+    if (curHash != activeHash) {
+      return (success: false, message: 'كلمة المرور الحالية غير صحيحة.');
+    }
+
+    final newHash = hashPassword(next);
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    final payload = jsonEncode({
+      'fields': {
+        'hash': {'stringValue': newHash},
+        'updated_at': {'stringValue': nowIso},
+        'migrated': {'booleanValue': true},
+      }
+    });
+
+    try {
+      final authDocUrl = Uri.parse(
+        'https://firestore.googleapis.com/v1/projects/$projectId/databases/$databaseId/documents/settings/auth?key=$apiKey',
+      );
+      final res = await http
+          .patch(authDocUrl, headers: {'Content-Type': 'application/json'}, body: payload)
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        return (success: false, message: 'تعذر حفظ كلمة المرور في قاعدة البيانات (${res.statusCode}).');
+      }
+
+      // Mirror to platform_settings/auth
+      final mirrorUrl = Uri.parse(
+        'https://firestore.googleapis.com/v1/projects/$projectId/databases/$databaseId/documents/platform_settings/auth?key=$apiKey',
+      );
+      await http.patch(mirrorUrl, headers: {'Content-Type': 'application/json'}, body: payload).catchError((_) => res);
+    } catch (e) {
+      return (success: false, message: 'حدث خطأ أثناء الاتصال بالسيرفر: $e');
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_cachedHashKey, newHash);
+
+    return (
+      success: true,
+      message: 'تم تحديث كلمة مرور الأدمن في قاعدة البيانات السحابية بنجاح!',
+    );
+  }
+
+  static Future<void> logoutAdmin() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_sessionKey);
+    await prefs.remove(_sessionExpiryKey);
+  }
+}
+
+================================================================================
+FILE: smart_card_admin_dart/lib/services/firestore_service.dart
+================================================================================
+import 'dart:convert';
+import 'dart:math';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/qr_models.dart';
+import '../utils/deep_links.dart';
+import 'auth_service.dart';
+
+class FirestoreService {
+  static String get _baseDocUrl =>
+      'https://firestore.googleapis.com/v1/projects/${AuthService.projectId}/databases/${AuthService.databaseId}/documents';
+
+  static String get _apiKey => AuthService.apiKey;
+  static const String _cacheKey = 'smart_card_admin_qr_cache_v1';
+  static const String _settingsCacheKey = 'smart_card_admin_settings_v1';
+
+  // ---- Firestore REST Value Encoding / Decoding ----
+
+  static dynamic _parseFirestoreValue(dynamic val) {
+    if (val is! Map) return null;
+    if (val.containsKey('stringValue')) return val['stringValue'];
+    if (val.containsKey('booleanValue')) return val['booleanValue'];
+    if (val.containsKey('integerValue')) return int.tryParse(val['integerValue'].toString()) ?? 0;
+    if (val.containsKey('doubleValue')) return (val['doubleValue'] as num).toDouble();
+    if (val.containsKey('nullValue')) return null;
+    if (val.containsKey('timestampValue')) return val['timestampValue'];
+    if (val.containsKey('arrayValue')) {
+      final list = (val['arrayValue']?['values'] as List?) ?? [];
+      return list.map(_parseFirestoreValue).where((e) => e != null).toList();
+    }
+    if (val.containsKey('mapValue')) {
+      final fields = (val['mapValue']?['fields'] as Map?) ?? {};
+      final out = <String, dynamic>{};
+      fields.forEach((k, v) {
+        out[k.toString()] = _parseFirestoreValue(v);
+      });
+      return out;
+    }
+    return null;
+  }
+
+  static QrCodeRecord? _docToQrRecord(Map<String, dynamic>? doc) {
+    if (doc == null || doc['fields'] is! Map) return null;
+    final name = (doc['name'] ?? '').toString();
+    final docId = name.contains('/') ? name.split('/').last : '';
+    final fields = Map<String, dynamic>.from(doc['fields'] as Map);
+    final parsed = <String, dynamic>{};
+    fields.forEach((k, v) {
+      parsed[k] = _parseFirestoreValue(v);
+    });
+    final id = (parsed['id'] ?? docId).toString();
+    if (id.isEmpty || id == 'undefined' || id == 'null') return null;
+    parsed['id'] = id;
+    return QrCodeRecord.fromJson(parsed);
+  }
+
+  static Map<String, dynamic> _toFirestoreValue(dynamic value) {
+    if (value == null) return {'nullValue': null};
+    if (value is bool) return {'booleanValue': value};
+    if (value is int) return {'integerValue': value.toString()};
+    if (value is double) return {'doubleValue': value};
+    if (value is List) {
+      return {
+        'arrayValue': {
+          'values': value.map(_toFirestoreValue).toList(),
+        }
+      };
+    }
+    if (value is Map) {
+      final fields = <String, dynamic>{};
+      value.forEach((k, v) {
+        fields[k.toString()] = _toFirestoreValue(v);
+      });
+      return {
+        'mapValue': {'fields': fields}
+      };
+    }
+    return {'stringValue': value.toString()};
+  }
+
+  static Map<String, dynamic> _recordToFirestoreFields(QrCodeRecord record) {
+    final json = record.toJson();
+    final fields = <String, dynamic>{};
+    json.forEach((k, v) {
+      fields[k] = _toFirestoreValue(v);
+    });
+    return fields;
+  }
+
+  // ---- Local Cache ----
+
+  static Future<List<QrCodeRecord>> _loadCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_cacheKey);
+      if (raw == null || raw.isEmpty) return [];
+      final list = jsonDecode(raw) as List;
+      return list
+          .whereType<Map>()
+          .map((m) => QrCodeRecord.fromJson(Map<String, dynamic>.from(m)))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> _saveCache(List<QrCodeRecord> records) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _cacheKey,
+        jsonEncode(records.map((r) => r.toJson()).toList()),
+      );
+    } catch (_) {}
+  }
+
+  // ---- Core Operations ----
+
+  static Future<List<QrCodeRecord>> fetchAllQrCodes() async {
+    try {
+      final url = Uri.parse('$_baseDocUrl:runQuery?key=$_apiKey');
+      final res = await http
+          .post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'structuredQuery': {
+                'from': [
+                  {'collectionId': 'qr_codes'}
+                ],
+              }
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200) {
+        final rows = jsonDecode(res.body) as List;
+        final records = <QrCodeRecord>[];
+        for (final row in rows) {
+          if (row is Map && row['document'] is Map) {
+            final rec = _docToQrRecord(Map<String, dynamic>.from(row['document'] as Map));
+            if (rec != null) records.add(rec);
+          }
+        }
+        records.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        await _saveCache(records);
+        return records;
+      }
+    } catch (_) {}
+
+    return _loadCache();
+  }
+
+  static Future<QrCodeRecord?> getQrCode(String id) async {
+    final cleanId = id.trim();
+    if (cleanId.isEmpty) return null;
+
+    try {
+      final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(cleanId)}?key=$_apiKey');
+      final res = await http.get(url).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final doc = jsonDecode(res.body) as Map<String, dynamic>;
+        final rec = _docToQrRecord(doc);
+        if (rec != null) return rec;
+      }
+    } catch (_) {}
+
+    final cached = await _loadCache();
+    for (final item in cached) {
+      if (item.id == cleanId) return item;
+    }
+    return null;
+  }
+
+  static String _generateNanoid8() {
+    const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_-';
+    final rand = Random.secure();
+    return List.generate(8, (_) => alphabet[rand.nextInt(alphabet.length)]).join();
+  }
+
+  static Future<List<QrCodeRecord>> createBulkQrCodes(int count, int subscriptionMonths) async {
+    final safeCount = count.clamp(1, 50);
+    final now = DateTime.now().toUtc();
+    final nowIso = now.toIso8601String();
+    String? expiresAt;
+    if (subscriptionMonths > 0 && subscriptionMonths < 900) {
+      expiresAt = DateTime.utc(now.year, now.month + subscriptionMonths, now.day, now.hour, now.minute, now.second)
+          .toIso8601String();
+    }
+
+    final created = <QrCodeRecord>[];
+    for (var i = 0; i < safeCount; i++) {
+      final id = _generateNanoid8();
+      final record = QrCodeRecord(
+        id: id,
+        isActive: false,
+        targetUrl: null,
+        appType: AppType.website,
+        label: '',
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        totalScans: 0,
+        expiresAt: expiresAt,
+        subscriptionMonths: subscriptionMonths,
+      );
+
+      final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(id)}?key=$_apiKey');
+      final res = await http
+          .patch(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'fields': _recordToFirestoreFields(record)}),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        created.add(record);
+      }
+    }
+
+    return created;
+  }
+
+  /// Full canonical update: permanently overwrites the Firestore document without updateMask
+  /// so any old link, old wallets array, or old platform fields are erased cleanly.
+  static Future<QrCodeRecord?> updateQrCode({
+    required QrCodeRecord existing,
+    required AppType appType,
+    required String? targetUrl,
+    required String label,
+    List<WalletItem>? wallets,
+    String? expiresAt,
+    int? subscriptionMonths,
+    bool forceActive = true,
+  }) async {
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final cleanTarget = targetUrl?.trim();
+    final hasValidTarget = cleanTarget != null && cleanTarget.isNotEmpty;
+    final cleanWallets = (appType == AppType.wallet && wallets != null)
+        ? wallets.where((w) => w.phone.trim().isNotEmpty).map((w) {
+            final trimmedPhone = w.phone.trim();
+            final resolvedProv = resolveWalletProvider(trimmedPhone, w.provider);
+            final normalizedPhone = isQuickPayUrl(trimmedPhone)
+                ? sanitizeQuickPayUrl(trimmedPhone, resolvedProv)
+                : detectWalletInfo(trimmedPhone).cleanPhone;
+            return WalletItem(
+              phone: normalizedPhone,
+              provider: resolvedProv == WalletProvider.generic ? WalletProvider.vodafone : resolvedProv,
+              ownerName: w.ownerName.trim(),
+            );
+          }).toList()
+        : <WalletItem>[];
+
+    final effectiveActive = appType == AppType.wallet
+        ? cleanWallets.isNotEmpty && forceActive
+        : (hasValidTarget && forceActive);
+
+    final effectiveTarget = appType == AppType.wallet
+        ? (cleanWallets.isNotEmpty ? cleanWallets.first.phone : null)
+        : (hasValidTarget ? cleanTarget : null);
+
+    final updated = QrCodeRecord(
+      id: existing.id,
+      isActive: effectiveActive,
+      targetUrl: effectiveTarget,
+      appType: appType,
+      label: label.trim(),
+      createdAt: existing.createdAt,
+      updatedAt: nowIso,
+      lastScannedAt: existing.lastScannedAt,
+      totalScans: existing.totalScans,
+      expiresAt: expiresAt ?? existing.expiresAt,
+      subscriptionMonths: subscriptionMonths ?? existing.subscriptionMonths,
+      wallets: appType == AppType.wallet ? cleanWallets : const [],
+    );
+
+    final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(existing.id)}?key=$_apiKey');
+    final res = await http
+        .patch(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'fields': _recordToFirestoreFields(updated)}),
+        )
+        .timeout(const Duration(seconds: 8));
+
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return updated;
+    }
+    return null;
+  }
+
+  /// Permanently purges a deleted link/wallet target from Firestore immediately
+  static Future<QrCodeRecord?> purgeQrTarget({
+    required QrCodeRecord existing,
+    required AppType appType,
+    List<WalletItem>? remainingWallets,
+    String? label,
+  }) async {
+    return updateQrCode(
+      existing: existing,
+      appType: appType,
+      targetUrl: null,
+      label: label ?? existing.label,
+      wallets: remainingWallets ?? const [],
+      forceActive: appType == AppType.wallet && (remainingWallets?.any((w) => w.phone.trim().isNotEmpty) ?? false),
+    );
+  }
+
+  static Future<bool> resetQrScanCount(QrCodeRecord existing) async {
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final updated = QrCodeRecord(
+      id: existing.id,
+      isActive: existing.isActive,
+      targetUrl: existing.targetUrl,
+      appType: existing.appType,
+      label: existing.label,
+      createdAt: existing.createdAt,
+      updatedAt: nowIso,
+      lastScannedAt: existing.lastScannedAt,
+      totalScans: 0,
+      expiresAt: existing.expiresAt,
+      subscriptionMonths: existing.subscriptionMonths,
+      wallets: existing.wallets,
+    );
+    final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(existing.id)}?key=$_apiKey');
+    final res = await http
+        .patch(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'fields': _recordToFirestoreFields(updated)}),
+        )
+        .timeout(const Duration(seconds: 8));
+    return res.statusCode >= 200 && res.statusCode < 300;
+  }
+
+  static Future<QrCodeRecord?> renewQrSubscription(QrCodeRecord existing, int months) async {
+    final now = DateTime.now().toUtc();
+    String? newExpiresAt;
+    if (months > 0 && months < 900) {
+      final base = (existing.expiresAt != null && !existing.isExpired)
+          ? (DateTime.tryParse(existing.expiresAt!) ?? now)
+          : now;
+      newExpiresAt = DateTime.utc(base.year, base.month + months, base.day, base.hour, base.minute, base.second)
+          .toIso8601String();
+    } else {
+      newExpiresAt = null;
+    }
+
+    final updated = QrCodeRecord(
+      id: existing.id,
+      isActive: existing.isActive,
+      targetUrl: existing.targetUrl,
+      appType: existing.appType,
+      label: existing.label,
+      createdAt: existing.createdAt,
+      updatedAt: now.toIso8601String(),
+      lastScannedAt: existing.lastScannedAt,
+      totalScans: existing.totalScans,
+      expiresAt: newExpiresAt,
+      subscriptionMonths: months,
+      wallets: existing.wallets,
+    );
+
+    final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(existing.id)}?key=$_apiKey');
+    final res = await http
+        .patch(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'fields': _recordToFirestoreFields(updated)}),
+        )
+        .timeout(const Duration(seconds: 8));
+    return (res.statusCode >= 200 && res.statusCode < 300) ? updated : null;
+  }
+
+  static Future<bool> deleteQrCode(String id) async {
+    final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(id)}?key=$_apiKey');
+    final res = await http.delete(url).timeout(const Duration(seconds: 8));
+    return res.statusCode >= 200 && res.statusCode < 300;
+  }
+
+  static Future<PlatformSettings> fetchPlatformSettings() async {
+    try {
+      final url = Uri.parse('$_baseDocUrl/settings/platform?key=$_apiKey');
+      final res = await http.get(url).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final doc = jsonDecode(res.body) as Map<String, dynamic>;
+        final fields = (doc['fields'] as Map?) ?? {};
+        final parsed = <String, dynamic>{};
+        fields.forEach((k, v) {
+          parsed[k.toString()] = _parseFirestoreValue(v);
+        });
+        final settings = PlatformSettings.fromJson(parsed);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_settingsCacheKey, jsonEncode(settings.toJson()));
+        return settings;
+      }
+    } catch (_) {}
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_settingsCacheKey);
+      if (raw != null && raw.isNotEmpty) {
+        return PlatformSettings.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      }
+    } catch (_) {}
+
+    return const PlatformSettings();
+  }
+
+  static Future<bool> updatePlatformSettings(PlatformSettings settings) async {
+    try {
+      final url = Uri.parse('$_baseDocUrl/settings/platform?key=$_apiKey');
+      final fields = <String, dynamic>{};
+      settings.toJson().forEach((k, v) {
+        fields[k] = _toFirestoreValue(v);
+      });
+      final res = await http
+          .patch(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'fields': fields}),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_settingsCacheKey, jsonEncode(settings.toJson()));
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+}
+
+================================================================================
+FILE: smart_card_admin_dart/lib/widgets/three_d_widgets.dart
+================================================================================
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
+
+/// 3D Floating ambient logo with continuous perspective tilt
+class Floating3DLogo extends StatefulWidget {
+  final double size;
+  final Widget child;
+
+  const Floating3DLogo({
+    super.key,
+    required this.size,
+    required this.child,
+  });
+
+  @override
+  State<Floating3DLogo> createState() => _Floating3DLogoState();
+}
+
+class _Floating3DLogoState extends State<Floating3DLogo> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value * 2 * math.pi;
+        final dy = math.sin(t) * 4.5;
+        final rotY = math.cos(t) * 0.08;
+        final rotX = math.sin(t) * 0.05;
+
+        return Transform.translate(
+          offset: Offset(0, dy),
+          child: Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.0018)
+              ..rotateX(rotX)
+              ..rotateY(rotY),
+            child: Container(
+              width: widget.size,
+              height: widget.size,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(widget.size * 0.25),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.28 + 0.1 * math.sin(t)),
+                    blurRadius: 22,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// 3D Card entrance animation
+class Card3DEnter extends StatefulWidget {
+  final Widget child;
+  final Duration duration;
+
+  const Card3DEnter({
+    super.key,
+    required this.child,
+    this.duration = const Duration(milliseconds: 480),
+  });
+
+  @override
+  State<Card3DEnter> createState() => _Card3DEnterState();
+}
+
+class _Card3DEnterState extends State<Card3DEnter> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: widget.duration);
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, child) {
+        final v = _anim.value;
+        final rotX = (1.0 - v) * 0.18;
+        final dy = (1.0 - v) * 18.0;
+        final scale = 0.96 + 0.04 * v;
+
+        return Opacity(
+          opacity: v,
+          child: Transform.translate(
+            offset: Offset(0, dy),
+            child: Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.0014)
+                ..rotateX(rotX)
+                ..scale(scale),
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// Interactive 3D touch-tilt card for Admin Dashboard KPIs & QR Cards
+class Tilt3DCard extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final Color borderColor;
+  final Color backgroundColor;
+  final double borderRadius;
+  final EdgeInsetsGeometry padding;
+
+  const Tilt3DCard({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.borderColor = const Color(0x4DF59E0B),
+    this.backgroundColor = const Color(0xFF121216),
+    this.borderRadius = 20,
+    this.padding = const EdgeInsets.all(14),
+  });
+
+  @override
+  State<Tilt3DCard> createState() => _Tilt3DCardState();
+}
+
+class _Tilt3DCardState extends State<Tilt3DCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      onTap: widget.onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        transformAlignment: Alignment.center,
+        transform: _pressed
+            ? (Matrix4.identity()
+              ..setEntry(3, 2, 0.0015)
+              ..rotateX(0.05)
+              ..scale(0.975))
+            : Matrix4.identity(),
+        padding: widget.padding,
+        decoration: BoxDecoration(
+          color: widget.backgroundColor,
+          borderRadius: BorderRadius.circular(widget.borderRadius),
+          border: Border.all(
+            color: _pressed ? const Color(0xFFFBBF24) : widget.borderColor,
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFF59E0B).withValues(alpha: _pressed ? 0.2 : 0.07),
+              blurRadius: _pressed ? 20 : 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// 3D Platform selection card with living icon animation when selected
+class PlatformTile3D extends StatefulWidget {
+  final bool selected;
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final VoidCallback onTap;
+
+  const PlatformTile3D({
+    super.key,
+    required this.selected,
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<PlatformTile3D> createState() => _PlatformTile3DState();
+}
+
+class _PlatformTile3DState extends State<PlatformTile3D> with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    );
+    if (widget.selected) {
+      _pulseCtrl.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PlatformTile3D oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selected && !_pulseCtrl.isAnimating) {
+      _pulseCtrl.repeat(reverse: true);
+    } else if (!widget.selected && _pulseCtrl.isAnimating) {
+      _pulseCtrl.stop();
+      _pulseCtrl.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        transformAlignment: Alignment.center,
+        transform: widget.selected
+            ? (Matrix4.identity()
+              ..setEntry(3, 2, 0.002)
+              ..rotateX(-0.08)
+              ..translate(0.0, -3.0)
+              ..scale(1.03))
+            : Matrix4.identity(),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: widget.selected
+              ? const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x33F59E0B), Color(0xFF09090B)],
+                )
+              : null,
+          color: widget.selected ? null : const Color(0xB318181B),
+          border: Border.all(
+            color: widget.selected ? const Color(0xFFFBBF24) : Colors.white12,
+            width: widget.selected ? 1.5 : 1,
+          ),
+          boxShadow: widget.selected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
+              : [],
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (widget.selected)
+              const Positioned(
+                top: 0,
+                left: 0,
+                child: CircleAvatar(
+                  radius: 8,
+                  backgroundColor: Color(0xFFFBBF24),
+                  child: Icon(Icons.check, size: 11, color: Colors.black),
+                ),
+              ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedBuilder(
+                  animation: _pulseCtrl,
+                  builder: (context, child) {
+                    final v = widget.selected ? _pulseCtrl.value : 0.0;
+                    final rotY = widget.selected ? (v - 0.5) * 0.25 : 0.0;
+                    final sc = widget.selected ? 1.08 + v * 0.1 : 1.0;
+                    return Transform(
+                      alignment: Alignment.center,
+                      transform: Matrix4.identity()
+                        ..setEntry(3, 2, 0.002)
+                        ..rotateY(rotY)
+                        ..scale(sc),
+                      child: child,
+                    );
+                  },
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: widget.iconColor.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(11),
+                      border: Border.all(color: widget.iconColor.withValues(alpha: 0.4)),
+                    ),
+                    child: Icon(widget.icon, color: widget.iconColor, size: 22),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: widget.selected ? const Color(0xFFFCD34D) : Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+================================================================================
+FILE: smart_card_admin_dart/lib/screens/admin_login_screen.dart
+================================================================================
+import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import '../widgets/three_d_widgets.dart';
+
+class AdminLoginScreen extends StatefulWidget {
+  final VoidCallback onLoginSuccess;
+
+  const AdminLoginScreen({super.key, required this.onLoginSuccess});
+
+  @override
+  State<AdminLoginScreen> createState() => _AdminLoginScreenState();
+}
+
+class _AdminLoginScreenState extends State<AdminLoginScreen> {
+  final _controller = TextEditingController();
+  bool _obscure = true;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_controller.text.trim().isEmpty || _loading) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    final ok = await AuthService.loginAdmin(_controller.text);
+    if (!mounted) return;
+
+    if (ok) {
+      widget.onLoginSuccess();
+    } else {
+      setState(() {
+        _loading = false;
+        _error = 'كلمة المرور غير صحيحة. يرجى التحقق والمحاولة مرة أخرى.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF09090B),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Card3DEnter(
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 420),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF121216),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: const Color(0x4DF59E0B)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                      blurRadius: 36,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Floating3DLogo(
+                      size: 80,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF18181B),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0x66FBBF24)),
+                        ),
+                        child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0x1AF59E0B),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: const Color(0x4DF59E0B)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.shield_rounded, size: 14, color: Color(0xFFFBBF24)),
+                          SizedBox(width: 6),
+                          Text(
+                            'تطبيق الإدارة فقط — Admin Only',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFFFCD34D)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Smart Card Admin',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFFFBBF24),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'سجّل دخولك لإدارة وتوليد وتعديل رموز QR مباشرة',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12.5, color: Colors.white60),
+                    ),
+                    const SizedBox(height: 24),
+                    if (_error != null) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0x26EF4444),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0x66EF4444)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline, color: Color(0xFFFCA5A5), size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _error!,
+                                style: const TextStyle(fontSize: 12, color: Color(0xFFFCA5A5), fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    TextField(
+                      controller: _controller,
+                      obscureText: _obscure,
+                      onSubmitted: (_) => _submit(),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                      decoration: InputDecoration(
+                        labelText: 'كلمة مرور الإدارة',
+                        labelStyle: const TextStyle(color: Color(0xFFFCD34D), fontSize: 13),
+                        hintText: 'أدخل كلمة المرور',
+                        hintStyle: const TextStyle(color: Colors.white38),
+                        filled: true,
+                        fillColor: Colors.black54,
+                        prefixIcon: const Icon(Icons.lock_outline_rounded, color: Color(0xFFFBBF24)),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscure ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                            color: Colors.white54,
+                          ),
+                          onPressed: () => setState(() => _obscure = !_obscure),
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: Color(0x4DF59E0B)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: Color(0x33F59E0B)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(color: Color(0xFFFBBF24), width: 1.5),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed: _loading ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFBBF24),
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 6,
+                        ),
+                        icon: _loading
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black),
+                              )
+                            : const Icon(Icons.login_rounded),
+                        label: Text(
+                          _loading ? 'جاري التحقق...' : 'دخول لوحة الإدارة',
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+================================================================================
+FILE: smart_card_admin_dart/lib/screens/admin_dashboard_screen.dart
+================================================================================
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import '../models/qr_models.dart';
+import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
+import '../widgets/three_d_widgets.dart';
+import 'edit_qr_sheet.dart';
+import 'qr_scanner_screen.dart';
+import 'settings_screen.dart';
+
+enum _QrFilter { all, active, inactive, expired }
+
+class AdminDashboardScreen extends StatefulWidget {
+  final VoidCallback onLogout;
+
+  const AdminDashboardScreen({super.key, required this.onLogout});
+
+  @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  List<QrCodeRecord> _records = [];
+  PlatformSettings _settings = const PlatformSettings();
+  bool _loading = true;
+  bool _generating = false;
+  String _searchQuery = '';
+  _QrFilter _filter = _QrFilter.all;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _loading = true);
+    final results = await Future.wait([
+      FirestoreService.fetchAllQrCodes(),
+      FirestoreService.fetchPlatformSettings(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _records = results[0] as List<QrCodeRecord>;
+      _settings = results[1] as PlatformSettings;
+      _loading = false;
+    });
+  }
+
+  String get _domainUrl {
+    final d = _settings.publicDomainUrl.trim();
+    return d.isNotEmpty ? d : 'https://smart-card-inky.vercel.app';
+  }
+
+  List<QrCodeRecord> get _filteredRecords {
+    final q = _searchQuery.trim().toLowerCase();
+    return _records.where((r) {
+      if (_filter == _QrFilter.active && (!r.isActive || r.isExpired)) return false;
+      if (_filter == _QrFilter.inactive && r.isActive) return false;
+      if (_filter == _QrFilter.expired && !r.isExpired) return false;
+
+      if (q.isEmpty) return true;
+      if (r.id.toLowerCase().contains(q)) return true;
+      if (r.label.toLowerCase().contains(q)) return true;
+      if ((r.targetUrl ?? '').toLowerCase().contains(q)) return true;
+      if (r.appType.labelAr.toLowerCase().contains(q)) return true;
+      for (final w in r.wallets) {
+        if (w.phone.toLowerCase().contains(q) || w.ownerName.toLowerCase().contains(q)) return true;
+      }
+      return false;
+    }).toList();
+  }
+
+  Future<void> _openScanner() async {
+    final scannedId = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
+    );
+    if (!mounted || scannedId == null || scannedId.isEmpty) return;
+
+    QrCodeRecord? found;
+    for (final r in _records) {
+      if (r.id == scannedId) {
+        found = r;
+        break;
+      }
+    }
+    found ??= await FirestoreService.getQrCode(scannedId);
+    if (!mounted) return;
+
+    if (found == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFFEF4444),
+          content: Text('الرمز "$scannedId" غير موجود في قاعدة البيانات.'),
+        ),
+      );
+      return;
+    }
+
+    _openEditScreen(found);
+  }
+
+  Future<void> _openBulkGenerateDialog() async {
+    int count = 5;
+    int months = 1;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => AlertDialog(
+          backgroundColor: const Color(0xFF121216),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+            side: const BorderSide(color: Color(0x4DF59E0B)),
+          ),
+          title: const Text(
+            'توليد أكواد QR جديدة',
+            style: TextStyle(color: Color(0xFFFBBF24), fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('عدد البطاقات المطلوبة:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [1, 5, 10, 20].map((c) {
+                  final sel = count == c;
+                  return ChoiceChip(
+                    selected: sel,
+                    selectedColor: const Color(0xFFFBBF24),
+                    backgroundColor: Colors.black54,
+                    label: Text('$c', style: TextStyle(color: sel ? Colors.black : Colors.white, fontWeight: FontWeight.w900)),
+                    onSelected: (_) => setModalState(() => count = c),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 14),
+              const Text('مدة الصلاحية الافتراضية:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  (1, 'شهر'),
+                  (3, '3 شهور'),
+                  (6, '6 شهور'),
+                  (12, 'سنة'),
+                  (999, 'دائم'),
+                ].map((opt) {
+                  final sel = months == opt.$1;
+                  return ChoiceChip(
+                    selected: sel,
+                    selectedColor: const Color(0xFFFBBF24),
+                    backgroundColor: Colors.black54,
+                    label: Text(opt.$2, style: TextStyle(color: sel ? Colors.black : Colors.white, fontSize: 11.5, fontWeight: FontWeight.w800)),
+                    onSelected: (_) => setModalState(() => months = opt.$1),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFBBF24), foregroundColor: Colors.black),
+              child: const Text('توليد الآن', style: TextStyle(fontWeight: FontWeight.w900)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    setState(() => _generating = true);
+    final created = await FirestoreService.createBulkQrCodes(count, months);
+    if (!mounted) return;
+    setState(() {
+      _records = [...created, ..._records];
+      _generating = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF10B981),
+        content: Text('تم توليد ${created.length} رمز QR جديد وحفظهم في قاعدة البيانات.'),
+      ),
+    );
+  }
+
+  void _openEditScreen(QrCodeRecord record) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EditQrSheet(
+          record: record,
+          domainUrl: _domainUrl,
+          onSaved: (updated) {
+            setState(() {
+              _records = _records.map((r) => r.id == updated.id ? updated : r).toList();
+            });
+          },
+          onDeleted: (deletedId) {
+            setState(() {
+              _records = _records.where((r) => r.id != deletedId).toList();
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = _records.length;
+    final activeCount = _records.where((r) => r.isActive && !r.isExpired).length;
+    final inactiveCount = _records.where((r) => !r.isActive).length;
+    final expiredCount = _records.where((r) => r.isExpired).length;
+    final totalScans = _records.fold<int>(0, (acc, r) => acc + r.totalScans);
+    final filtered = _filteredRecords;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF09090B),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF121216),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: Row(
+          children: [
+            Floating3DLogo(
+              size: 36,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF18181B),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0x66FBBF24)),
+                ),
+                child: Image.asset('assets/logo.png', fit: BoxFit.contain),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Smart Card Admin',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFFFBBF24)),
+                ),
+                Text(
+                  'لوحة الإدارة الحصرية',
+                  style: TextStyle(fontSize: 10, color: Colors.white60),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: Color(0xFFFBBF24)),
+            tooltip: 'تحديث',
+            onPressed: _loadData,
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings_rounded, color: Colors.white70),
+            tooltip: 'الإعدادات والأمان',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SettingsScreen(
+                    initialSettings: _settings,
+                    onSettingsUpdated: (s) => setState(() => _settings = s),
+                  ),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout_rounded, color: Color(0xFFF87171)),
+            tooltip: 'تسجيل الخروج',
+            onPressed: () async {
+              await AuthService.logoutAdmin();
+              widget.onLogout();
+            },
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openScanner,
+        backgroundColor: const Color(0xFFFBBF24),
+        foregroundColor: Colors.black,
+        icon: const Icon(Icons.qr_code_scanner_rounded),
+        label: const Text('مسح بالكاميرا', style: TextStyle(fontWeight: FontWeight.w900)),
+      ),
+      body: RefreshIndicator(
+        color: const Color(0xFFFBBF24),
+        backgroundColor: const Color(0xFF121216),
+        onRefresh: _loadData,
+        child: CustomScrollView(
+          slivers: [
+            // KPI Row + Quick Actions
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: _kpiTile('إجمالي الأكواد', '$total', const Color(0xFFFBBF24))),
+                        const SizedBox(width: 8),
+                        Expanded(child: _kpiTile('المفعّلة', '$activeCount', const Color(0xFF10B981))),
+                        const SizedBox(width: 8),
+                        Expanded(child: _kpiTile('المسحات', '$totalScans', const Color(0xFF38BDF8))),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 46,
+                            child: ElevatedButton.icon(
+                              onPressed: _generating ? null : _openBulkGenerateDialog,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFBBF24),
+                                foregroundColor: Colors.black,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              icon: _generating
+                                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                                  : const Icon(Icons.add_box_rounded, size: 18),
+                              label: const Text('توليد أكواد جديدة', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12.5)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: SizedBox(
+                            height: 46,
+                            child: OutlinedButton.icon(
+                              onPressed: _openScanner,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFFCD34D),
+                                side: const BorderSide(color: Color(0x4DF59E0B)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                              label: const Text('فحص رمز QR', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      onChanged: (v) => setState(() => _searchQuery = v),
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'ابحث بالكود، الاسم، الرقم، أو المنصة...',
+                        hintStyle: const TextStyle(color: Colors.white38, fontSize: 12.5),
+                        prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFFFBBF24)),
+                        filled: true,
+                        fillColor: const Color(0xFF121216),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: Color(0x33F59E0B)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(color: Color(0x33F59E0B)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _filterChip('الكل ($total)', _QrFilter.all),
+                          const SizedBox(width: 6),
+                          _filterChip('مفعّلة ($activeCount)', _QrFilter.active),
+                          const SizedBox(width: 6),
+                          _filterChip('غير مفعّلة ($inactiveCount)', _QrFilter.inactive),
+                          const SizedBox(width: 6),
+                          _filterChip('منتهية ($expiredCount)', _QrFilter.expired),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            if (_loading)
+              const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator(color: Color(0xFFFBBF24))),
+              )
+            else if (filtered.isEmpty)
+              const SliverFillRemaining(
+                child: Center(
+                  child: Text('لا توجد بطاقات مطابقة للبحث.', style: TextStyle(color: Colors.white54)),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 90),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final r = filtered[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _buildQrCard(r),
+                      );
+                    },
+                    childCount: filtered.length,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kpiTile(String title, String value, Color accent) {
+    return Tilt3DCard(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+      borderColor: accent.withValues(alpha: 0.35),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: accent),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Colors.white70),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, _QrFilter value) {
+    final selected = _filter == value;
+    return ChoiceChip(
+      selected: selected,
+      selectedColor: const Color(0xFFFBBF24),
+      backgroundColor: const Color(0xFF121216),
+      side: BorderSide(color: selected ? const Color(0xFFFDE68A) : Colors.white12),
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+          color: selected ? Colors.black : Colors.white70,
+        ),
+      ),
+      onSelected: (_) => setState(() => _filter = value),
+    );
+  }
+
+  Widget _buildQrCard(QrCodeRecord r) {
+    final scanUrl = '${_domainUrl.replaceAll(RegExp(r'/+$'), '')}/q/${r.id}';
+    final statusColor = r.isExpired
+        ? const Color(0xFFEF4444)
+        : r.isActive
+            ? const Color(0xFF10B981)
+            : const Color(0xFFF59E0B);
+    final statusText = r.isExpired ? 'منتهي' : (r.isActive ? 'مفعّل' : 'متاح للتفعيل');
+
+    return Tilt3DCard(
+      onTap: () => _openEditScreen(r),
+      borderColor: statusColor.withValues(alpha: 0.35),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: QrImageView(
+              data: scanUrl,
+              version: QrVersions.auto,
+              size: 56,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      r.id,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFFFBBF24)),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: statusColor.withValues(alpha: 0.45)),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: statusColor),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  r.label.isNotEmpty ? r.label : '${r.appType.labelAr} • ${r.targetUrl ?? "بدون رابط"}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: Colors.white70),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(r.appType.icon, size: 13, color: r.appType.brandColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      r.appType.labelAr,
+                      style: const TextStyle(fontSize: 10.5, color: Colors.white60, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(width: 10),
+                    const Icon(Icons.visibility_rounded, size: 13, color: Colors.white54),
+                    const SizedBox(width: 3),
+                    Text(
+                      '${r.totalScans} مسحة',
+                      style: const TextStyle(fontSize: 10.5, color: Colors.white60),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.copy_rounded, size: 18, color: Color(0xFFFCD34D)),
+            tooltip: 'نسخ رابط البطاقة',
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: scanUrl));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('تم نسخ رابط البطاقة: $scanUrl')),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+================================================================================
+FILE: smart_card_admin_dart/lib/screens/qr_scanner_screen.dart
+================================================================================
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../utils/deep_links.dart';
+
+class QrScannerScreen extends StatefulWidget {
+  const QrScannerScreen({super.key});
+
+  @override
+  State<QrScannerScreen> createState() => _QrScannerScreenState();
+}
+
+class _QrScannerScreenState extends State<QrScannerScreen> {
+  final MobileScannerController _scannerController = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates,
+  );
+  bool _checkingPermission = true;
+  bool _hasPermission = false;
+  bool _permanentlyDenied = false;
+  bool _handledScan = false;
+  bool _torchOn = false;
+  String? _statusMsg;
+
+  @override
+  void initState() {
+    super.initState();
+    _requestCameraPermission();
+  }
+
+  @override
+  void dispose() {
+    _scannerController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _requestCameraPermission() async {
+    setState(() {
+      _checkingPermission = true;
+      _statusMsg = null;
+    });
+
+    final status = await Permission.camera.request();
+    if (!mounted) return;
+
+    setState(() {
+      _checkingPermission = false;
+      _hasPermission = status.isGranted;
+      _permanentlyDenied = status.isPermanentlyDenied;
+      if (!status.isGranted) {
+        _statusMsg = 'تم رفض إذن الكاميرا — يمكنك منح الإذن الآن لمسح الرمز مباشرة.';
+      }
+    });
+  }
+
+  void _onRawQrDetected(String rawValue) {
+    if (_handledScan) return;
+    final extracted = extractQrIdFromUrl(rawValue);
+    if (extracted != null && extracted.isNotEmpty) {
+      _handledScan = true;
+      Navigator.of(context).pop(extracted);
+    }
+  }
+
+  Future<void> _pickImageAndDecode() async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery);
+    if (file == null) return;
+
+    final capture = await _scannerController.analyzeImage(file.path);
+    if (!mounted) return;
+
+    if (capture != null && capture.barcodes.isNotEmpty) {
+      for (final b in capture.barcodes) {
+        final raw = b.rawValue;
+        if (raw != null && raw.isNotEmpty) {
+          final id = extractQrIdFromUrl(raw);
+          if (id != null) {
+            Navigator.of(context).pop(id);
+            return;
+          }
+        }
+      }
+    }
+
+    setState(() {
+      _statusMsg = 'لم يتم العثور على رمز QR صالح داخل الصورة المختارة.';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF09090B),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF121216),
+        foregroundColor: Colors.white,
+        title: const Text(
+          'مسح رمز QR بالكاميرا',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+        ),
+        actions: [
+          if (_hasPermission)
+            IconButton(
+              icon: Icon(
+                _torchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+                color: const Color(0xFFFBBF24),
+              ),
+              onPressed: () async {
+                await _scannerController.toggleTorch();
+                setState(() => _torchOn = !_torchOn);
+              },
+              tooltip: 'الفلاش',
+            ),
+          IconButton(
+            icon: const Icon(Icons.photo_library_rounded, color: Color(0xFFFBBF24)),
+            onPressed: _pickImageAndDecode,
+            tooltip: 'مسح صورة من المعرض',
+          ),
+        ],
+      ),
+      body: _checkingPermission
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFFFBBF24)),
+            )
+          : !_hasPermission
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF121216),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: const Color(0x4DF59E0B)),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 68,
+                            height: 68,
+                            decoration: BoxDecoration(
+                              color: const Color(0x1AF59E0B),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0x4DF59E0B)),
+                            ),
+                            child: const Icon(Icons.camera_alt_rounded, color: Color(0xFFFBBF24), size: 34),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'إذن الكاميرا لمسح الرمز',
+                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.white),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _statusMsg ?? 'اختر السماح باستخدام الكاميرا لمسح أي رمز Smart Card وتعديله فوراً.',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 12.5, color: Colors.white70),
+                          ),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton.icon(
+                              onPressed: _permanentlyDenied ? openAppSettings : _requestCameraPermission,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFBBF24),
+                                foregroundColor: Colors.black,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              icon: const Icon(Icons.camera_enhance_rounded),
+                              label: Text(
+                                _permanentlyDenied ? 'فتح إعدادات الإذن' : 'إعطاء إذن الكاميرا الآن',
+                                style: const TextStyle(fontWeight: FontWeight.w900),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 46,
+                            child: OutlinedButton.icon(
+                              onPressed: _pickImageAndDecode,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFFCD34D),
+                                side: const BorderSide(color: Color(0x4DF59E0B)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              ),
+                              icon: const Icon(Icons.upload_rounded),
+                              label: const Text('أو اختيار صورة QR من المعرض', style: TextStyle(fontWeight: FontWeight.w700)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              : Stack(
+                  children: [
+                    MobileScanner(
+                      controller: _scannerController,
+                      onDetect: (capture) {
+                        for (final barcode in capture.barcodes) {
+                          final raw = barcode.rawValue;
+                          if (raw != null && raw.isNotEmpty) {
+                            _onRawQrDetected(raw);
+                            break;
+                          }
+                        }
+                      },
+                    ),
+                    Center(
+                      child: Container(
+                        width: 240,
+                        height: 240,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFFBBF24), width: 3),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                    ),
+                    if (_statusMsg != null)
+                      Positioned(
+                        bottom: 24,
+                        left: 20,
+                        right: 20,
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.black87,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0x66EF4444)),
+                          ),
+                          child: Text(
+                            _statusMsg!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 12),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+    );
+  }
+}
+
+================================================================================
+FILE: smart_card_admin_dart/lib/screens/edit_qr_sheet.dart
+================================================================================
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../models/qr_models.dart';
+import '../services/firestore_service.dart';
+import '../utils/deep_links.dart';
+import '../widgets/three_d_widgets.dart';
+
+const List<String> _egyptianBanks = [
+  'البنك الأهلي المصري (NBE)',
+  'بنك مصر (Banque Misr)',
+  'البنك التجاري الدولي (CIB)',
+  'بنك قطر الوطني (QNB)',
+  'بنك القاهرة (Banque du Caire)',
+  'بنك الإسكندرية (AlexBank)',
+  'بنك فيصل الإسلامي',
+  'مصرف أبوظبي الإسلامي (ADIB)',
+  'بنك البركة مصر',
+  'البنك العربي الأفريقي الدولي (AAIB)',
+  'بنك كريدي أجريكول مصر',
+  'بنك HSBC مصر',
+  'بنك آخر / حساب دولي',
+];
+
+class EditQrSheet extends StatefulWidget {
+  final QrCodeRecord record;
+  final String domainUrl;
+  final ValueChanged<QrCodeRecord> onSaved;
+  final ValueChanged<String> onDeleted;
+
+  const EditQrSheet({
+    super.key,
+    required this.record,
+    required this.domainUrl,
+    required this.onSaved,
+    required this.onDeleted,
+  });
+
+  @override
+  State<EditQrSheet> createState() => _EditQrSheetState();
+}
+
+class _EditQrSheetState extends State<EditQrSheet> {
+  final GlobalKey _qrKey = GlobalKey();
+  late QrCodeRecord _record;
+  late AppType _selectedType;
+  late TextEditingController _labelCtrl;
+  late TextEditingController _targetCtrl;
+
+  // Bank fields
+  String _bankName = _egyptianBanks.first;
+  late TextEditingController _bankAccCtrl;
+  late TextEditingController _bankOwnerCtrl;
+  late TextEditingController _bankIbanCtrl;
+  late TextEditingController _bankNotesCtrl;
+
+  // Multi-wallet (1 to 4) with 100% automatic operator detection
+  int _walletCount = 1;
+  final List<TextEditingController> _walletPhoneCtrls = List.generate(4, (_) => TextEditingController());
+  final List<TextEditingController> _walletOwnerCtrls = List.generate(4, (_) => TextEditingController());
+  final List<WalletProvider> _walletProviders = List.filled(4, WalletProvider.generic);
+
+  bool _saving = false;
+  bool _purging = false;
+  String? _errorMsg;
+  String? _noticeMsg;
+
+  @override
+  void initState() {
+    super.initState();
+    _record = widget.record;
+    _selectedType = _record.appType;
+    _labelCtrl = TextEditingController(text: _record.label);
+    _targetCtrl = TextEditingController(text: _record.targetUrl ?? '');
+    _bankAccCtrl = TextEditingController();
+    _bankOwnerCtrl = TextEditingController();
+    _bankIbanCtrl = TextEditingController();
+    _bankNotesCtrl = TextEditingController();
+
+    if (_selectedType == AppType.bank || (_record.targetUrl?.startsWith('bank://') ?? false)) {
+      _selectedType = AppType.bank;
+      final bank = decodeBankDetails(_record.targetUrl);
+      if (bank != null) {
+        _bankName = _egyptianBanks.contains(bank.bankName) ? bank.bankName : _egyptianBanks.last;
+        _bankAccCtrl.text = bank.accountNumber;
+        _bankOwnerCtrl.text = bank.accountName;
+        _bankIbanCtrl.text = bank.iban;
+        _bankNotesCtrl.text = bank.notes;
+      }
+    } else if (_selectedType == AppType.wallet || _record.wallets.isNotEmpty) {
+      _selectedType = AppType.wallet;
+      if (_record.wallets.isNotEmpty) {
+        _walletCount = _record.wallets.length.clamp(1, 4);
+        for (var i = 0; i < _record.wallets.length && i < 4; i++) {
+          final w = _record.wallets[i];
+          _walletPhoneCtrls[i].text = w.phone;
+          _walletOwnerCtrls[i].text = w.ownerName;
+          _walletProviders[i] = resolveWalletProvider(w.phone, w.provider);
+        }
+      } else if ((_record.targetUrl ?? '').isNotEmpty) {
+        _walletPhoneCtrls[0].text = _record.targetUrl!;
+        _walletProviders[0] = resolveWalletProvider(_record.targetUrl!);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _labelCtrl.dispose();
+    _targetCtrl.dispose();
+    _bankAccCtrl.dispose();
+    _bankOwnerCtrl.dispose();
+    _bankIbanCtrl.dispose();
+    _bankNotesCtrl.dispose();
+    for (final c in _walletPhoneCtrls) {
+      c.dispose();
+    }
+    for (final c in _walletOwnerCtrls) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  String get _scanUrl => '${widget.domainUrl.replaceAll(RegExp(r'/+$'), '')}/q/${_record.id}';
+
+  void _onWalletPhoneChanged(int idx, String val) {
+    setState(() {
+      final trimmed = val.trim();
+      if (trimmed.isEmpty) {
+        _walletProviders[idx] = WalletProvider.generic;
+      } else if (isQuickPayUrl(trimmed)) {
+        _walletProviders[idx] = detectWalletProviderFromUrl(trimmed);
+      } else {
+        _walletProviders[idx] = detectWalletInfo(trimmed).provider;
+      }
+    });
+  }
+
+  Future<void> _purgeTargetFromDb({int? walletIndex}) async {
+    setState(() {
+      _purging = true;
+      _errorMsg = null;
+      _noticeMsg = null;
+    });
+
+    if (walletIndex != null) {
+      _walletPhoneCtrls[walletIndex].clear();
+      _walletProviders[walletIndex] = WalletProvider.generic;
+      final remaining = <WalletItem>[];
+      for (var i = 0; i < _walletCount; i++) {
+        final phone = _walletPhoneCtrls[i].text.trim();
+        if (phone.isNotEmpty) {
+          remaining.add(WalletItem(
+            phone: phone,
+            provider: resolveWalletProvider(phone, _walletProviders[i]),
+            ownerName: _walletOwnerCtrls[i].text.trim(),
+          ));
+        }
+      }
+      final updated = await FirestoreService.purgeQrTarget(
+        existing: _record,
+        appType: AppType.wallet,
+        remainingWallets: remaining,
+        label: _labelCtrl.text,
+      );
+      if (!mounted) return;
+      if (updated != null) {
+        _record = updated;
+        widget.onSaved(updated);
+        _noticeMsg = 'تم حذف الرابط/الرقم القديم نهائياً من قاعدة البيانات.';
+      }
+    } else {
+      _targetCtrl.clear();
+      final updated = await FirestoreService.purgeQrTarget(
+        existing: _record,
+        appType: _selectedType,
+        label: _labelCtrl.text,
+      );
+      if (!mounted) return;
+      if (updated != null) {
+        _record = updated;
+        widget.onSaved(updated);
+        _noticeMsg = 'تم حذف الرابط القديم نهائياً من قاعدة البيانات.';
+      }
+    }
+
+    setState(() => _purging = false);
+  }
+
+  Future<void> _save() async {
+    setState(() {
+      _errorMsg = null;
+      _noticeMsg = null;
+    });
+
+    String? finalTarget = _targetCtrl.text.trim();
+    List<WalletItem>? finalWallets;
+
+    if (_selectedType == AppType.bank) {
+      if (_bankAccCtrl.text.trim().isEmpty) {
+        setState(() => _errorMsg = 'يرجى كتابة رقم الحساب البنكي.');
+        return;
+      }
+      finalTarget = encodeBankDetails(BankDetails(
+        bankName: _bankName,
+        accountNumber: _bankAccCtrl.text.trim(),
+        accountName: _bankOwnerCtrl.text.trim(),
+        iban: _bankIbanCtrl.text.trim(),
+        notes: _bankNotesCtrl.text.trim(),
+      ));
+    } else if (_selectedType == AppType.wallet) {
+      final list = <WalletItem>[];
+      for (var i = 0; i < _walletCount; i++) {
+        final phone = _walletPhoneCtrls[i].text.trim();
+        final owner = _walletOwnerCtrls[i].text.trim();
+        if (phone.isEmpty) {
+          setState(() => _errorMsg = _walletCount == 1
+              ? 'يرجى إدخال رقم المحفظة أو رابط الدفع السريع.'
+              : 'يرجى إدخال بيانات المحفظة رقم ${i + 1}.');
+          return;
+        }
+        if (owner.isEmpty) {
+          setState(() => _errorMsg = _walletCount == 1
+              ? 'يرجى كتابة اسم صاحب المحفظة (إلزامي).'
+              : 'يرجى كتابة اسم صاحب المحفظة رقم ${i + 1} (إلزامي).');
+          return;
+        }
+        final prov = resolveWalletProvider(phone, _walletProviders[i]);
+        list.add(WalletItem(
+          phone: isQuickPayUrl(phone) ? sanitizeQuickPayUrl(phone, prov) : detectWalletInfo(phone).cleanPhone,
+          provider: prov == WalletProvider.generic ? WalletProvider.vodafone : prov,
+          ownerName: owner,
+        ));
+      }
+      finalWallets = list;
+      finalTarget = list.first.phone;
+    } else if (_selectedType == AppType.instapay) {
+      if (finalTarget.isEmpty) {
+        setState(() => _errorMsg = 'يرجى إدخال رابط الدفع السريع من تطبيق إنستاباي.');
+        return;
+      }
+      if (!finalTarget.startsWith('http://') && !finalTarget.startsWith('https://')) {
+        finalTarget = 'https://$finalTarget';
+      }
+    } else if (_selectedType == AppType.whatsapp && finalTarget.isNotEmpty) {
+      finalTarget = formatWhatsappTargetUrl(finalTarget);
+    } else if (_selectedType == AppType.phone && finalTarget.isNotEmpty) {
+      finalTarget = formatPhoneTargetUrl(finalTarget);
+    } else if (_selectedType == AppType.tiktok && finalTarget.isNotEmpty) {
+      finalTarget = formatTikTokTargetUrl(finalTarget);
+    } else if (_selectedType == AppType.instagram && finalTarget.isNotEmpty) {
+      finalTarget = formatInstagramTargetUrl(finalTarget);
+    } else if (_selectedType == AppType.telegram && finalTarget.isNotEmpty) {
+      finalTarget = formatTelegramTargetUrl(finalTarget);
+    } else if (_selectedType == AppType.snapchat && finalTarget.isNotEmpty) {
+      finalTarget = formatSnapchatTargetUrl(finalTarget);
+    } else if (finalTarget.isEmpty) {
+      setState(() => _errorMsg = 'يرجى إدخال الرابط أو البيانات المطلوبة.');
+      return;
+    }
+
+    setState(() => _saving = true);
+    final updated = await FirestoreService.updateQrCode(
+      existing: _record,
+      appType: _selectedType,
+      targetUrl: finalTarget,
+      label: _labelCtrl.text,
+      wallets: finalWallets,
+    );
+    if (!mounted) return;
+    setState(() => _saving = false);
+
+    if (updated != null) {
+      _record = updated;
+      widget.onSaved(updated);
+      Navigator.of(context).pop();
+    } else {
+      setState(() => _errorMsg = 'تعذر الحفظ في قاعدة البيانات. تحقق من الاتصال.');
+    }
+  }
+
+  Future<void> _renew(int months) async {
+    setState(() => _saving = true);
+    final updated = await FirestoreService.renewQrSubscription(_record, months);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (updated != null) {
+      setState(() {
+        _record = updated;
+        _noticeMsg = months >= 900 ? 'تم التفعيل الدائم بنجاح.' : 'تم تجديد الاشتراك +$months شهر بنجاح.';
+      });
+      widget.onSaved(updated);
+    }
+  }
+
+  Future<void> _shareQrPng() async {
+    try {
+      final boundary = _qrKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+      final bytes = byteData.buffer.asUint8List();
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/smart_card_${_record.id}.png');
+      await file.writeAsBytes(bytes);
+      await Share.shareXFiles([XFile(file.path)], text: 'Smart Card QR: ${_record.id}\n$_scanUrl');
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF09090B),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF121216),
+        foregroundColor: Colors.white,
+        title: Text(
+          'إدارة البطاقة: ${_record.id}',
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_forever_rounded, color: Color(0xFFF87171)),
+            tooltip: 'حذف الرمز نهائياً',
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: const Color(0xFF18181B),
+                  title: const Text('حذف رمز QR؟', style: TextStyle(color: Colors.white)),
+                  content: Text('سيتم حذف الرمز ${_record.id} نهائياً من قاعدة البيانات.', style: const TextStyle(color: Colors.white70)),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('حذف', style: TextStyle(color: Color(0xFFF87171))),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                final ok = await FirestoreService.deleteQrCode(_record.id);
+                if (!context.mounted) return;
+                if (ok) {
+                  widget.onDeleted(_record.id);
+                  Navigator.of(context).pop();
+                }
+              }
+            },
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Card3DEnter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // QR Header Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF121216),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0x4DF59E0B)),
+                ),
+                child: Row(
+                  children: [
+                    RepaintBoundary(
+                      key: _qrKey,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: QrImageView(
+                          data: _scanUrl,
+                          version: QrVersions.auto,
+                          size: 92,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _record.id,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFFFBBF24),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'المسحات: ${_record.totalScans} • ${_record.isActive ? "مفعّل" : "غير مفعّل"}',
+                            style: const TextStyle(fontSize: 12, color: Colors.white70),
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  Clipboard.setData(ClipboardData(text: _scanUrl));
+                                  setState(() => _noticeMsg = 'تم نسخ رابط البطاقة.');
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFFCD34D),
+                                  side: const BorderSide(color: Color(0x4DF59E0B)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                ),
+                                icon: const Icon(Icons.copy_rounded, size: 15),
+                                label: const Text('نسخ', style: TextStyle(fontSize: 11)),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: _shareQrPng,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFFCD34D),
+                                  side: const BorderSide(color: Color(0x4DF59E0B)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                ),
+                                icon: const Icon(Icons.share_rounded, size: 15),
+                                label: const Text('مشاركة PNG', style: TextStyle(fontSize: 11)),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: () => launchUrl(Uri.parse(_scanUrl), mode: LaunchMode.externalApplication),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white70,
+                                  side: const BorderSide(color: Colors.white24),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                ),
+                                icon: const Icon(Icons.open_in_new_rounded, size: 15),
+                                label: const Text('اختبار', style: TextStyle(fontSize: 11)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              if (_errorMsg != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0x26EF4444),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0x66EF4444)),
+                  ),
+                  child: Text(_errorMsg!, style: const TextStyle(color: Color(0xFFFCA5A5), fontSize: 12)),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (_noticeMsg != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0x2610B981),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0x6610B981)),
+                  ),
+                  child: Text(_noticeMsg!, style: const TextStyle(color: Color(0xFF6EE7B7), fontSize: 12)),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Label input
+              TextField(
+                controller: _labelCtrl,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'اسم / وصف البطاقة (اختياري)',
+                  labelStyle: const TextStyle(color: Colors.white70, fontSize: 12.5),
+                  filled: true,
+                  fillColor: const Color(0xFF121216),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 3D Platform Grid
+              const Text(
+                'اختر المنصة المرتبطة بالكارت:',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFFFCD34D)),
+              ),
+              const SizedBox(height: 10),
+              GridView.count(
+                crossAxisCount: 3,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 1.05,
+                children: AppType.values.map((t) {
+                  return PlatformTile3D(
+                    selected: _selectedType == t,
+                    icon: t.icon,
+                    iconColor: t.brandColor,
+                    label: t.labelAr,
+                    onTap: () {
+                      setState(() {
+                        if (_selectedType != t) {
+                          _selectedType = t;
+                          _targetCtrl.clear();
+                          _errorMsg = null;
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // Dynamic Platform Inputs
+              if (_selectedType == AppType.wallet) _buildWalletEditor()
+              else if (_selectedType == AppType.bank) _buildBankEditor()
+              else _buildStandardTargetEditor(),
+
+              const SizedBox(height: 18),
+
+              // Subscription & Scan Reset Bar
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF121216),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'إدارة الاشتراك والعداد:',
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFFFCD34D)),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ActionChip(
+                          backgroundColor: Colors.black54,
+                          label: const Text('+1 شهر', style: TextStyle(color: Colors.white, fontSize: 11.5)),
+                          onPressed: () => _renew(1),
+                        ),
+                        ActionChip(
+                          backgroundColor: Colors.black54,
+                          label: const Text('+3 شهور', style: TextStyle(color: Colors.white, fontSize: 11.5)),
+                          onPressed: () => _renew(3),
+                        ),
+                        ActionChip(
+                          backgroundColor: Colors.black54,
+                          label: const Text('+12 شهر', style: TextStyle(color: Colors.white, fontSize: 11.5)),
+                          onPressed: () => _renew(12),
+                        ),
+                        ActionChip(
+                          backgroundColor: const Color(0x33F59E0B),
+                          label: const Text('تفعيل دائم', style: TextStyle(color: Color(0xFFFCD34D), fontSize: 11.5)),
+                          onPressed: () => _renew(999),
+                        ),
+                        ActionChip(
+                          backgroundColor: const Color(0x26EF4444),
+                          label: const Text('تصفير المسحات', style: TextStyle(color: Color(0xFFFCA5A5), fontSize: 11.5)),
+                          onPressed: () async {
+                            final ok = await FirestoreService.resetQrScanCount(_record);
+                            if (ok && mounted) {
+                              final updated = QrCodeRecord(
+                                id: _record.id,
+                                isActive: _record.isActive,
+                                targetUrl: _record.targetUrl,
+                                appType: _record.appType,
+                                label: _record.label,
+                                createdAt: _record.createdAt,
+                                updatedAt: DateTime.now().toUtc().toIso8601String(),
+                                totalScans: 0,
+                                expiresAt: _record.expiresAt,
+                                subscriptionMonths: _record.subscriptionMonths,
+                                wallets: _record.wallets,
+                              );
+                              setState(() {
+                                _record = updated;
+                                _noticeMsg = 'تم تصفير عداد المسحات.';
+                              });
+                              widget.onSaved(updated);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              SizedBox(
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: (_saving || _purging) ? null : _save,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFBBF24),
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  icon: _saving
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black))
+                      : const Icon(Icons.save_rounded),
+                  label: Text(
+                    _saving ? 'جاري الحفظ...' : 'حفظ وتحديث البطاقة فوراً',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStandardTargetEditor() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF121216),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x4DF59E0B)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'بيانات ${_selectedType.labelAr}:',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFFFCD34D)),
+              ),
+              if (_targetCtrl.text.trim().isNotEmpty)
+                TextButton.icon(
+                  onPressed: _purging ? null : () => _purgeTargetFromDb(),
+                  icon: const Icon(Icons.delete_sweep_rounded, size: 16, color: Color(0xFFF87171)),
+                  label: const Text('حذف من قاعدة البيانات', style: TextStyle(fontSize: 11, color: Color(0xFFF87171))),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _targetCtrl,
+            textDirection: TextDirection.ltr,
+            style: const TextStyle(color: Colors.white, fontSize: 13.5),
+            decoration: InputDecoration(
+              hintText: _selectedType.placeholder,
+              hintStyle: const TextStyle(color: Colors.white38, fontSize: 12),
+              filled: true,
+              fillColor: Colors.black54,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBankEditor() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF121216),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x4DF59E0B)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'بيانات الحساب البنكي:',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFFFCD34D)),
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: _bankName,
+            dropdownColor: const Color(0xFF18181B),
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.black54,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            items: _egyptianBanks
+                .map((b) => DropdownMenuItem(value: b, child: Text(b, overflow: TextOverflow.ellipsis)))
+                .toList(),
+            onChanged: (v) {
+              if (v != null) setState(() => _bankName = v);
+            },
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _bankAccCtrl,
+            textDirection: TextDirection.ltr,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              labelText: 'رقم الحساب البنكي (إلزامي)',
+              labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+              filled: true,
+              fillColor: Colors.black54,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _bankOwnerCtrl,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              labelText: 'اسم صاحب الحساب (اختياري)',
+              labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+              filled: true,
+              fillColor: Colors.black54,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _bankIbanCtrl,
+            textDirection: TextDirection.ltr,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              labelText: 'IBAN (اختياري)',
+              labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+              filled: true,
+              fillColor: Colors.black54,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWalletEditor() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF121216),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0x4DF59E0B)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'عدد المحافظ المرتبطة بالكارت:',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFFFCD34D)),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [1, 2, 3, 4].map((count) {
+                  final selected = _walletCount == count;
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: InkWell(
+                        onTap: () => setState(() => _walletCount = count),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: selected ? const Color(0xFFFBBF24) : Colors.black54,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: selected ? const Color(0xFFFDE68A) : Colors.white12),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                '$count',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  color: selected ? Colors.black : Colors.white,
+                                ),
+                              ),
+                              Text(
+                                count == 1 ? 'محفظة' : 'محافظ',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: selected ? Colors.black87 : Colors.white60,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...List.generate(_walletCount, (idx) {
+          final text = _walletPhoneCtrls[idx].text.trim();
+          final prov = text.isNotEmpty ? resolveWalletProvider(text, _walletProviders[idx]) : WalletProvider.generic;
+          final isKnown = text.isNotEmpty && prov != WalletProvider.generic;
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF121216),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: isKnown ? prov.color.withValues(alpha: 0.6) : const Color(0x4DF59E0B),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: (isKnown ? prov.color : const Color(0xFFF59E0B)).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.account_balance_wallet_rounded,
+                            color: isKnown ? prov.color : const Color(0xFFFBBF24),
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _walletCount > 1 ? 'المحفظة رقم ${idx + 1}' : 'بيانات المحفظة',
+                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900, color: Colors.white),
+                            ),
+                            if (isKnown)
+                              Text(
+                                '${prov.nameAr} (${prov.nameEn})',
+                                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: prov.color),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    if (text.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: _purging ? null : () => _purgeTargetFromDb(walletIndex: idx),
+                        icon: const Icon(Icons.delete_sweep_rounded, size: 15, color: Color(0xFFF87171)),
+                        label: const Text('حذف من القاعدة', style: TextStyle(fontSize: 11, color: Color(0xFFF87171))),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _walletPhoneCtrls[idx],
+                  textDirection: TextDirection.ltr,
+                  onChanged: (v) => _onWalletPhoneChanged(idx, v),
+                  style: const TextStyle(color: Color(0xFFFCD34D), fontWeight: FontWeight.w700, fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'رقم المحفظة أو رابط الدفع السريع (إلزامي)',
+                    labelStyle: const TextStyle(color: Colors.white70, fontSize: 11.5),
+                    hintText: '010... أو https://...',
+                    hintStyle: const TextStyle(color: Colors.white30),
+                    filled: true,
+                    fillColor: Colors.black54,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _walletOwnerCtrls[idx],
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+                  decoration: InputDecoration(
+                    labelText: 'اسم صاحب المحفظة (إلزامي)',
+                    labelStyle: const TextStyle(color: Colors.white70, fontSize: 11.5),
+                    hintText: 'مثال: أحمد محمد علي',
+                    hintStyle: const TextStyle(color: Colors.white30),
+                    filled: true,
+                    fillColor: Colors.black54,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+================================================================================
+FILE: smart_card_admin_dart/lib/screens/settings_screen.dart
+================================================================================
+import 'package:flutter/material.dart';
+import '../models/qr_models.dart';
+import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
+import '../widgets/three_d_widgets.dart';
+
+class SettingsScreen extends StatefulWidget {
+  final PlatformSettings initialSettings;
+  final ValueChanged<PlatformSettings> onSettingsUpdated;
+
+  const SettingsScreen({
+    super.key,
+    required this.initialSettings,
+    required this.onSettingsUpdated,
+  });
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late TextEditingController _domainCtrl;
+  late TextEditingController _waCtrl;
+  late TextEditingController _titleCtrl;
+
+  final _curPwdCtrl = TextEditingController();
+  final _newPwdCtrl = TextEditingController();
+
+  bool _savingSettings = false;
+  bool _savingPwd = false;
+  String? _statusMsg;
+  bool _isError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _domainCtrl = TextEditingController(text: widget.initialSettings.publicDomainUrl);
+    _waCtrl = TextEditingController(text: widget.initialSettings.developerWhatsapp);
+    _titleCtrl = TextEditingController(text: widget.initialSettings.developerTitle);
+  }
+
+  @override
+  void dispose() {
+    _domainCtrl.dispose();
+    _waCtrl.dispose();
+    _titleCtrl.dispose();
+    _curPwdCtrl.dispose();
+    _newPwdCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveSettings() async {
+    setState(() {
+      _savingSettings = true;
+      _statusMsg = null;
+      _isError = false;
+    });
+
+    var cleanDomain = _domainCtrl.text.trim();
+    if (cleanDomain.endsWith('/')) {
+      cleanDomain = cleanDomain.substring(0, cleanDomain.length - 1);
+    }
+    final cleanWa = _waCtrl.text.trim();
+    final digits = cleanWa.replaceAll(RegExp(r'[^\d]'), '');
+    final waNum = digits.startsWith('01') ? '2$digits' : digits;
+
+    final updated = PlatformSettings(
+      developerWhatsapp: cleanWa.isEmpty ? '01550523365' : cleanWa,
+      developerContactUrl: 'https://wa.me/$waNum',
+      developerTitle: _titleCtrl.text.trim().isEmpty ? 'تواصل مع المطور' : _titleCtrl.text.trim(),
+      supportMessage: widget.initialSettings.supportMessage,
+      publicDomainUrl: cleanDomain.isEmpty ? 'https://smart-card-inky.vercel.app' : cleanDomain,
+    );
+
+    final ok = await FirestoreService.updatePlatformSettings(updated);
+    if (!mounted) return;
+    setState(() {
+      _savingSettings = false;
+      _isError = !ok;
+      _statusMsg = ok ? 'تم حفظ إعدادات الدومين والتواصل في قاعدة البيانات بنجاح.' : 'تعذر حفظ الإعدادات.';
+    });
+    if (ok) {
+      widget.onSettingsUpdated(updated);
+    }
+  }
+
+  Future<void> _changePassword() async {
+    setState(() {
+      _savingPwd = true;
+      _statusMsg = null;
+      _isError = false;
+    });
+    final res = await AuthService.changeAdminPassword(_curPwdCtrl.text, _newPwdCtrl.text);
+    if (!mounted) return;
+    setState(() {
+      _savingPwd = false;
+      _isError = !res.success;
+      _statusMsg = res.message;
+      if (res.success) {
+        _curPwdCtrl.clear();
+        _newPwdCtrl.clear();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF09090B),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF121216),
+        foregroundColor: Colors.white,
+        title: const Text('إعدادات المنصة والأمان', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Card3DEnter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_statusMsg != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _isError ? const Color(0x26EF4444) : const Color(0x2610B981),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _isError ? const Color(0x66EF4444) : const Color(0x6610B981),
+                    ),
+                  ),
+                  child: Text(
+                    _statusMsg!,
+                    style: TextStyle(
+                      color: _isError ? const Color(0xFFFCA5A5) : const Color(0xFF6EE7B7),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
+
+              // Domain & Contact Settings
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF121216),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0x4DF59E0B)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'إعدادات الدومين ورابط البطاقات',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFFFBBF24)),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _domainCtrl,
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: InputDecoration(
+                        labelText: 'الدومين الأساسي للبطاقات',
+                        labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+                        filled: true,
+                        fillColor: Colors.black54,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _waCtrl,
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: InputDecoration(
+                        labelText: 'رقم واتساب المطور',
+                        labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+                        filled: true,
+                        fillColor: Colors.black54,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: ElevatedButton(
+                        onPressed: _savingSettings ? null : _saveSettings,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFBBF24),
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: Text(
+                          _savingSettings ? 'جاري الحفظ...' : 'حفظ إعدادات المنصة',
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Password Change
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF121216),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'تغيير كلمة مرور الأدمن',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFFFBBF24)),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _curPwdCtrl,
+                      obscureText: true,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'كلمة المرور الحالية',
+                        labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+                        filled: true,
+                        fillColor: Colors.black54,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _newPwdCtrl,
+                      obscureText: true,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'كلمة المرور الجديدة',
+                        labelStyle: const TextStyle(color: Colors.white70, fontSize: 12),
+                        filled: true,
+                        fillColor: Colors.black54,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: ElevatedButton(
+                        onPressed: _savingPwd ? null : _changePassword,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white10,
+                          foregroundColor: const Color(0xFFFCD34D),
+                          side: const BorderSide(color: Color(0x4DF59E0B)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: Text(
+                          _savingPwd ? 'جاري التحديث...' : 'تحديث كلمة المرور في السحابة',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

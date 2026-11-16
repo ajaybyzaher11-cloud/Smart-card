@@ -49,6 +49,20 @@ const filesToInclude = [
   'src/views/CustomerActivationView.tsx',
   'src/views/SmartRedirectView.tsx',
   'src/views/CardExpiredView.tsx',
+
+  // Dart / Flutter Admin-Only Mobile App
+  'smart_card_admin_dart/pubspec.yaml',
+  'smart_card_admin_dart/lib/main.dart',
+  'smart_card_admin_dart/lib/models/qr_models.dart',
+  'smart_card_admin_dart/lib/utils/deep_links.dart',
+  'smart_card_admin_dart/lib/services/auth_service.dart',
+  'smart_card_admin_dart/lib/services/firestore_service.dart',
+  'smart_card_admin_dart/lib/widgets/three_d_widgets.dart',
+  'smart_card_admin_dart/lib/screens/admin_login_screen.dart',
+  'smart_card_admin_dart/lib/screens/admin_dashboard_screen.dart',
+  'smart_card_admin_dart/lib/screens/qr_scanner_screen.dart',
+  'smart_card_admin_dart/lib/screens/edit_qr_sheet.dart',
+  'smart_card_admin_dart/lib/screens/settings_screen.dart',
 ];
 
 function buildSingleCodeBundle() {
