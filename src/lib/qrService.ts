@@ -70,7 +70,7 @@ function buildCanonicalQrRecord(params: {
   id: string;
   is_active: boolean;
   target_url: string | null;
-  app_type: AppType;
+  app_type?: AppType;
   created_at: string;
   updated_at: string;
   total_scans: number;
@@ -86,7 +86,6 @@ function buildCanonicalQrRecord(params: {
     id: params.id,
     is_active: params.is_active,
     target_url: params.target_url,
-    app_type: params.app_type,
     created_at: params.created_at,
     updated_at: params.updated_at,
     total_scans: params.total_scans,
@@ -96,6 +95,10 @@ function buildCanonicalQrRecord(params: {
     is_printed: Boolean(params.is_printed),
     printed_at: params.is_printed ? (params.printed_at || new Date().toISOString()) : null,
   };
+
+  if (params.app_type) {
+    canonical.app_type = params.app_type;
+  }
 
   if (params.last_scanned_at) {
     canonical.last_scanned_at = params.last_scanned_at;
@@ -794,6 +797,92 @@ export async function adminUpdateQrCode(
   }
 
   return { success: true, record: updatedRecord };
+}
+
+/**
+ * Admin-Only: Deactivate / Cancel Activation for an accidentally activated QR card.
+ * Completely wipes everything written during activation (target_url, app_type, wallets, label, total_scans, last_scanned_at)
+ * while preserving card identity (id, created_at, subscription_months, print status),
+ * and restores it to its original unactivated state (is_active: false) ready for fresh customer activation.
+ */
+export async function deactivateQrCode(
+  id: string
+): Promise<{ success: boolean; record?: QrCodeRecord; error?: string }> {
+  const cleanId = id.trim();
+  if (!cleanId) return { success: false, error: 'معرّف الكود غير صالح' };
+
+  const current = await getQrCode(cleanId);
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const subscriptionMonths = current?.subscription_months ?? 1;
+
+  let restoredExpiresAt = current?.expires_at ?? null;
+  if (restoredExpiresAt && new Date(restoredExpiresAt).getTime() < now.getTime()) {
+    restoredExpiresAt = subscriptionMonths > 0
+      ? new Date(now.getTime() + subscriptionMonths * 30 * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+  }
+
+  const deactivatedRecord = buildCanonicalQrRecord({
+    id: cleanId,
+    is_active: false,
+    target_url: null,
+    app_type: undefined,
+    created_at: current?.created_at || nowIso,
+    updated_at: nowIso,
+    total_scans: 0,
+    last_scanned_at: undefined,
+    label: '',
+    expires_at: restoredExpiresAt,
+    subscription_months: subscriptionMonths,
+    wallets: undefined,
+    is_printed: Boolean(current?.is_printed),
+    printed_at: current?.printed_at ?? null,
+  });
+
+  // Update local cache & initial record immediately
+  const cache = getLocalCache();
+  cache[cleanId] = deactivatedRecord;
+  saveLocalCache(cache);
+  if (typeof window !== 'undefined') {
+    if ((window as any).__INITIAL_QR_RECORD__?.id === cleanId) {
+      (window as any).__INITIAL_QR_RECORD__ = deactivatedRecord;
+    }
+    try {
+      sessionStorage.removeItem(`scanned_session_${cleanId}`);
+    } catch {}
+  }
+
+  // Full document replacement across Cloud Firestore SDK, Firestore REST, and Express API
+  const sdkWrite = setDoc(doc(db, 'qr_codes', cleanId), deactivatedRecord)
+    .then(() => true)
+    .catch((fsErr) => {
+      console.warn('Firestore deactivate write warning:', fsErr);
+      return false;
+    });
+
+  const restWrite = writeQrToFirestoreRest(cleanId, deactivatedRecord);
+
+  const serverWrite = authFetch(`/api/qr/${encodeURIComponent(cleanId)}/deactivate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+    .then((res) => res.ok)
+    .catch((err) => {
+      console.warn('Server deactivate sync warning:', err);
+      return false;
+    });
+
+  const [sdkOk, restOk, serverOk] = await Promise.all([sdkWrite, restWrite, serverWrite]);
+
+  if (!sdkOk && !restOk && !serverOk) {
+    return {
+      success: false,
+      error: 'تعذر الاتصال بالسيرفر أو قاعدة البيانات لإلغاء التفعيل، يرجى المحاولة مرة أخرى.',
+    };
+  }
+
+  return { success: true, record: deactivatedRecord };
 }
 
 /**

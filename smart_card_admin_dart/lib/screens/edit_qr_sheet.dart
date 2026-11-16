@@ -68,6 +68,7 @@ class _EditQrSheetState extends State<EditQrSheet> {
 
   bool _saving = false;
   bool _purging = false;
+  bool _deactivating = false;
   String? _errorMsg;
   String? _noticeMsg;
 
@@ -296,6 +297,54 @@ class _EditQrSheetState extends State<EditQrSheet> {
         _noticeMsg = months >= 900 ? 'تم التفعيل الدائم بنجاح.' : 'تم تجديد الاشتراك +$months شهر بنجاح.';
       });
       widget.onSaved(updated);
+    }
+  }
+
+  Future<void> _deactivateCard() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF18181B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0x66F59E0B)),
+        ),
+        title: const Text(
+          'إلغاء التفعيل وإعادة الكارت كجديد؟',
+          style: TextStyle(color: Color(0xFFFBBF24), fontWeight: FontWeight.w900, fontSize: 15.5),
+        ),
+        content: Text(
+          'سيتم مسح جميع البيانات المكتوبة على البطاقة (${_record.id}) بما في ذلك الروابط وأرقام المحافظ والوصف وعداد المسحات، وستعود إلى حالة "غير مفعل" ليتمكن العميل من تفعيلها من الصفر.',
+          style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.5),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('تراجع')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFBBF24), foregroundColor: Colors.black),
+            child: const Text('تأكيد إلغاء التفعيل', style: TextStyle(fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+    setState(() {
+      _deactivating = true;
+      _errorMsg = null;
+      _noticeMsg = null;
+    });
+
+    final reset = await FirestoreService.deactivateQrCode(_record);
+    if (!mounted) return;
+    setState(() => _deactivating = false);
+
+    if (reset != null) {
+      _record = reset;
+      widget.onSaved(reset);
+      Navigator.of(context).pop();
+    } else {
+      setState(() => _errorMsg = 'تعذر إلغاء التفعيل في قاعدة البيانات، تحقق من الاتصال.');
     }
   }
 
@@ -630,6 +679,33 @@ class _EditQrSheetState extends State<EditQrSheet> {
                         }
                       },
                     ),
+                    if (_record.isActive) ...[
+                      const Divider(color: Colors.white12, height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: (_saving || _purging || _deactivating) ? null : _deactivateCard,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFFBBF24),
+                            side: const BorderSide(color: Color(0x66F59E0B)),
+                            backgroundColor: const Color(0x1AF59E0B),
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          icon: _deactivating
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFBBF24)),
+                                )
+                              : const Icon(Icons.restart_alt_rounded, size: 18),
+                          label: Text(
+                            _deactivating ? 'جاري إلغاء التفعيل...' : 'إلغاء التفعيل وإرجاع الكارت كجديد',
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -638,7 +714,7 @@ class _EditQrSheetState extends State<EditQrSheet> {
               SizedBox(
                 height: 52,
                 child: ElevatedButton.icon(
-                  onPressed: (_saving || _purging) ? null : _save,
+                  onPressed: (_saving || _purging || _deactivating) ? null : _save,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFBBF24),
                     foregroundColor: Colors.black,

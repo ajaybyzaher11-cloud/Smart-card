@@ -258,6 +258,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
+  Future<void> _deactivateCard(QrCodeRecord record) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF18181B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0x66F59E0B)),
+        ),
+        title: const Text(
+          'إلغاء التفعيل وإعادة الكارت كجديد؟',
+          style: TextStyle(color: Color(0xFFFBBF24), fontWeight: FontWeight.w900, fontSize: 15),
+        ),
+        content: Text(
+          'هل أنت متأكد من إلغاء تفعيل البطاقة [${record.id}]؟ سيتم مسح الروابط/المحافظ والوصف وتصفير المسحات لتعود كارتاً جديداً متاحاً للتفعيل.',
+          style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.5),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('تراجع')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFBBF24), foregroundColor: Colors.black),
+            child: const Text('تأكيد إلغاء التفعيل', style: TextStyle(fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+    final reset = await FirestoreService.deactivateQrCode(record);
+    if (!mounted) return;
+    if (reset != null) {
+      setState(() {
+        _records = _records.map((r) => r.id == reset.id ? reset : r).toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFFF59E0B),
+          content: Text(
+            'تم إلغاء تفعيل الكود [${record.id}] وإرجاعه لحالة متاح للتفعيل ✓',
+            style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w800),
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xFFEF4444),
+          content: Text('تعذر إلغاء التفعيل، تحقق من الاتصال وحاول مجدداً.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final total = _records.length;
@@ -582,7 +636,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  r.label.isNotEmpty ? r.label : '$effectiveLabel • ${r.targetUrl ?? "بدون رابط"}',
+                  r.isActive
+                      ? (r.label.isNotEmpty ? r.label : '$effectiveLabel • ${r.targetUrl ?? "بدون رابط"}')
+                      : 'في انتظار التفعيل • متاح لأول مسح',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12, color: Colors.white70),
@@ -590,10 +646,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(r.appType.icon, size: 13, color: effectiveColor),
+                    Icon(r.isActive ? r.appType.icon : Icons.hourglass_empty_rounded, size: 13, color: r.isActive ? effectiveColor : Colors.white54),
                     const SizedBox(width: 4),
                     Text(
-                      effectiveLabel,
+                      r.isActive ? effectiveLabel : 'غير معيّن',
                       style: const TextStyle(fontSize: 10.5, color: Colors.white60, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(width: 10),
@@ -633,15 +689,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.copy_rounded, size: 18, color: Color(0xFFFCD34D)),
-            tooltip: 'نسخ رابط البطاقة',
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: scanUrl));
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('تم نسخ رابط البطاقة: $scanUrl')),
-              );
-            },
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.copy_rounded, size: 18, color: Color(0xFFFCD34D)),
+                tooltip: 'نسخ رابط البطاقة',
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: scanUrl));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('تم نسخ رابط البطاقة: $scanUrl')),
+                  );
+                },
+              ),
+              if (r.isActive)
+                IconButton(
+                  icon: const Icon(Icons.restart_alt_rounded, size: 20, color: Color(0xFFF59E0B)),
+                  tooltip: 'إلغاء التفعيل وإرجاع الكارت كجديد',
+                  onPressed: () => _deactivateCard(r),
+                ),
+            ],
           ),
         ],
       ),

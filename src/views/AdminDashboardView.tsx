@@ -36,12 +36,14 @@ import {
   Calendar,
   FileText,
   Code2,
-  PackageCheck
+  PackageCheck,
+  RotateCcw
 } from 'lucide-react';
 import {
   fetchAllQrCodes,
   generateQrDataUrl,
   deleteQrCode,
+  deactivateQrCode,
   getQrCode,
   lookupExistingQrCode,
   fetchPlatformSettings,
@@ -144,6 +146,10 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
   const [codeToDelete, setCodeToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Deactivate modal state
+  const [codeToDeactivate, setCodeToDeactivate] = useState<string | null>(null);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+
   // QR Thumbnails cache
   const [qrThumbs, setQrThumbs] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -213,6 +219,39 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
       console.error('Delete failed:', err);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleConfirmDeactivate = async () => {
+    if (!codeToDeactivate || isDeactivating) return;
+    setIsDeactivating(true);
+    const targetId = codeToDeactivate;
+    try {
+      const res = await deactivateQrCode(targetId);
+      if (res.success && res.record) {
+        setRecords((prev) => prev.map((r) => (r.id === targetId ? res.record! : r)));
+        if (selectedEditRecord && selectedEditRecord.id === targetId) {
+          setSelectedEditRecord(null);
+        }
+        setCodeToDeactivate(null);
+        setAdminNotice({
+          type: 'success',
+          text: `تم إلغاء تفعيل الكود [${targetId}] ومسح بياناته بالكامل؛ عاد الآن إلى حالة (في انتظار التفعيل) وجاهزاً للتفعيل من جديد ✓`,
+        });
+      } else {
+        setAdminNotice({
+          type: 'error',
+          text: res.error || `تعذر إلغاء تفعيل الكود [${targetId}]. يرجى المحاولة مرة أخرى.`,
+        });
+      }
+    } catch (err) {
+      console.error('Deactivate failed:', err);
+      setAdminNotice({
+        type: 'error',
+        text: `حدث خطأ أثناء إلغاء تفعيل الكود [${targetId}].`,
+      });
+    } finally {
+      setIsDeactivating(false);
     }
   };
 
@@ -988,7 +1027,10 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         setSelectedEditRecord(found);
                         setRecords((prev) => [found, ...prev.filter((r) => r.id !== found.id)]);
                       } else {
-                        alert(`الكود "${cleanSearch}" غير مسجل بالسيرفر.`);
+                        setAdminNotice({
+                          type: 'error',
+                          text: `الكود "${cleanSearch}" غير مسجل بالسيرفر.`,
+                        });
                       }
                     }}
                     className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-amber-400 text-black text-xs font-black rounded-xl transition shadow-lg shadow-amber-500/20 cursor-pointer"
@@ -1256,13 +1298,25 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         <button
                           type="button"
                           onClick={() => setCodeToDelete(record.id)}
-                          className="py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 border border-rose-500/30"
+                          className="py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 border border-rose-500/30 cursor-pointer"
                           title="حذف هذا الكود نهائياً"
                         >
                           <Trash2 className="w-3.5 h-3.5 text-rose-400" />
                           <span>حذف</span>
                         </button>
                       </div>
+
+                      {record.is_active && (
+                        <button
+                          type="button"
+                          onClick={() => setCodeToDeactivate(record.id)}
+                          className="w-full py-2 px-3 bg-amber-500/10 hover:bg-amber-400 hover:text-black text-amber-300 rounded-xl text-[11px] font-black transition flex items-center justify-center gap-1.5 border border-amber-500/35 whitespace-nowrap cursor-pointer"
+                          title="إلغاء التفعيل ومسح البيانات لإرجاع الكارت غير مفعل"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>إلغاء التفعيل وإرجاعه كجديد</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -1372,7 +1426,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                       </td>
                       <td className="py-2.5 px-4 text-slate-300">
                         <div className="flex items-center gap-1.5">
-                          {record.app_type && (
+                          {record.is_active && record.app_type && (
                             <PlatformBrandIcon
                               type={record.app_type as any}
                               className="w-4 h-4 flex-shrink-0"
@@ -1380,7 +1434,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                               walletProvider={record.wallets?.[0]?.provider}
                             />
                           )}
-                          <span className="capitalize">{record.app_type || '—'}</span>
+                          <span className="capitalize">{record.is_active ? (record.app_type || '—') : '—'}</span>
                         </div>
                       </td>
                       <td className="py-2.5 px-4 font-mono text-slate-400 max-w-xs truncate" dir="ltr">
@@ -1394,15 +1448,25 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                           <button
                             type="button"
                             onClick={() => setSelectedEditRecord(record)}
-                            className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-amber-400/10 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-amber-400/10 rounded-lg transition cursor-pointer"
                             title="تعديل الرابط وتاريخ الصلاحية"
                           >
                             <Edit3 className="w-4 h-4 text-amber-400" />
                           </button>
+                          {record.is_active && (
+                            <button
+                              type="button"
+                              onClick={() => setCodeToDeactivate(record.id)}
+                              className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-amber-500/15 rounded-lg transition cursor-pointer"
+                              title="إلغاء التفعيل وإعادة الكارت كجديد"
+                            >
+                              <RotateCcw className="w-4 h-4 text-amber-400" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleDownloadQr(record)}
-                            className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
                             title="تحميل"
                           >
                             <Download className="w-4 h-4 text-amber-400" />
@@ -1410,7 +1474,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                           <button
                             type="button"
                             onClick={() => onSimulateScan(record.id)}
-                            className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-white/10 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-white/10 rounded-lg transition cursor-pointer"
                             title="مسح"
                           >
                             <ExternalLink className="w-4 h-4" />
@@ -1418,7 +1482,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                           <button
                             type="button"
                             onClick={() => setCodeToDelete(record.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition cursor-pointer"
                             title="حذف"
                           >
                             <Trash2 className="w-4 h-4 text-rose-400" />
@@ -1482,6 +1546,13 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             return prev.map((r) => (r.id === updated.id ? updated : r));
           });
           setFilterStatus('active');
+        }}
+        onDeactivated={(resetRecord) => {
+          setRecords((prev) => prev.map((r) => (r.id === resetRecord.id ? resetRecord : r)));
+          setAdminNotice({
+            type: 'success',
+            text: `تم إلغاء تفعيل الكود [${resetRecord.id}] ومسح بياناته بالكامل؛ عاد الآن إلى حالة (في انتظار التفعيل) وجاهزاً للتفعيل من جديد ✓`,
+          });
         }}
         onDelete={(id) => setCodeToDelete(id)}
       />
@@ -1682,9 +1753,51 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                 type="button"
                 onClick={handleConfirmDelete}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md transition"
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md transition whitespace-nowrap"
               >
                 {isDeleting ? 'جاري الحذف...' : 'تأكيد الحذف نهائياً'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deactivate Confirmation Modal (Admin Only) */}
+      {codeToDeactivate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-sm bg-[#121216] border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-white space-y-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/35">
+              <RotateCcw className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-amber-300">إلغاء تفعيل الكارت وإعادته كجديد؟</h3>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                هل أنت متأكد من إلغاء تفعيل الكود{' '}
+                <span className="font-mono font-bold text-amber-300 bg-black/60 px-2 py-0.5 rounded border border-amber-500/25" dir="ltr">
+                  {codeToDeactivate}
+                </span>
+                ؟
+              </p>
+            </div>
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[11px] text-amber-200 text-right leading-relaxed font-semibold">
+              سيتم مسح أي رابط أو محافظ أو حساب بنكي أو وصف مكتوب وتصفير عداد المسحات، وسيعود الكارت فوراً إلى حالة <span className="text-white font-black">«في انتظار التفعيل»</span> بحيث يستطيع العميل مسحه وتفعيله لأول مرة من الصفر.
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setCodeToDeactivate(null)}
+                disabled={isDeactivating}
+                className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs rounded-xl transition border border-white/10 whitespace-nowrap cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeactivate}
+                disabled={isDeactivating}
+                className="flex-1 py-2.5 bg-amber-400 hover:bg-amber-300 text-black font-black text-xs rounded-xl shadow-md transition whitespace-nowrap cursor-pointer disabled:opacity-50"
+              >
+                {isDeactivating ? 'جاري الإلغاء...' : 'تأكيد إلغاء التفعيل'}
               </button>
             </div>
           </div>

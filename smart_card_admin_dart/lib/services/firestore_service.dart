@@ -338,6 +338,73 @@ class FirestoreService {
     return res.statusCode >= 200 && res.statusCode < 300;
   }
 
+  /// Admin-Only: Cancels mistaken activation, wipes target_url, wallets, label, scans, and app_type,
+  /// and restores the QR card back to its fresh unactivated state (is_active: false).
+  static Future<QrCodeRecord?> deactivateQrCode(QrCodeRecord existing) async {
+    final now = DateTime.now().toUtc();
+    final nowIso = now.toIso8601String();
+    String? restoredExpiresAt = existing.expiresAt;
+    if (existing.isExpired) {
+      final months = existing.subscriptionMonths;
+      if (months > 0 && months < 900) {
+        restoredExpiresAt = DateTime.utc(now.year, now.month + months, now.day, now.hour, now.minute, now.second)
+            .toIso8601String();
+      } else {
+        restoredExpiresAt = null;
+      }
+    }
+
+    final resetRecord = QrCodeRecord(
+      id: existing.id,
+      isActive: false,
+      targetUrl: null,
+      appType: AppType.website,
+      label: '',
+      createdAt: existing.createdAt,
+      updatedAt: nowIso,
+      lastScannedAt: null,
+      totalScans: 0,
+      expiresAt: restoredExpiresAt,
+      subscriptionMonths: existing.subscriptionMonths,
+      wallets: const [],
+      isPrinted: existing.isPrinted,
+      printedAt: existing.printedAt,
+    );
+
+    // Explicit canonical inactive Firestore payload omitting app_type, wallets, last_scanned_at
+    final fields = <String, dynamic>{
+      'id': _toFirestoreValue(resetRecord.id),
+      'is_active': _toFirestoreValue(false),
+      'target_url': _toFirestoreValue(null),
+      'label': _toFirestoreValue(''),
+      'created_at': _toFirestoreValue(resetRecord.createdAt),
+      'updated_at': _toFirestoreValue(nowIso),
+      'total_scans': _toFirestoreValue(0),
+      'expires_at': _toFirestoreValue(restoredExpiresAt),
+      'subscription_months': _toFirestoreValue(resetRecord.subscriptionMonths),
+      'is_printed': _toFirestoreValue(resetRecord.isPrinted),
+      'printed_at': _toFirestoreValue(resetRecord.printedAt),
+    };
+
+    try {
+      final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(existing.id)}?key=$_apiKey');
+      final res = await http
+          .patch(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'fields': fields}),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final cached = await _loadCache();
+        final nextCache = cached.map((r) => r.id == resetRecord.id ? resetRecord : r).toList();
+        await _saveCache(nextCache);
+        return resetRecord;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   static Future<QrCodeRecord?> toggleQrPrintedStatus(QrCodeRecord existing, bool isPrinted) async {
     final nowIso = DateTime.now().toUtc().toIso8601String();
     final updated = QrCodeRecord(

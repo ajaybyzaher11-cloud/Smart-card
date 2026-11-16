@@ -1,7 +1,7 @@
 ################################################################################
 # SMART CARD PLATFORM - COMPLETE UNIFIED SOURCE CODE (SINGLE COPYABLE FILE)
 # Total Files: 46
-# Generated At: 2026-11-16T22:27:33.571Z
+# Generated At: 2026-11-16T22:51:02.081Z
 # Live URL: https://smart-card-inky.vercel.app
 ################################################################################
 #
@@ -16,7 +16,7 @@
 #   08. firestore.rules (26 lines)
 #   09. firebase-blueprint.json (96 lines)
 #   10. firebase-applet-config.json (12 lines)
-#   11. server.ts (1152 lines)
+#   11. server.ts (1227 lines)
 #   12. api/redirect.ts (293 lines)
 #   13. src/main.tsx (6 lines)
 #   14. src/App.tsx (253 lines)
@@ -26,17 +26,17 @@
 #   18. src/lib/firebase.ts (80 lines)
 #   19. src/lib/auth.ts (374 lines)
 #   20. src/lib/deepLinks.ts (947 lines)
-#   21. src/lib/qrService.ts (1421 lines)
+#   21. src/lib/qrService.ts (1510 lines)
 #   22. src/components/BrandIcons.tsx (660 lines)
 #   23. src/components/QrScannerModal.tsx (413 lines)
-#   24. src/components/EditQrModal.tsx (1410 lines)
+#   24. src/components/EditQrModal.tsx (1524 lines)
 #   25. src/components/BulkGenerateModal.tsx (389 lines)
 #   26. src/components/PrintSheetModal.tsx (224 lines)
 #   27. src/components/UploadQrModal.tsx (320 lines)
 #   28. src/components/DeveloperSettingsModal.tsx (252 lines)
 #   29. src/views/HomeLandingView.tsx (404 lines)
 #   30. src/views/AdminLoginView.tsx (131 lines)
-#   31. src/views/AdminDashboardView.tsx (1696 lines)
+#   31. src/views/AdminDashboardView.tsx (1809 lines)
 #   32. src/views/CustomerActivationView.tsx (729 lines)
 #   33. src/views/SmartRedirectView.tsx (668 lines)
 #   34. src/views/CardExpiredView.tsx (140 lines)
@@ -45,12 +45,12 @@
 #   37. smart_card_admin_dart/lib/models/qr_models.dart (400 lines)
 #   38. smart_card_admin_dart/lib/utils/deep_links.dart (329 lines)
 #   39. smart_card_admin_dart/lib/services/auth_service.dart (146 lines)
-#   40. smart_card_admin_dart/lib/services/firestore_service.dart (470 lines)
+#   40. smart_card_admin_dart/lib/services/firestore_service.dart (537 lines)
 #   41. smart_card_admin_dart/lib/widgets/three_d_widgets.dart (361 lines)
 #   42. smart_card_admin_dart/lib/screens/admin_login_screen.dart (213 lines)
-#   43. smart_card_admin_dart/lib/screens/admin_dashboard_screen.dart (651 lines)
+#   43. smart_card_admin_dart/lib/screens/admin_dashboard_screen.dart (718 lines)
 #   44. smart_card_admin_dart/lib/screens/qr_scanner_screen.dart (247 lines)
-#   45. smart_card_admin_dart/lib/screens/edit_qr_sheet.dart (945 lines)
+#   45. smart_card_admin_dart/lib/screens/edit_qr_sheet.dart (1021 lines)
 #   46. smart_card_admin_dart/lib/screens/settings_screen.dart (275 lines)
 #
 ################################################################################
@@ -836,6 +836,7 @@ interface QrRecord {
   label?: string;
   created_at: string;
   updated_at?: string;
+  last_scanned_at?: string;
   total_scans: number;
   expires_at?: string | null;
   subscription_months?: number;
@@ -1186,10 +1187,11 @@ async function fetchQrFromFirestoreRestServer(id: string): Promise<QrRecord | nu
       id,
       is_active: f.is_active?.booleanValue ?? false,
       target_url: f.target_url?.stringValue ?? null,
-      app_type: f.app_type?.stringValue ?? 'website',
-      label: f.label?.stringValue,
+      ...(f.app_type?.stringValue ? { app_type: f.app_type.stringValue } : {}),
+      label: f.label?.stringValue ?? '',
       created_at: f.created_at?.stringValue ?? new Date().toISOString(),
       updated_at: f.updated_at?.stringValue,
+      ...(f.last_scanned_at?.stringValue ? { last_scanned_at: f.last_scanned_at.stringValue } : {}),
       total_scans: parseInt(f.total_scans?.integerValue || '0', 10),
       expires_at: f.expires_at?.stringValue ?? null,
       subscription_months: parseInt(f.subscription_months?.integerValue || '1', 10),
@@ -1201,6 +1203,36 @@ async function fetchQrFromFirestoreRestServer(id: string): Promise<QrRecord | nu
     return null;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+async function syncDeactivatedQrToFirestoreRest(record: QrRecord): Promise<void> {
+  const pId = firebaseConfig?.projectId || FIRESTORE_PROJECT_ID;
+  const dbId = firebaseConfig?.firestoreDatabaseId || FIRESTORE_DATABASE_ID;
+  const key = firebaseConfig?.apiKey || 'AIzaSyAjyCP484AEQ52-9CDgp8TDkAw5woA1TFc';
+  try {
+    const fields: Record<string, any> = {
+      id: { stringValue: record.id },
+      is_active: { booleanValue: false },
+      target_url: { nullValue: null },
+      label: { stringValue: '' },
+      created_at: { stringValue: record.created_at },
+      updated_at: { stringValue: record.updated_at || new Date().toISOString() },
+      total_scans: { integerValue: '0' },
+      expires_at: record.expires_at ? { stringValue: record.expires_at } : { nullValue: null },
+      subscription_months: { integerValue: String(record.subscription_months ?? 1) },
+      is_printed: { booleanValue: Boolean(record.is_printed) },
+      printed_at: record.printed_at ? { stringValue: record.printed_at } : { nullValue: null },
+    };
+    const docUrl = `https://firestore.googleapis.com/v1/projects/${pId}/databases/${dbId}/documents/qr_codes/${encodeURIComponent(record.id)}?key=${key}`;
+    await fetch(docUrl, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+      cache: 'no-store',
+    });
+  } catch (err) {
+    console.warn('Server failed to sync deactivated QR to Firestore REST:', err);
   }
 }
 
@@ -1433,6 +1465,47 @@ app.post('/api/qr/print-status/batch', requireAdminAuth, (req, res) => {
   res.json({ success: true, data: updated, count: updated.length });
 });
 
+// Admin Exclusive Deactivate / Reset Activation (PROTECTED with requireAdminAuth)
+// Restores an accidentally activated QR card back to fresh unactivated state (is_active: false)
+app.post('/api/qr/:id/deactivate', requireAdminAuth, async (req, res) => {
+  const { id } = req.params;
+  const db = loadDatabase();
+  const existing = db[id] || (await fetchQrFromFirestoreRestServer(id));
+  const now = new Date().toISOString();
+
+  let restoredExpiresAt = existing?.expires_at ?? null;
+  if (restoredExpiresAt && new Date(restoredExpiresAt).getTime() < Date.now()) {
+    const months = existing?.subscription_months ?? 1;
+    restoredExpiresAt = months > 0
+      ? new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+  }
+
+  const resetRecord: QrRecord = {
+    id,
+    is_active: false,
+    target_url: null,
+    label: '',
+    created_at: existing?.created_at || now,
+    updated_at: now,
+    total_scans: 0,
+    expires_at: restoredExpiresAt,
+    subscription_months: existing?.subscription_months ?? 1,
+    is_printed: Boolean(existing?.is_printed),
+    printed_at: existing?.printed_at ?? null,
+  };
+
+  db[id] = resetRecord;
+  saveDatabase(db);
+  await syncDeactivatedQrToFirestoreRest(resetRecord);
+
+  res.json({
+    success: true,
+    data: resetRecord,
+    message: 'تم إلغاء التفعيل ومسح بيانات البطاقة وإعادتها لحالة كارت جديد غير مفعل',
+  });
+});
+
 // Debounced scan counter
 const recentScansDebounce = new Map<string, number>();
 
@@ -1557,7 +1630,9 @@ app.get('/q/:id', async (req, res, next) => {
     if (!record || fsTime >= localTime) {
       record = {
         ...fsRecord,
-        total_scans: Math.max(record?.total_scans || 0, fsRecord.total_scans || 0),
+        total_scans: fsRecord.is_active
+          ? Math.max(record?.total_scans || 0, fsRecord.total_scans || 0)
+          : 0,
       };
       db[id] = record;
       saveDatabase(db);
@@ -4040,7 +4115,7 @@ function buildCanonicalQrRecord(params: {
   id: string;
   is_active: boolean;
   target_url: string | null;
-  app_type: AppType;
+  app_type?: AppType;
   created_at: string;
   updated_at: string;
   total_scans: number;
@@ -4056,7 +4131,6 @@ function buildCanonicalQrRecord(params: {
     id: params.id,
     is_active: params.is_active,
     target_url: params.target_url,
-    app_type: params.app_type,
     created_at: params.created_at,
     updated_at: params.updated_at,
     total_scans: params.total_scans,
@@ -4066,6 +4140,10 @@ function buildCanonicalQrRecord(params: {
     is_printed: Boolean(params.is_printed),
     printed_at: params.is_printed ? (params.printed_at || new Date().toISOString()) : null,
   };
+
+  if (params.app_type) {
+    canonical.app_type = params.app_type;
+  }
 
   if (params.last_scanned_at) {
     canonical.last_scanned_at = params.last_scanned_at;
@@ -4764,6 +4842,92 @@ export async function adminUpdateQrCode(
   }
 
   return { success: true, record: updatedRecord };
+}
+
+/**
+ * Admin-Only: Deactivate / Cancel Activation for an accidentally activated QR card.
+ * Completely wipes everything written during activation (target_url, app_type, wallets, label, total_scans, last_scanned_at)
+ * while preserving card identity (id, created_at, subscription_months, print status),
+ * and restores it to its original unactivated state (is_active: false) ready for fresh customer activation.
+ */
+export async function deactivateQrCode(
+  id: string
+): Promise<{ success: boolean; record?: QrCodeRecord; error?: string }> {
+  const cleanId = id.trim();
+  if (!cleanId) return { success: false, error: 'معرّف الكود غير صالح' };
+
+  const current = await getQrCode(cleanId);
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const subscriptionMonths = current?.subscription_months ?? 1;
+
+  let restoredExpiresAt = current?.expires_at ?? null;
+  if (restoredExpiresAt && new Date(restoredExpiresAt).getTime() < now.getTime()) {
+    restoredExpiresAt = subscriptionMonths > 0
+      ? new Date(now.getTime() + subscriptionMonths * 30 * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+  }
+
+  const deactivatedRecord = buildCanonicalQrRecord({
+    id: cleanId,
+    is_active: false,
+    target_url: null,
+    app_type: undefined,
+    created_at: current?.created_at || nowIso,
+    updated_at: nowIso,
+    total_scans: 0,
+    last_scanned_at: undefined,
+    label: '',
+    expires_at: restoredExpiresAt,
+    subscription_months: subscriptionMonths,
+    wallets: undefined,
+    is_printed: Boolean(current?.is_printed),
+    printed_at: current?.printed_at ?? null,
+  });
+
+  // Update local cache & initial record immediately
+  const cache = getLocalCache();
+  cache[cleanId] = deactivatedRecord;
+  saveLocalCache(cache);
+  if (typeof window !== 'undefined') {
+    if ((window as any).__INITIAL_QR_RECORD__?.id === cleanId) {
+      (window as any).__INITIAL_QR_RECORD__ = deactivatedRecord;
+    }
+    try {
+      sessionStorage.removeItem(`scanned_session_${cleanId}`);
+    } catch {}
+  }
+
+  // Full document replacement across Cloud Firestore SDK, Firestore REST, and Express API
+  const sdkWrite = setDoc(doc(db, 'qr_codes', cleanId), deactivatedRecord)
+    .then(() => true)
+    .catch((fsErr) => {
+      console.warn('Firestore deactivate write warning:', fsErr);
+      return false;
+    });
+
+  const restWrite = writeQrToFirestoreRest(cleanId, deactivatedRecord);
+
+  const serverWrite = authFetch(`/api/qr/${encodeURIComponent(cleanId)}/deactivate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+    .then((res) => res.ok)
+    .catch((err) => {
+      console.warn('Server deactivate sync warning:', err);
+      return false;
+    });
+
+  const [sdkOk, restOk, serverOk] = await Promise.all([sdkWrite, restWrite, serverWrite]);
+
+  if (!sdkOk && !restOk && !serverOk) {
+    return {
+      success: false,
+      error: 'تعذر الاتصال بالسيرفر أو قاعدة البيانات لإلغاء التفعيل، يرجى المحاولة مرة أخرى.',
+    };
+  }
+
+  return { success: true, record: deactivatedRecord };
 }
 
 /**
@@ -6501,7 +6665,7 @@ import {
   AlertTriangle,
   Loader2
 } from 'lucide-react';
-import { adminUpdateQrCode, generateQrDataUrl, resetQrScanCount, purgeQrTargetInDatabase } from '../lib/qrService';
+import { adminUpdateQrCode, generateQrDataUrl, resetQrScanCount, purgeQrTargetInDatabase, deactivateQrCode } from '../lib/qrService';
 import { 
   processSmartLink, 
   encodeBankDetails, 
@@ -6533,6 +6697,7 @@ interface EditQrModalProps {
   domainUrl: string;
   onSaved: (updatedRecord: QrCodeRecord) => void;
   onPurged?: (updatedRecord: QrCodeRecord) => void;
+  onDeactivated?: (resetRecord: QrCodeRecord) => void;
   onDelete?: (id: string) => void;
 }
 
@@ -6627,13 +6792,15 @@ export const PLATFORM_META: Record<AppType, { labelAr: string; labelEn: string; 
   },
 };
 
-export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPurged, onDelete }: EditQrModalProps) {
+export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPurged, onDeactivated, onDelete }: EditQrModalProps) {
   const [selectedType, setSelectedType] = useState<AppType>('website');
   const [targetUrl, setTargetUrl] = useState('');
   const [label, setLabel] = useState('');
   const [loading, setLoading] = useState(false);
   const [purgingTarget, setPurgingTarget] = useState(false);
   const [purgeNotice, setPurgeNotice] = useState<string | null>(null);
+  const [confirmingDeactivate, setConfirmingDeactivate] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
@@ -6775,6 +6942,8 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
       setErrorMsg(null);
       setPurgeNotice(null);
       setPurgingTarget(false);
+      setConfirmingDeactivate(false);
+      setDeactivating(false);
       setCurrentScans(record.total_scans || 0);
       setExpiresAt(record.expires_at || null);
 
@@ -6845,6 +7014,48 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
       setCurrentScans(0);
       record.total_scans = 0;
       onSaved({ ...record, total_scans: 0 });
+    }
+  };
+
+  const handleDeactivateCard = async () => {
+    if (!record || deactivating) return;
+    setDeactivating(true);
+    setErrorMsg(null);
+    setPurgeNotice(null);
+
+    try {
+      const res = await deactivateQrCode(record.id);
+      if (res.success && res.record) {
+        setTargetUrl('');
+        setLabel('');
+        setSelectedType('website');
+        setWalletCount(1);
+        setWalletPhone('');
+        setWallets([
+          { phone: '', provider: 'generic', ownerName: '' },
+          { phone: '', provider: 'generic', ownerName: '' },
+          { phone: '', provider: 'generic', ownerName: '' },
+          { phone: '', provider: 'generic', ownerName: '' },
+        ]);
+        setAccountNumber('');
+        setAccountName('');
+        setIban('');
+        setBankNotes('');
+        setCurrentScans(0);
+        setConfirmingDeactivate(false);
+        if (onDeactivated) {
+          onDeactivated(res.record);
+        } else {
+          onSaved(res.record);
+        }
+        onClose();
+      } else {
+        setErrorMsg(res.error || 'تعذر إلغاء تفعيل الكارت، يرجى المحاولة مرة أخرى.');
+      }
+    } catch {
+      setErrorMsg('حدث خطأ أثناء إلغاء التفعيل، يرجى المحاولة مجدداً.');
+    } finally {
+      setDeactivating(false);
     }
   };
 
@@ -7837,6 +8048,73 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
             <div className="p-3 bg-amber-400/20 border border-amber-400/30 rounded-2xl text-xs text-amber-300 font-bold flex items-center gap-2 animate-in fade-in">
               <Check className="w-4 h-4 text-amber-400 flex-shrink-0" />
               تم حفظ التعديلات وتحديث المنصة والرابط بنجاح!
+            </div>
+          )}
+
+          {/* Admin-Only Deactivate / Cancel Mistaken Activation Section */}
+          {record.is_active && (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/35 rounded-2xl space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="space-y-0.5">
+                  <h4 className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                    <RotateCcw className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                    <span>إلغاء التفعيل وإعادة الكارت كجديد (للأدمن فقط)</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    إذا تم تفعيل هذا الكارت بالخطأ، يمكنك إلغاء تفعيله ومسح كافة البيانات المكتوبة عليه ليعود غير مفعّل وجاهزاً للتفعيل من جديد.
+                  </p>
+                </div>
+                {!confirmingDeactivate && (
+                  <button
+                    type="button"
+                    disabled={deactivating || loading}
+                    onClick={() => setConfirmingDeactivate(true)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-amber-500/20 hover:bg-amber-400 hover:text-black text-amber-300 border border-amber-400/45 rounded-xl text-xs font-black transition whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>إلغاء التفعيل</span>
+                  </button>
+                )}
+              </div>
+
+              {confirmingDeactivate && (
+                <div className="p-3 bg-black/70 border border-amber-400/40 rounded-xl space-y-3 animate-in fade-in">
+                  <p className="text-[11px] text-amber-200 font-bold leading-relaxed flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <span>
+                      سيتم مسح الوجهة الحالية ({record.app_type || 'website'}) وكافة الأرقام/المحافظ والوصف وتصفير المسحات، وسيعود الكارت [{record.id}] إلى حالة &quot;في انتظار التفعيل&quot;. هل أنت متأكد؟
+                    </span>
+                  </p>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      disabled={deactivating}
+                      onClick={() => setConfirmingDeactivate(false)}
+                      className="px-3.5 py-1.5 text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition whitespace-nowrap shrink-0 cursor-pointer"
+                    >
+                      تراجع
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deactivating}
+                      onClick={handleDeactivateCard}
+                      className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-amber-400 hover:bg-amber-300 text-black text-xs font-black rounded-lg shadow transition whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-50"
+                    >
+                      {deactivating ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
+                          <span>جاري إلغاء التفعيل...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RotateCcw className="w-3.5 h-3.5 text-black" />
+                          <span>تأكيد إلغاء التفعيل الآن</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -9659,12 +9937,14 @@ import {
   Calendar,
   FileText,
   Code2,
-  PackageCheck
+  PackageCheck,
+  RotateCcw
 } from 'lucide-react';
 import {
   fetchAllQrCodes,
   generateQrDataUrl,
   deleteQrCode,
+  deactivateQrCode,
   getQrCode,
   lookupExistingQrCode,
   fetchPlatformSettings,
@@ -9767,6 +10047,10 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
   const [codeToDelete, setCodeToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Deactivate modal state
+  const [codeToDeactivate, setCodeToDeactivate] = useState<string | null>(null);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+
   // QR Thumbnails cache
   const [qrThumbs, setQrThumbs] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -9836,6 +10120,39 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
       console.error('Delete failed:', err);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleConfirmDeactivate = async () => {
+    if (!codeToDeactivate || isDeactivating) return;
+    setIsDeactivating(true);
+    const targetId = codeToDeactivate;
+    try {
+      const res = await deactivateQrCode(targetId);
+      if (res.success && res.record) {
+        setRecords((prev) => prev.map((r) => (r.id === targetId ? res.record! : r)));
+        if (selectedEditRecord && selectedEditRecord.id === targetId) {
+          setSelectedEditRecord(null);
+        }
+        setCodeToDeactivate(null);
+        setAdminNotice({
+          type: 'success',
+          text: `تم إلغاء تفعيل الكود [${targetId}] ومسح بياناته بالكامل؛ عاد الآن إلى حالة (في انتظار التفعيل) وجاهزاً للتفعيل من جديد ✓`,
+        });
+      } else {
+        setAdminNotice({
+          type: 'error',
+          text: res.error || `تعذر إلغاء تفعيل الكود [${targetId}]. يرجى المحاولة مرة أخرى.`,
+        });
+      }
+    } catch (err) {
+      console.error('Deactivate failed:', err);
+      setAdminNotice({
+        type: 'error',
+        text: `حدث خطأ أثناء إلغاء تفعيل الكود [${targetId}].`,
+      });
+    } finally {
+      setIsDeactivating(false);
     }
   };
 
@@ -10611,7 +10928,10 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         setSelectedEditRecord(found);
                         setRecords((prev) => [found, ...prev.filter((r) => r.id !== found.id)]);
                       } else {
-                        alert(`الكود "${cleanSearch}" غير مسجل بالسيرفر.`);
+                        setAdminNotice({
+                          type: 'error',
+                          text: `الكود "${cleanSearch}" غير مسجل بالسيرفر.`,
+                        });
                       }
                     }}
                     className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-amber-400 text-black text-xs font-black rounded-xl transition shadow-lg shadow-amber-500/20 cursor-pointer"
@@ -10879,13 +11199,25 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         <button
                           type="button"
                           onClick={() => setCodeToDelete(record.id)}
-                          className="py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 border border-rose-500/30"
+                          className="py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 border border-rose-500/30 cursor-pointer"
                           title="حذف هذا الكود نهائياً"
                         >
                           <Trash2 className="w-3.5 h-3.5 text-rose-400" />
                           <span>حذف</span>
                         </button>
                       </div>
+
+                      {record.is_active && (
+                        <button
+                          type="button"
+                          onClick={() => setCodeToDeactivate(record.id)}
+                          className="w-full py-2 px-3 bg-amber-500/10 hover:bg-amber-400 hover:text-black text-amber-300 rounded-xl text-[11px] font-black transition flex items-center justify-center gap-1.5 border border-amber-500/35 whitespace-nowrap cursor-pointer"
+                          title="إلغاء التفعيل ومسح البيانات لإرجاع الكارت غير مفعل"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>إلغاء التفعيل وإرجاعه كجديد</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -10995,7 +11327,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                       </td>
                       <td className="py-2.5 px-4 text-slate-300">
                         <div className="flex items-center gap-1.5">
-                          {record.app_type && (
+                          {record.is_active && record.app_type && (
                             <PlatformBrandIcon
                               type={record.app_type as any}
                               className="w-4 h-4 flex-shrink-0"
@@ -11003,7 +11335,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                               walletProvider={record.wallets?.[0]?.provider}
                             />
                           )}
-                          <span className="capitalize">{record.app_type || '—'}</span>
+                          <span className="capitalize">{record.is_active ? (record.app_type || '—') : '—'}</span>
                         </div>
                       </td>
                       <td className="py-2.5 px-4 font-mono text-slate-400 max-w-xs truncate" dir="ltr">
@@ -11017,15 +11349,25 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                           <button
                             type="button"
                             onClick={() => setSelectedEditRecord(record)}
-                            className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-amber-400/10 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-amber-400/10 rounded-lg transition cursor-pointer"
                             title="تعديل الرابط وتاريخ الصلاحية"
                           >
                             <Edit3 className="w-4 h-4 text-amber-400" />
                           </button>
+                          {record.is_active && (
+                            <button
+                              type="button"
+                              onClick={() => setCodeToDeactivate(record.id)}
+                              className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-amber-500/15 rounded-lg transition cursor-pointer"
+                              title="إلغاء التفعيل وإعادة الكارت كجديد"
+                            >
+                              <RotateCcw className="w-4 h-4 text-amber-400" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => handleDownloadQr(record)}
-                            className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
                             title="تحميل"
                           >
                             <Download className="w-4 h-4 text-amber-400" />
@@ -11033,7 +11375,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                           <button
                             type="button"
                             onClick={() => onSimulateScan(record.id)}
-                            className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-white/10 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-white/10 rounded-lg transition cursor-pointer"
                             title="مسح"
                           >
                             <ExternalLink className="w-4 h-4" />
@@ -11041,7 +11383,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                           <button
                             type="button"
                             onClick={() => setCodeToDelete(record.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition cursor-pointer"
                             title="حذف"
                           >
                             <Trash2 className="w-4 h-4 text-rose-400" />
@@ -11105,6 +11447,13 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             return prev.map((r) => (r.id === updated.id ? updated : r));
           });
           setFilterStatus('active');
+        }}
+        onDeactivated={(resetRecord) => {
+          setRecords((prev) => prev.map((r) => (r.id === resetRecord.id ? resetRecord : r)));
+          setAdminNotice({
+            type: 'success',
+            text: `تم إلغاء تفعيل الكود [${resetRecord.id}] ومسح بياناته بالكامل؛ عاد الآن إلى حالة (في انتظار التفعيل) وجاهزاً للتفعيل من جديد ✓`,
+          });
         }}
         onDelete={(id) => setCodeToDelete(id)}
       />
@@ -11305,9 +11654,51 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                 type="button"
                 onClick={handleConfirmDelete}
                 disabled={isDeleting}
-                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md transition"
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md transition whitespace-nowrap"
               >
                 {isDeleting ? 'جاري الحذف...' : 'تأكيد الحذف نهائياً'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deactivate Confirmation Modal (Admin Only) */}
+      {codeToDeactivate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-sm bg-[#121216] border border-amber-500/40 rounded-3xl p-6 shadow-2xl text-white space-y-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/35">
+              <RotateCcw className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-amber-300">إلغاء تفعيل الكارت وإعادته كجديد؟</h3>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                هل أنت متأكد من إلغاء تفعيل الكود{' '}
+                <span className="font-mono font-bold text-amber-300 bg-black/60 px-2 py-0.5 rounded border border-amber-500/25" dir="ltr">
+                  {codeToDeactivate}
+                </span>
+                ؟
+              </p>
+            </div>
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[11px] text-amber-200 text-right leading-relaxed font-semibold">
+              سيتم مسح أي رابط أو محافظ أو حساب بنكي أو وصف مكتوب وتصفير عداد المسحات، وسيعود الكارت فوراً إلى حالة <span className="text-white font-black">«في انتظار التفعيل»</span> بحيث يستطيع العميل مسحه وتفعيله لأول مرة من الصفر.
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setCodeToDeactivate(null)}
+                disabled={isDeactivating}
+                className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 font-bold text-xs rounded-xl transition border border-white/10 whitespace-nowrap cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeactivate}
+                disabled={isDeactivating}
+                className="flex-1 py-2.5 bg-amber-400 hover:bg-amber-300 text-black font-black text-xs rounded-xl shadow-md transition whitespace-nowrap cursor-pointer disabled:opacity-50"
+              >
+                {isDeactivating ? 'جاري الإلغاء...' : 'تأكيد إلغاء التفعيل'}
               </button>
             </div>
           </div>
@@ -14202,6 +14593,73 @@ class FirestoreService {
     return res.statusCode >= 200 && res.statusCode < 300;
   }
 
+  /// Admin-Only: Cancels mistaken activation, wipes target_url, wallets, label, scans, and app_type,
+  /// and restores the QR card back to its fresh unactivated state (is_active: false).
+  static Future<QrCodeRecord?> deactivateQrCode(QrCodeRecord existing) async {
+    final now = DateTime.now().toUtc();
+    final nowIso = now.toIso8601String();
+    String? restoredExpiresAt = existing.expiresAt;
+    if (existing.isExpired) {
+      final months = existing.subscriptionMonths;
+      if (months > 0 && months < 900) {
+        restoredExpiresAt = DateTime.utc(now.year, now.month + months, now.day, now.hour, now.minute, now.second)
+            .toIso8601String();
+      } else {
+        restoredExpiresAt = null;
+      }
+    }
+
+    final resetRecord = QrCodeRecord(
+      id: existing.id,
+      isActive: false,
+      targetUrl: null,
+      appType: AppType.website,
+      label: '',
+      createdAt: existing.createdAt,
+      updatedAt: nowIso,
+      lastScannedAt: null,
+      totalScans: 0,
+      expiresAt: restoredExpiresAt,
+      subscriptionMonths: existing.subscriptionMonths,
+      wallets: const [],
+      isPrinted: existing.isPrinted,
+      printedAt: existing.printedAt,
+    );
+
+    // Explicit canonical inactive Firestore payload omitting app_type, wallets, last_scanned_at
+    final fields = <String, dynamic>{
+      'id': _toFirestoreValue(resetRecord.id),
+      'is_active': _toFirestoreValue(false),
+      'target_url': _toFirestoreValue(null),
+      'label': _toFirestoreValue(''),
+      'created_at': _toFirestoreValue(resetRecord.createdAt),
+      'updated_at': _toFirestoreValue(nowIso),
+      'total_scans': _toFirestoreValue(0),
+      'expires_at': _toFirestoreValue(restoredExpiresAt),
+      'subscription_months': _toFirestoreValue(resetRecord.subscriptionMonths),
+      'is_printed': _toFirestoreValue(resetRecord.isPrinted),
+      'printed_at': _toFirestoreValue(resetRecord.printedAt),
+    };
+
+    try {
+      final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(existing.id)}?key=$_apiKey');
+      final res = await http
+          .patch(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'fields': fields}),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final cached = await _loadCache();
+        final nextCache = cached.map((r) => r.id == resetRecord.id ? resetRecord : r).toList();
+        await _saveCache(nextCache);
+        return resetRecord;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   static Future<QrCodeRecord?> toggleQrPrintedStatus(QrCodeRecord existing, bool isPrinted) async {
     final nowIso = DateTime.now().toUtc().toIso8601String();
     final updated = QrCodeRecord(
@@ -15175,6 +15633,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
+  Future<void> _deactivateCard(QrCodeRecord record) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF18181B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0x66F59E0B)),
+        ),
+        title: const Text(
+          'إلغاء التفعيل وإعادة الكارت كجديد؟',
+          style: TextStyle(color: Color(0xFFFBBF24), fontWeight: FontWeight.w900, fontSize: 15),
+        ),
+        content: Text(
+          'هل أنت متأكد من إلغاء تفعيل البطاقة [${record.id}]؟ سيتم مسح الروابط/المحافظ والوصف وتصفير المسحات لتعود كارتاً جديداً متاحاً للتفعيل.',
+          style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.5),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('تراجع')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFBBF24), foregroundColor: Colors.black),
+            child: const Text('تأكيد إلغاء التفعيل', style: TextStyle(fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+    final reset = await FirestoreService.deactivateQrCode(record);
+    if (!mounted) return;
+    if (reset != null) {
+      setState(() {
+        _records = _records.map((r) => r.id == reset.id ? reset : r).toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFFF59E0B),
+          content: Text(
+            'تم إلغاء تفعيل الكود [${record.id}] وإرجاعه لحالة متاح للتفعيل ✓',
+            style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w800),
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xFFEF4444),
+          content: Text('تعذر إلغاء التفعيل، تحقق من الاتصال وحاول مجدداً.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final total = _records.length;
@@ -15499,7 +16011,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  r.label.isNotEmpty ? r.label : '$effectiveLabel • ${r.targetUrl ?? "بدون رابط"}',
+                  r.isActive
+                      ? (r.label.isNotEmpty ? r.label : '$effectiveLabel • ${r.targetUrl ?? "بدون رابط"}')
+                      : 'في انتظار التفعيل • متاح لأول مسح',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12, color: Colors.white70),
@@ -15507,10 +16021,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(r.appType.icon, size: 13, color: effectiveColor),
+                    Icon(r.isActive ? r.appType.icon : Icons.hourglass_empty_rounded, size: 13, color: r.isActive ? effectiveColor : Colors.white54),
                     const SizedBox(width: 4),
                     Text(
-                      effectiveLabel,
+                      r.isActive ? effectiveLabel : 'غير معيّن',
                       style: const TextStyle(fontSize: 10.5, color: Colors.white60, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(width: 10),
@@ -15550,15 +16064,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.copy_rounded, size: 18, color: Color(0xFFFCD34D)),
-            tooltip: 'نسخ رابط البطاقة',
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: scanUrl));
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('تم نسخ رابط البطاقة: $scanUrl')),
-              );
-            },
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.copy_rounded, size: 18, color: Color(0xFFFCD34D)),
+                tooltip: 'نسخ رابط البطاقة',
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: scanUrl));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('تم نسخ رابط البطاقة: $scanUrl')),
+                  );
+                },
+              ),
+              if (r.isActive)
+                IconButton(
+                  icon: const Icon(Icons.restart_alt_rounded, size: 20, color: Color(0xFFF59E0B)),
+                  tooltip: 'إلغاء التفعيل وإرجاع الكارت كجديد',
+                  onPressed: () => _deactivateCard(r),
+                ),
+            ],
           ),
         ],
       ),
@@ -15889,6 +16414,7 @@ class _EditQrSheetState extends State<EditQrSheet> {
 
   bool _saving = false;
   bool _purging = false;
+  bool _deactivating = false;
   String? _errorMsg;
   String? _noticeMsg;
 
@@ -16117,6 +16643,54 @@ class _EditQrSheetState extends State<EditQrSheet> {
         _noticeMsg = months >= 900 ? 'تم التفعيل الدائم بنجاح.' : 'تم تجديد الاشتراك +$months شهر بنجاح.';
       });
       widget.onSaved(updated);
+    }
+  }
+
+  Future<void> _deactivateCard() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF18181B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Color(0x66F59E0B)),
+        ),
+        title: const Text(
+          'إلغاء التفعيل وإعادة الكارت كجديد؟',
+          style: TextStyle(color: Color(0xFFFBBF24), fontWeight: FontWeight.w900, fontSize: 15.5),
+        ),
+        content: Text(
+          'سيتم مسح جميع البيانات المكتوبة على البطاقة (${_record.id}) بما في ذلك الروابط وأرقام المحافظ والوصف وعداد المسحات، وستعود إلى حالة "غير مفعل" ليتمكن العميل من تفعيلها من الصفر.',
+          style: const TextStyle(color: Colors.white70, fontSize: 12.5, height: 1.5),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('تراجع')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFBBF24), foregroundColor: Colors.black),
+            child: const Text('تأكيد إلغاء التفعيل', style: TextStyle(fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+    setState(() {
+      _deactivating = true;
+      _errorMsg = null;
+      _noticeMsg = null;
+    });
+
+    final reset = await FirestoreService.deactivateQrCode(_record);
+    if (!mounted) return;
+    setState(() => _deactivating = false);
+
+    if (reset != null) {
+      _record = reset;
+      widget.onSaved(reset);
+      Navigator.of(context).pop();
+    } else {
+      setState(() => _errorMsg = 'تعذر إلغاء التفعيل في قاعدة البيانات، تحقق من الاتصال.');
     }
   }
 
@@ -16451,6 +17025,33 @@ class _EditQrSheetState extends State<EditQrSheet> {
                         }
                       },
                     ),
+                    if (_record.isActive) ...[
+                      const Divider(color: Colors.white12, height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: (_saving || _purging || _deactivating) ? null : _deactivateCard,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFFBBF24),
+                            side: const BorderSide(color: Color(0x66F59E0B)),
+                            backgroundColor: const Color(0x1AF59E0B),
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          icon: _deactivating
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFBBF24)),
+                                )
+                              : const Icon(Icons.restart_alt_rounded, size: 18),
+                          label: Text(
+                            _deactivating ? 'جاري إلغاء التفعيل...' : 'إلغاء التفعيل وإرجاع الكارت كجديد',
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -16459,7 +17060,7 @@ class _EditQrSheetState extends State<EditQrSheet> {
               SizedBox(
                 height: 52,
                 child: ElevatedButton.icon(
-                  onPressed: (_saving || _purging) ? null : _save,
+                  onPressed: (_saving || _purging || _deactivating) ? null : _save,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFBBF24),
                     foregroundColor: Colors.black,

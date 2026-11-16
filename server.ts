@@ -278,6 +278,7 @@ interface QrRecord {
   label?: string;
   created_at: string;
   updated_at?: string;
+  last_scanned_at?: string;
   total_scans: number;
   expires_at?: string | null;
   subscription_months?: number;
@@ -628,10 +629,11 @@ async function fetchQrFromFirestoreRestServer(id: string): Promise<QrRecord | nu
       id,
       is_active: f.is_active?.booleanValue ?? false,
       target_url: f.target_url?.stringValue ?? null,
-      app_type: f.app_type?.stringValue ?? 'website',
-      label: f.label?.stringValue,
+      ...(f.app_type?.stringValue ? { app_type: f.app_type.stringValue } : {}),
+      label: f.label?.stringValue ?? '',
       created_at: f.created_at?.stringValue ?? new Date().toISOString(),
       updated_at: f.updated_at?.stringValue,
+      ...(f.last_scanned_at?.stringValue ? { last_scanned_at: f.last_scanned_at.stringValue } : {}),
       total_scans: parseInt(f.total_scans?.integerValue || '0', 10),
       expires_at: f.expires_at?.stringValue ?? null,
       subscription_months: parseInt(f.subscription_months?.integerValue || '1', 10),
@@ -643,6 +645,36 @@ async function fetchQrFromFirestoreRestServer(id: string): Promise<QrRecord | nu
     return null;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+async function syncDeactivatedQrToFirestoreRest(record: QrRecord): Promise<void> {
+  const pId = firebaseConfig?.projectId || FIRESTORE_PROJECT_ID;
+  const dbId = firebaseConfig?.firestoreDatabaseId || FIRESTORE_DATABASE_ID;
+  const key = firebaseConfig?.apiKey || 'AIzaSyAjyCP484AEQ52-9CDgp8TDkAw5woA1TFc';
+  try {
+    const fields: Record<string, any> = {
+      id: { stringValue: record.id },
+      is_active: { booleanValue: false },
+      target_url: { nullValue: null },
+      label: { stringValue: '' },
+      created_at: { stringValue: record.created_at },
+      updated_at: { stringValue: record.updated_at || new Date().toISOString() },
+      total_scans: { integerValue: '0' },
+      expires_at: record.expires_at ? { stringValue: record.expires_at } : { nullValue: null },
+      subscription_months: { integerValue: String(record.subscription_months ?? 1) },
+      is_printed: { booleanValue: Boolean(record.is_printed) },
+      printed_at: record.printed_at ? { stringValue: record.printed_at } : { nullValue: null },
+    };
+    const docUrl = `https://firestore.googleapis.com/v1/projects/${pId}/databases/${dbId}/documents/qr_codes/${encodeURIComponent(record.id)}?key=${key}`;
+    await fetch(docUrl, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+      cache: 'no-store',
+    });
+  } catch (err) {
+    console.warn('Server failed to sync deactivated QR to Firestore REST:', err);
   }
 }
 
@@ -875,6 +907,47 @@ app.post('/api/qr/print-status/batch', requireAdminAuth, (req, res) => {
   res.json({ success: true, data: updated, count: updated.length });
 });
 
+// Admin Exclusive Deactivate / Reset Activation (PROTECTED with requireAdminAuth)
+// Restores an accidentally activated QR card back to fresh unactivated state (is_active: false)
+app.post('/api/qr/:id/deactivate', requireAdminAuth, async (req, res) => {
+  const { id } = req.params;
+  const db = loadDatabase();
+  const existing = db[id] || (await fetchQrFromFirestoreRestServer(id));
+  const now = new Date().toISOString();
+
+  let restoredExpiresAt = existing?.expires_at ?? null;
+  if (restoredExpiresAt && new Date(restoredExpiresAt).getTime() < Date.now()) {
+    const months = existing?.subscription_months ?? 1;
+    restoredExpiresAt = months > 0
+      ? new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+  }
+
+  const resetRecord: QrRecord = {
+    id,
+    is_active: false,
+    target_url: null,
+    label: '',
+    created_at: existing?.created_at || now,
+    updated_at: now,
+    total_scans: 0,
+    expires_at: restoredExpiresAt,
+    subscription_months: existing?.subscription_months ?? 1,
+    is_printed: Boolean(existing?.is_printed),
+    printed_at: existing?.printed_at ?? null,
+  };
+
+  db[id] = resetRecord;
+  saveDatabase(db);
+  await syncDeactivatedQrToFirestoreRest(resetRecord);
+
+  res.json({
+    success: true,
+    data: resetRecord,
+    message: 'تم إلغاء التفعيل ومسح بيانات البطاقة وإعادتها لحالة كارت جديد غير مفعل',
+  });
+});
+
 // Debounced scan counter
 const recentScansDebounce = new Map<string, number>();
 
@@ -999,7 +1072,9 @@ app.get('/q/:id', async (req, res, next) => {
     if (!record || fsTime >= localTime) {
       record = {
         ...fsRecord,
-        total_scans: Math.max(record?.total_scans || 0, fsRecord.total_scans || 0),
+        total_scans: fsRecord.is_active
+          ? Math.max(record?.total_scans || 0, fsRecord.total_scans || 0)
+          : 0,
       };
       db[id] = record;
       saveDatabase(db);
