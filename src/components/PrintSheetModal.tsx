@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Printer, X, Download, Sliders, Sparkles, Filter } from 'lucide-react';
-import { generateQrDataUrl } from '../lib/qrService';
+import { Printer, X, PackageCheck } from 'lucide-react';
+import { batchUpdateQrPrintedStatus, generateQrDataUrl } from '../lib/qrService';
 import { QrCodeRecord } from '../types/qr';
 
 interface PrintSheetModalProps {
@@ -8,15 +8,18 @@ interface PrintSheetModalProps {
   onClose: () => void;
   records: QrCodeRecord[];
   domainUrl: string;
+  onMarkedPrinted?: (ids: string[]) => void;
 }
 
-export function PrintSheetModal({ isOpen, onClose, records, domainUrl }: PrintSheetModalProps) {
+export function PrintSheetModal({ isOpen, onClose, records, domainUrl, onMarkedPrinted }: PrintSheetModalProps) {
   const [qrMap, setQrMap] = useState<Record<string, string>>({});
   const [columns, setColumns] = useState<number>(3);
-  const [filterType, setFilterType] = useState<'all' | 'inactive' | 'active'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'unprinted' | 'inactive' | 'active'>('unprinted');
+  const [markingPrinted, setMarkingPrinted] = useState(false);
 
   const filtered = records.filter((r) => {
     if (!r || !r.id) return false;
+    if (filterType === 'unprinted') return !r.is_printed;
     if (filterType === 'inactive') return !r.is_active;
     if (filterType === 'active') return r.is_active;
     return true;
@@ -45,6 +48,18 @@ export function PrintSheetModal({ isOpen, onClose, records, domainUrl }: PrintSh
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleMarkShownPrinted = async () => {
+    const ids = filtered.map((r) => r.id).filter(Boolean);
+    if (ids.length === 0) return;
+    setMarkingPrinted(true);
+    try {
+      await batchUpdateQrPrintedStatus(ids, true);
+      onMarkedPrinted?.(ids);
+    } finally {
+      setMarkingPrinted(false);
+    }
   };
 
   return (
@@ -85,6 +100,7 @@ export function PrintSheetModal({ isOpen, onClose, records, domainUrl }: PrintSh
                 onChange={(e) => setFilterType(e.target.value as any)}
                 className="bg-black/60 border border-amber-500/30 rounded-xl px-3 py-1.5 text-amber-300 font-bold focus:outline-none focus:ring-1 focus:ring-amber-400"
               >
+                <option value="unprinted">غير المطبوعة فقط (جاهزة للطباعة • {records.filter((r) => !r.is_printed).length})</option>
                 <option value="all">جميع الأكواد ({records.length})</option>
                 <option value="inactive">غير المفعلة فقط (جاهزة للعملاء)</option>
                 <option value="active">المفعلة فقط</option>
@@ -96,7 +112,7 @@ export function PrintSheetModal({ isOpen, onClose, records, domainUrl }: PrintSh
               <button
                 type="button"
                 onClick={() => setColumns(2)}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition ${
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition whitespace-nowrap shrink-0 ${
                   columns === 2 
                     ? 'bg-amber-400 text-black border-amber-300 font-black shadow-md' 
                     : 'bg-black/40 text-slate-300 border-amber-500/20 hover:border-amber-400/40'
@@ -107,7 +123,7 @@ export function PrintSheetModal({ isOpen, onClose, records, domainUrl }: PrintSh
               <button
                 type="button"
                 onClick={() => setColumns(3)}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition ${
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition whitespace-nowrap shrink-0 ${
                   columns === 3 
                     ? 'bg-amber-400 text-black border-amber-300 font-black shadow-md' 
                     : 'bg-black/40 text-slate-300 border-amber-500/20 hover:border-amber-400/40'
@@ -118,13 +134,27 @@ export function PrintSheetModal({ isOpen, onClose, records, domainUrl }: PrintSh
             </div>
           </div>
 
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-black rounded-xl shadow-lg shadow-amber-500/20 transition cursor-pointer"
-          >
-            <Printer className="w-4 h-4 text-black" />
-            طباعة الورقة (Print A4)
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {filtered.length > 0 && (
+              <button
+                type="button"
+                disabled={markingPrinted}
+                onClick={handleMarkShownPrinted}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-cyan-500/15 hover:bg-cyan-400 hover:text-black text-cyan-300 border border-cyan-400/40 font-black rounded-xl transition whitespace-nowrap shrink-0 disabled:opacity-50 cursor-pointer"
+              >
+                <PackageCheck className="w-4 h-4" />
+                <span>{markingPrinted ? 'جاري التحديث...' : `تعليم المعروض كمطبوع ✓ (${filtered.length})`}</span>
+              </button>
+            )}
+
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-black rounded-xl shadow-lg shadow-amber-500/20 transition whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Printer className="w-4 h-4 text-black" />
+              طباعة الورقة (Print A4)
+            </button>
+          </div>
         </div>
 
         {/* Printable Sheet Area */}

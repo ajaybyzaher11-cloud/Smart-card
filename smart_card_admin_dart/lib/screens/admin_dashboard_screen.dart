@@ -4,12 +4,13 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../models/qr_models.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../utils/deep_links.dart';
 import '../widgets/three_d_widgets.dart';
 import 'edit_qr_sheet.dart';
 import 'qr_scanner_screen.dart';
 import 'settings_screen.dart';
 
-enum _QrFilter { all, active, inactive, expired }
+enum _QrFilter { all, active, inactive, expired, printed, unprinted }
 
 class AdminDashboardScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -59,6 +60,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       if (_filter == _QrFilter.active && (!r.isActive || r.isExpired)) return false;
       if (_filter == _QrFilter.inactive && r.isActive) return false;
       if (_filter == _QrFilter.expired && !r.isExpired) return false;
+      if (_filter == _QrFilter.printed && !r.isPrinted) return false;
+      if (_filter == _QrFilter.unprinted && r.isPrinted) return false;
 
       if (q.isEmpty) return true;
       if (r.id.toLowerCase().contains(q)) return true;
@@ -211,12 +214,58 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  Future<void> _togglePrinted(QrCodeRecord record, bool nextPrinted) async {
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    setState(() {
+      _records = _records.map((r) {
+        if (r.id != record.id) return r;
+        return QrCodeRecord(
+          id: r.id,
+          isActive: r.isActive,
+          targetUrl: r.targetUrl,
+          appType: r.appType,
+          label: r.label,
+          createdAt: r.createdAt,
+          updatedAt: nowIso,
+          lastScannedAt: r.lastScannedAt,
+          totalScans: r.totalScans,
+          expiresAt: r.expiresAt,
+          subscriptionMonths: r.subscriptionMonths,
+          wallets: r.wallets,
+          isPrinted: nextPrinted,
+          printedAt: nextPrinted ? nowIso : null,
+        );
+      }).toList();
+    });
+
+    final updated = await FirestoreService.toggleQrPrintedStatus(record, nextPrinted);
+    if (!mounted) return;
+    if (updated != null) {
+      setState(() {
+        _records = _records.map((r) => r.id == updated.id ? updated : r).toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: nextPrinted ? const Color(0xFF06B6D4) : const Color(0xFFF59E0B),
+          content: Text(
+            nextPrinted
+                ? 'تم نقل الكود [${record.id}] إلى خانة الكروت المطبوعة ✓'
+                : 'تمت إعادة الكود [${record.id}] إلى قائمة غير المطبوعة',
+            style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w800),
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final total = _records.length;
     final activeCount = _records.where((r) => r.isActive && !r.isExpired).length;
     final inactiveCount = _records.where((r) => !r.isActive).length;
     final expiredCount = _records.where((r) => r.isExpired).length;
+    final printedCount = _records.where((r) => r.isPrinted).length;
+    final unprintedCount = _records.where((r) => !r.isPrinted).length;
     final totalScans = _records.fold<int>(0, (acc, r) => acc + r.totalScans);
     final filtered = _filteredRecords;
 
@@ -308,9 +357,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Row(
                       children: [
                         Expanded(child: _kpiTile('إجمالي الأكواد', '$total', const Color(0xFFFBBF24))),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Expanded(child: _kpiTile('المفعّلة', '$activeCount', const Color(0xFF10B981))),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
+                        Expanded(child: _kpiTile('المطبوعة', '$printedCount', const Color(0xFF22D3EE))),
+                        const SizedBox(width: 6),
                         Expanded(child: _kpiTile('المسحات', '$totalScans', const Color(0xFF38BDF8))),
                       ],
                     ),
@@ -379,6 +430,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       child: Row(
                         children: [
                           _filterChip('الكل ($total)', _QrFilter.all),
+                          const SizedBox(width: 6),
+                          _filterChip('الكروت المطبوعة ✓ ($printedCount)', _QrFilter.printed),
+                          const SizedBox(width: 6),
+                          _filterChip('لم تُطبع بعد ($unprintedCount)', _QrFilter.unprinted),
                           const SizedBox(width: 6),
                           _filterChip('مفعّلة ($activeCount)', _QrFilter.active),
                           const SizedBox(width: 6),
@@ -472,6 +527,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ? const Color(0xFF10B981)
             : const Color(0xFFF59E0B);
     final statusText = r.isExpired ? 'منتهي' : (r.isActive ? 'مفعّل' : 'متاح للتفعيل');
+    final walletProv = r.appType == AppType.wallet && (r.targetUrl ?? '').isNotEmpty
+        ? resolveWalletProvider(r.targetUrl!, r.wallets.isNotEmpty ? r.wallets.first.provider : null)
+        : null;
+    final effectiveLabel = (r.appType == AppType.wallet && walletProv != null && walletProv != WalletProvider.generic)
+        ? walletProv.nameAr
+        : r.appType.labelAr;
+    final effectiveColor = (r.appType == AppType.wallet && walletProv != null && walletProv != WalletProvider.generic)
+        ? walletProv.color
+        : r.appType.brandColor;
 
     return Tilt3DCard(
       onTap: () => _openEditScreen(r),
@@ -518,7 +582,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  r.label.isNotEmpty ? r.label : '${r.appType.labelAr} • ${r.targetUrl ?? "بدون رابط"}',
+                  r.label.isNotEmpty ? r.label : '$effectiveLabel • ${r.targetUrl ?? "بدون رابط"}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12, color: Colors.white70),
@@ -526,10 +590,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(r.appType.icon, size: 13, color: r.appType.brandColor),
+                    Icon(r.appType.icon, size: 13, color: effectiveColor),
                     const SizedBox(width: 4),
                     Text(
-                      r.appType.labelAr,
+                      effectiveLabel,
                       style: const TextStyle(fontSize: 10.5, color: Colors.white60, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(width: 10),
@@ -538,6 +602,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Text(
                       '${r.totalScans} مسحة',
                       style: const TextStyle(fontSize: 10.5, color: Colors.white60),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: r.isPrinted,
+                        activeColor: const Color(0xFF22D3EE),
+                        checkColor: Colors.black,
+                        side: const BorderSide(color: Colors.white38),
+                        onChanged: (val) => _togglePrinted(r, val ?? false),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      r.isPrinted ? 'تمت الطباعة ✓' : 'لم يُطبع بعد',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: r.isPrinted ? const Color(0xFF22D3EE) : Colors.white54,
+                      ),
                     ),
                   ],
                 ),

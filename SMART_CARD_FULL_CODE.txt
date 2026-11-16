@@ -1,7 +1,7 @@
 ################################################################################
 # SMART CARD PLATFORM - COMPLETE UNIFIED SOURCE CODE (SINGLE COPYABLE FILE)
 # Total Files: 46
-# Generated At: 2026-11-16T22:18:08.861Z
+# Generated At: 2026-11-16T22:27:33.571Z
 # Live URL: https://smart-card-inky.vercel.app
 ################################################################################
 #
@@ -14,43 +14,43 @@
 #   06. metadata.json (11 lines)
 #   07. .env.example (10 lines)
 #   08. firestore.rules (26 lines)
-#   09. firebase-blueprint.json (87 lines)
+#   09. firebase-blueprint.json (96 lines)
 #   10. firebase-applet-config.json (12 lines)
-#   11. server.ts (1099 lines)
+#   11. server.ts (1152 lines)
 #   12. api/redirect.ts (293 lines)
 #   13. src/main.tsx (6 lines)
 #   14. src/App.tsx (253 lines)
 #   15. src/index.css (161 lines)
-#   16. src/types/qr.ts (78 lines)
+#   16. src/types/qr.ts (80 lines)
 #   17. src/types/jsqr.d.ts (37 lines)
 #   18. src/lib/firebase.ts (80 lines)
 #   19. src/lib/auth.ts (374 lines)
-#   20. src/lib/deepLinks.ts (839 lines)
-#   21. src/lib/qrService.ts (1292 lines)
-#   22. src/components/BrandIcons.tsx (656 lines)
+#   20. src/lib/deepLinks.ts (947 lines)
+#   21. src/lib/qrService.ts (1421 lines)
+#   22. src/components/BrandIcons.tsx (660 lines)
 #   23. src/components/QrScannerModal.tsx (413 lines)
-#   24. src/components/EditQrModal.tsx (1403 lines)
+#   24. src/components/EditQrModal.tsx (1410 lines)
 #   25. src/components/BulkGenerateModal.tsx (389 lines)
-#   26. src/components/PrintSheetModal.tsx (194 lines)
+#   26. src/components/PrintSheetModal.tsx (224 lines)
 #   27. src/components/UploadQrModal.tsx (320 lines)
 #   28. src/components/DeveloperSettingsModal.tsx (252 lines)
 #   29. src/views/HomeLandingView.tsx (404 lines)
 #   30. src/views/AdminLoginView.tsx (131 lines)
-#   31. src/views/AdminDashboardView.tsx (1415 lines)
-#   32. src/views/CustomerActivationView.tsx (717 lines)
-#   33. src/views/SmartRedirectView.tsx (678 lines)
+#   31. src/views/AdminDashboardView.tsx (1696 lines)
+#   32. src/views/CustomerActivationView.tsx (729 lines)
+#   33. src/views/SmartRedirectView.tsx (668 lines)
 #   34. src/views/CardExpiredView.tsx (140 lines)
 #   35. smart_card_admin_dart/pubspec.yaml (32 lines)
 #   36. smart_card_admin_dart/lib/main.dart (74 lines)
-#   37. smart_card_admin_dart/lib/models/qr_models.dart (383 lines)
-#   38. smart_card_admin_dart/lib/utils/deep_links.dart (298 lines)
+#   37. smart_card_admin_dart/lib/models/qr_models.dart (400 lines)
+#   38. smart_card_admin_dart/lib/utils/deep_links.dart (329 lines)
 #   39. smart_card_admin_dart/lib/services/auth_service.dart (146 lines)
-#   40. smart_card_admin_dart/lib/services/firestore_service.dart (432 lines)
+#   40. smart_card_admin_dart/lib/services/firestore_service.dart (470 lines)
 #   41. smart_card_admin_dart/lib/widgets/three_d_widgets.dart (361 lines)
 #   42. smart_card_admin_dart/lib/screens/admin_login_screen.dart (213 lines)
-#   43. smart_card_admin_dart/lib/screens/admin_dashboard_screen.dart (562 lines)
+#   43. smart_card_admin_dart/lib/screens/admin_dashboard_screen.dart (651 lines)
 #   44. smart_card_admin_dart/lib/screens/qr_scanner_screen.dart (247 lines)
-#   45. smart_card_admin_dart/lib/screens/edit_qr_sheet.dart (917 lines)
+#   45. smart_card_admin_dart/lib/screens/edit_qr_sheet.dart (945 lines)
 #   46. smart_card_admin_dart/lib/screens/settings_screen.dart (275 lines)
 #
 ################################################################################
@@ -503,6 +503,15 @@ FILE: firebase-blueprint.json
         "wallets": {
           "type": "array",
           "description": "List of electronic wallet accounts (phone, provider, ownerName) present only for wallet cards"
+        },
+        "is_printed": {
+          "type": "boolean",
+          "description": "Admin-only flag indicating whether this QR code card has been printed"
+        },
+        "printed_at": {
+          "type": "string",
+          "description": "ISO timestamp when the admin marked this QR code as printed",
+          "maxLength": 64
         }
       },
       "required": ["id", "is_active"]
@@ -831,6 +840,8 @@ interface QrRecord {
   expires_at?: string | null;
   subscription_months?: number;
   wallets?: any[];
+  is_printed?: boolean;
+  printed_at?: string | null;
 }
 
 function loadDatabase(): Record<string, QrRecord> {
@@ -1183,6 +1194,8 @@ async function fetchQrFromFirestoreRestServer(id: string): Promise<QrRecord | nu
       expires_at: f.expires_at?.stringValue ?? null,
       subscription_months: parseInt(f.subscription_months?.integerValue || '1', 10),
       wallets: Array.isArray(parsedWallets) ? parsedWallets : undefined,
+      is_printed: f.is_printed?.booleanValue ?? false,
+      printed_at: f.printed_at?.stringValue ?? null,
     };
   } catch {
     return null;
@@ -1245,6 +1258,8 @@ app.post('/api/qr/bulk', requireAdminAuth, bulkRateLimiter, (req, res) => {
       total_scans: 0,
       subscription_months: subscriptionMonths,
       expires_at: providedExpiresAt,
+      is_printed: false,
+      printed_at: null,
     };
 
     db[id] = record;
@@ -1363,12 +1378,59 @@ app.put('/api/qr/:id', requireAdminAuth, (req, res) => {
     }
   }
 
+  if (req.body.is_printed !== undefined) {
+    const printed = Boolean(req.body.is_printed);
+    current.is_printed = printed;
+    current.printed_at = printed ? (current.printed_at || now) : null;
+  }
   if (is_active !== undefined) current.is_active = Boolean(is_active);
   else current.is_active = true;
   current.updated_at = now;
 
   saveDatabase(db);
   res.json({ success: true, data: current });
+});
+
+// Admin Exclusive Print Status Toggle (PROTECTED with requireAdminAuth)
+app.patch('/api/qr/:id/print-status', requireAdminAuth, (req, res) => {
+  const { id } = req.params;
+  const isPrinted = Boolean(req.body?.is_printed);
+  const db = loadDatabase();
+  const record = db[id];
+  const now = new Date().toISOString();
+
+  if (!record) {
+    return res.status(404).json({ success: false, error: 'الكود غير موجود' });
+  }
+
+  record.is_printed = isPrinted;
+  record.printed_at = isPrinted ? now : null;
+  record.updated_at = now;
+
+  saveDatabase(db);
+  res.json({ success: true, data: record });
+});
+
+// Admin Exclusive Batch Print Status Update (PROTECTED with requireAdminAuth)
+app.post('/api/qr/print-status/batch', requireAdminAuth, (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+  const isPrinted = Boolean(req.body?.is_printed);
+  const db = loadDatabase();
+  const now = new Date().toISOString();
+  const updated: QrRecord[] = [];
+
+  for (const rawId of ids) {
+    const id = typeof rawId === 'string' ? rawId.trim() : '';
+    if (id && db[id]) {
+      db[id].is_printed = isPrinted;
+      db[id].printed_at = isPrinted ? now : null;
+      db[id].updated_at = now;
+      updated.push(db[id]);
+    }
+  }
+
+  saveDatabase(db);
+  res.json({ success: true, data: updated, count: updated.length });
 });
 
 // Debounced scan counter
@@ -2398,7 +2460,7 @@ export interface BankDetails {
 
 export type SubscriptionPlan = 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'unlimited' | 'custom';
 
-export type WalletProvider = 'vodafone' | 'orange' | 'etisalat' | 'we' | 'generic';
+export type WalletProvider = 'vodafone' | 'orange' | 'etisalat' | 'we' | 'instapay' | 'generic';
 
 export interface WalletItem {
   phone: string;
@@ -2420,6 +2482,8 @@ export interface QrCodeRecord {
   wallets?: WalletItem[]; // Multi-wallet support (1, 2, 3, or 4 wallets with owner names & provider logos)
   expires_at?: string | null; // ISO timestamp or null for permanent
   subscription_months?: number; // e.g. 1 for monthly, 3, 6, 12, or 0 for unlimited
+  is_printed?: boolean; // Admin-only: whether the card has been printed
+  printed_at?: string | null; // Admin-only: ISO timestamp when marked as printed
 }
 
 export interface DeepLinkInfo {
@@ -2433,7 +2497,7 @@ export interface DeepLinkInfo {
   isInstaPayCard?: boolean;
   instaPayHandle?: string;
   isWalletCard?: boolean;
-  walletProvider?: 'vodafone' | 'etisalat' | 'orange' | 'we' | 'generic';
+  walletProvider?: WalletProvider;
   walletProviderNameAr?: string;
   walletProviderNameEn?: string;
   walletCompanyNameAr?: string;
@@ -3079,10 +3143,9 @@ export function cleanAndSanitizeUrl(input: string): string {
     return s;
   }
 
-  // 6. Custom scheme like instapay://send?to=
-  if (s.startsWith('instapay://send?to=')) {
-    const handle = decodeURIComponent(s.replace('instapay://send?to=', ''));
-    return handle.replace(/@instapay$/i, '').trim();
+  // 6. Custom payment schemes (preserve as-is so wallet/quick-pay detectors recognize them)
+  if (/^(instapay|ipn|vfcash|orangecash|etisalatcash|wepay):\/\//i.test(s)) {
+    return s;
   }
 
   return s;
@@ -3108,7 +3171,7 @@ export function isQuickPayUrl(input: string): boolean {
   if (/^https?:\/\//i.test(s)) return true;
   if (/^intent:\/\//i.test(s)) return true;
   if (/^android-app:?\/\//i.test(s) || /^android-app\/\//i.test(s)) return true;
-  if (/^(vfcash|orangecash|etisalatcash|wepay|ipn):\/\//i.test(s)) return true;
+  if (/^(vfcash|orangecash|etisalatcash|wepay|ipn|instapay):\/\//i.test(s)) return true;
 
   const hasDomain = s.includes('.eg') || s.includes('.com') || s.includes('.net') || s.includes('.me') || s.includes('.io') || s.startsWith('www.') || s.includes('/');
   const digitsOnly = s.replace(/[^\d]/g, '');
@@ -3120,23 +3183,128 @@ export function isQuickPayUrl(input: string): boolean {
 }
 
 /**
- * Automatically detects the Egyptian mobile wallet operator from a Quick Pay URL or deep link.
+ * Shared display metadata for every wallet/quick-pay provider.
+ */
+export const WALLET_PROVIDER_META: Record<
+  WalletProvider,
+  { nameAr: string; nameEn: string; companyNameAr: string; prefix: string; brandColor: string }
+> = {
+  vodafone: {
+    nameAr: 'ڨودافون كاش',
+    nameEn: 'Vodafone Cash',
+    companyNameAr: 'فودافون مصر - Vodafone Egypt',
+    prefix: '010',
+    brandColor: '#E60000',
+  },
+  orange: {
+    nameAr: 'أورانج كاش',
+    nameEn: 'Orange Cash',
+    companyNameAr: 'أورانج مصر - Orange Egypt',
+    prefix: '012',
+    brandColor: '#FF7900',
+  },
+  etisalat: {
+    nameAr: 'اتصالات كاش',
+    nameEn: 'Etisalat Cash (e&)',
+    companyNameAr: 'إي آند مصر (اتصالات) - e& Egypt',
+    prefix: '011',
+    brandColor: '#719E19',
+  },
+  we: {
+    nameAr: 'وي باي (WE Pay)',
+    nameEn: 'WE Pay',
+    companyNameAr: 'المصرية للاتصالات - Telecom Egypt (WE)',
+    prefix: '015',
+    brandColor: '#7E22CE',
+  },
+  instapay: {
+    nameAr: 'إنستاباي',
+    nameEn: 'InstaPay',
+    companyNameAr: 'شبكة المدفوعات اللحظية - InstaPay Egypt',
+    prefix: 'IPN',
+    brandColor: '#A855F7',
+  },
+  generic: {
+    nameAr: 'محفظة كاش إلكترونية',
+    nameEn: 'Smart Cash Wallet',
+    companyNameAr: 'محفظة دفع إلكترونية',
+    prefix: '01X',
+    brandColor: '#EAB308',
+  },
+};
+
+export function getWalletProviderMeta(provider: WalletProvider) {
+  return WALLET_PROVIDER_META[provider] || WALLET_PROVIDER_META.generic;
+}
+
+/**
+ * Automatically detects the Egyptian mobile wallet operator OR InstaPay from a Quick Pay URL or deep link.
  */
 export function detectWalletProviderFromUrl(url: string): WalletProvider {
-  const lower = (url || '').trim().toLowerCase();
+  let lower = (url || '').trim().toLowerCase();
   if (!lower) return 'generic';
-  if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) {
+  try {
+    const decoded = decodeURIComponent(lower);
+    if (decoded) lower = `${lower} ${decoded.toLowerCase()}`;
+  } catch {
+    // ignore malformed URI components
+  }
+
+  // 1. InstaPay Egypt Quick Pay Links (e.g. https://ipn.eg/S/..., instapay://..., com.instapay...)
+  if (
+    lower.includes('ipn.eg') ||
+    lower.includes('instapay') ||
+    /^ipn:\/\//i.test(lower)
+  ) {
+    return 'instapay';
+  }
+
+  // 2. Vodafone Cash (Vodafone Egypt / Ana Vodafone / vf.eg / vfcash)
+  if (
+    lower.includes('vodafone') ||
+    lower.includes('voda') ||
+    lower.includes('vf.eg') ||
+    lower.includes('vfcash') ||
+    lower.includes('anavodafone') ||
+    lower.includes('anafodafone') ||
+    lower.includes('com.vf')
+  ) {
     return 'vodafone';
   }
-  if (lower.includes('orange')) {
+
+  // 3. Orange Cash
+  if (
+    lower.includes('orange') ||
+    lower.includes('orangecash') ||
+    lower.includes('com.orange')
+  ) {
     return 'orange';
   }
-  if (lower.includes('etisalat') || lower.includes('e&')) {
+
+  // 4. Etisalat Cash (e& Egypt)
+  if (
+    lower.includes('etisalat') ||
+    lower.includes('etisalatcash') ||
+    lower.includes('e&') ||
+    lower.includes('eand') ||
+    lower.includes('e-and') ||
+    lower.includes('com.etisalat')
+  ) {
     return 'etisalat';
   }
-  if (lower.includes('te.eg') || lower.includes('telecom') || /(?:^|[^a-z])we(?:pay)?(?:[^a-z]|$)/i.test(lower)) {
+
+  // 5. WE Pay (Telecom Egypt)
+  if (
+    lower.includes('te.eg') ||
+    lower.includes('telecom') ||
+    lower.includes('wepay') ||
+    lower.includes('we-pay') ||
+    lower.includes('we.eg') ||
+    /(?:^|[^a-z])we(?:pay|cash|_pay|-pay)?(?:[^a-z]|$)/i.test(lower)
+  ) {
     return 'we';
   }
+
   return 'generic';
 }
 
@@ -3155,6 +3323,12 @@ export function sanitizeQuickPayUrl(raw: string, provider?: WalletProvider): str
   s = s.replace(/^android-app\/\//i, 'android-app://');
   s = s.replace(/^https?:\/\/+(https?:\/\/)/i, '$1');
 
+  // Handle instapay://send?to=...
+  if (s.toLowerCase().startsWith('instapay://send?to=')) {
+    const handle = decodeURIComponent(s.slice('instapay://send?to='.length)).replace(/@instapay$/i, '').trim();
+    return handle ? `https://ipn.eg/${encodeURIComponent(handle)}` : 'https://ipn.eg';
+  }
+
   // 2. Check if the string contains an embedded web URL (common in Android share intents)
   const embeddedMatch = s.match(/https?:\/\/[^\s"'<>]+/i) || s.match(/https?\/[^\s"'<>]+/i);
   if (embeddedMatch) {
@@ -3168,7 +3342,11 @@ export function sanitizeQuickPayUrl(raw: string, provider?: WalletProvider): str
   // 3. Handle Android app links: android-app://<package>/...
   if (s.startsWith('android-app://')) {
     const pkg = s.replace('android-app://', '').split('/')[0].trim().toLowerCase();
-    
+
+    // InstaPay
+    if (pkg.includes('instapay') || provider === 'instapay') {
+      return 'https://ipn.eg';
+    }
     // Vodafone / Ana Vodafone
     if (pkg.includes('vf') || pkg.includes('vodafone') || provider === 'vodafone') {
       return `intent://#Intent;package=com.vf.eg;scheme=anafodafone;S.browser_fallback_url=https%3A%2F%2Fweb.vodafone.com.eg%2Far%2Fvodafone-cash;end`;
@@ -3178,7 +3356,7 @@ export function sanitizeQuickPayUrl(raw: string, provider?: WalletProvider): str
       return `intent://#Intent;package=com.orange.mail.egypt;scheme=orangecash;S.browser_fallback_url=https%3A%2F%2Fwww.orange.eg%2Far%2Forange-cash;end`;
     }
     // Etisalat Cash
-    if (pkg.includes('etisalat') || provider === 'etisalat') {
+    if (pkg.includes('etisalat') || pkg.includes('eand') || provider === 'etisalat') {
       return `intent://#Intent;package=com.etisalat;scheme=etisalatcash;S.browser_fallback_url=https%3A%2F%2Fwww.etisalat.eg;end`;
     }
     // WE Pay
@@ -3205,7 +3383,7 @@ export function sanitizeQuickPayUrl(raw: string, provider?: WalletProvider): str
 }
 
 export interface DetectedWalletInfo {
-  provider: 'vodafone' | 'orange' | 'etisalat' | 'we' | 'generic';
+  provider: WalletProvider;
   nameAr: string;
   nameEn: string;
   companyNameAr: string;
@@ -3485,22 +3663,11 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
       cleanTrimmed = cleanTrimmed.replace('tel:*9*7*', '').replace('#', '').replace('%23', '');
     }
 
-    // 1. Check if input is a Web URL or Quick Payment Link (e.g. https://... or vf.eg or web.vodafone.com.eg/...)
+    // 1. Check if input is a Web URL or Quick Payment Link (e.g. https://ipn.eg/..., https://vf.eg/..., etc.)
     if (isQuickPayUrl(cleanTrimmed)) {
-      // Detect operator from URL domain / keywords
-      const urlProv = detectWalletProviderFromUrl(cleanTrimmed);
-      const detectedProv: WalletProvider = urlProv !== 'generic' ? urlProv : 'vodafone';
-
+      const detectedProv: WalletProvider = detectWalletProviderFromUrl(cleanTrimmed);
       const fullUrl = sanitizeQuickPayUrl(cleanTrimmed, detectedProv);
-
-      const provMeta: Record<WalletProvider, { nameAr: string; nameEn: string; companyNameAr: string }> = {
-        vodafone: { nameAr: 'ڨودافون كاش', nameEn: 'Vodafone Cash', companyNameAr: 'فودافون مصر - Vodafone Egypt' },
-        orange: { nameAr: 'أورانج كاش', nameEn: 'Orange Cash', companyNameAr: 'أورانج مصر - Orange Egypt' },
-        etisalat: { nameAr: 'اتصالات كاش', nameEn: 'Etisalat Cash (e&)', companyNameAr: 'إي آند مصر (اتصالات) - e& Egypt' },
-        we: { nameAr: 'وي باي', nameEn: 'WE Pay', companyNameAr: 'المصرية للاتصالات - Telecom Egypt (WE)' },
-        generic: { nameAr: 'محفظة كاش', nameEn: 'Cash Wallet', companyNameAr: 'محفظة كاش مصرية' },
-      };
-      const activeMeta = provMeta[detectedProv] || provMeta.vodafone;
+      const activeMeta = getWalletProviderMeta(detectedProv);
 
       return {
         appType: 'wallet',
@@ -3619,7 +3786,12 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
 
   if (isInstaPay) {
     let paymentUrl = trimmed;
-    if (paymentUrl.startsWith('ipn.eg/')) {
+    if (paymentUrl.toLowerCase().startsWith('instapay://send?to=')) {
+      const handle = decodeURIComponent(paymentUrl.replace(/^instapay:\/\/send\?to=/i, ''))
+        .replace(/@instapay$/i, '')
+        .trim();
+      paymentUrl = `https://ipn.eg/${handle}`;
+    } else if (paymentUrl.startsWith('ipn.eg/')) {
       paymentUrl = `https://${paymentUrl}`;
     } else if (!paymentUrl.startsWith('http://') && !paymentUrl.startsWith('https://')) {
       if (paymentUrl.includes('ipn.eg')) {
@@ -3877,6 +4049,8 @@ function buildCanonicalQrRecord(params: {
   expires_at?: string | null;
   subscription_months?: number;
   wallets?: WalletItem[];
+  is_printed?: boolean;
+  printed_at?: string | null;
 }): QrCodeRecord {
   const canonical: Record<string, any> = {
     id: params.id,
@@ -3889,6 +4063,8 @@ function buildCanonicalQrRecord(params: {
     label: params.label ?? '',
     expires_at: params.expires_at !== undefined ? params.expires_at : null,
     subscription_months: params.subscription_months !== undefined ? params.subscription_months : 1,
+    is_printed: Boolean(params.is_printed),
+    printed_at: params.is_printed ? (params.printed_at || new Date().toISOString()) : null,
   };
 
   if (params.last_scanned_at) {
@@ -3900,7 +4076,7 @@ function buildCanonicalQrRecord(params: {
   if (params.app_type === 'wallet' && Array.isArray(params.wallets) && params.wallets.length > 0) {
     canonical.wallets = params.wallets.map((w) => ({
       phone: (w.phone || '').trim(),
-      provider: w.provider || 'vodafone',
+      provider: w.provider || 'generic',
       ownerName: (w.ownerName || '').trim(),
     }));
   }
@@ -3951,6 +4127,8 @@ function firestoreRestDocToQrRecord(id: string, docJson: any): QrCodeRecord | nu
     total_scans: typeof parsed.total_scans === 'number' ? parsed.total_scans : 0,
     is_active: Boolean(parsed.is_active),
     target_url: parsed.target_url ?? null,
+    is_printed: Boolean(parsed.is_printed),
+    printed_at: parsed.printed_at ?? null,
     ...parsed,
     id: parsed.id || id,
   } as QrCodeRecord;
@@ -4062,6 +4240,8 @@ export async function generateBulkQrCodes(count: number, subscriptionMonths = 1)
         total_scans: 0,
         subscription_months: subscriptionMonths,
         expires_at: expiresAt,
+        is_printed: false,
+        printed_at: null,
       };
       generatedRecords.push(record);
     }
@@ -4250,6 +4430,8 @@ export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
             total_scans: data.total_scans || 0,
             is_active: Boolean(data.is_active),
             target_url: data.target_url || null,
+            is_printed: Boolean(data.is_printed),
+            printed_at: data.printed_at ?? null,
             ...data,
             id,
           };
@@ -4350,6 +4532,8 @@ export async function activateQrCode(
     expires_at,
     subscription_months,
     wallets: isWallet ? cleanWallets : undefined,
+    is_printed: Boolean(existing?.is_printed),
+    printed_at: existing?.printed_at ?? null,
   });
 
   // 1. Write to Cloud Firestore via SDK (full replace) + REST API concurrently
@@ -4437,6 +4621,8 @@ export async function purgeQrTargetInDatabase(
     expires_at: options.expiresAt !== undefined ? options.expiresAt : (current.expires_at ?? null),
     subscription_months: current.subscription_months ?? 1,
     wallets: isWallet && cleanedWallets.length > 0 ? cleanedWallets : undefined,
+    is_printed: Boolean(current.is_printed),
+    printed_at: current.printed_at ?? null,
   });
 
   // 1. Overwrite full Firestore doc via SDK + REST (permanently deleting cleared URLs/fields)
@@ -4540,6 +4726,8 @@ export async function adminUpdateQrCode(
       ? subscriptionMonths
       : (current.subscription_months ?? 1),
     wallets: isWallet && resolvedWallets.length > 0 ? resolvedWallets : undefined,
+    is_printed: Boolean(current.is_printed),
+    printed_at: current.printed_at ?? null,
   });
 
   // 1. ALWAYS write full canonical record to Cloud Firestore (SDK setDoc overwrite + REST PATCH)
@@ -4700,6 +4888,8 @@ export function subscribeToQrCodes(
               total_scans: data.total_scans || 0,
               is_active: Boolean(data.is_active),
               target_url: data.target_url || null,
+              is_printed: Boolean(data.is_printed),
+              printed_at: data.printed_at ?? null,
               ...data,
               id,
             };
@@ -5088,11 +5278,122 @@ export async function updatePlatformSettings(settings: Partial<PlatformSettings>
   return payload;
 }
 
+/**
+ * Admin-Only: Mark a single QR code as printed or unprinted across Firestore (SDK + REST),
+ * Express Server API, and Local Cache simultaneously.
+ */
+export async function toggleQrPrintedStatus(
+  id: string,
+  isPrinted: boolean
+): Promise<{ success: boolean; record?: QrCodeRecord }> {
+  const cleanId = id.trim();
+  if (!cleanId) return { success: false };
+
+  const nowIso = new Date().toISOString();
+  const printedAt = isPrinted ? nowIso : null;
+  const current = await getQrCode(cleanId);
+  if (!current) return { success: false };
+
+  const updatedRecord: QrCodeRecord = {
+    ...current,
+    is_printed: isPrinted,
+    printed_at: printedAt,
+    updated_at: nowIso,
+  };
+
+  // Update local cache immediately for instant UI responsiveness
+  const cache = getLocalCache();
+  cache[cleanId] = updatedRecord;
+  saveLocalCache(cache);
+
+  const sdkWrite = setDoc(
+    doc(db, 'qr_codes', cleanId),
+    {
+      is_printed: isPrinted,
+      printed_at: printedAt,
+      updated_at: nowIso,
+    },
+    { merge: true }
+  ).catch((err) => {
+    console.warn('Firestore print status write warning:', err);
+  });
+
+  const restWrite = writeQrToFirestoreRest(cleanId, updatedRecord);
+
+  const serverWrite = authFetch(`/api/qr/${encodeURIComponent(cleanId)}/print-status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ is_printed: isPrinted }),
+  }).catch(() => {});
+
+  await Promise.allSettled([sdkWrite, restWrite, serverWrite]);
+
+  return { success: true, record: updatedRecord };
+}
+
+/**
+ * Admin-Only: Batch mark multiple QR codes as printed or unprinted cleanly.
+ */
+export async function batchUpdateQrPrintedStatus(
+  ids: string[],
+  isPrinted: boolean
+): Promise<{ success: boolean }> {
+  const cleanIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+  if (cleanIds.length === 0) return { success: true };
+
+  const nowIso = new Date().toISOString();
+  const printedAt = isPrinted ? nowIso : null;
+
+  const cache = getLocalCache();
+  cleanIds.forEach((cleanId) => {
+    if (cache[cleanId]) {
+      cache[cleanId] = {
+        ...cache[cleanId],
+        is_printed: isPrinted,
+        printed_at: printedAt,
+        updated_at: nowIso,
+      };
+    }
+  });
+  saveLocalCache(cache);
+
+  const sdkBatchPromise = (async () => {
+    try {
+      const batch = writeBatch(db);
+      for (const cleanId of cleanIds) {
+        batch.set(
+          doc(db, 'qr_codes', cleanId),
+          {
+            is_printed: isPrinted,
+            printed_at: printedAt,
+            updated_at: nowIso,
+          },
+          { merge: true }
+        );
+      }
+      await batch.commit();
+    } catch (err) {
+      console.warn('Firestore batch print status warning:', err);
+    }
+  })();
+
+  const serverPromise = authFetch('/api/qr/print-status/batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: cleanIds, is_printed: isPrinted }),
+  }).catch(() => {});
+
+  await Promise.allSettled([sdkBatchPromise, serverPromise]);
+
+  return { success: true };
+}
+
 ================================================================================
 FILE: src/components/BrandIcons.tsx
 ================================================================================
 import React from 'react';
-import { AppType } from '../types/qr';
+import { AppType, WalletProvider } from '../types/qr';
+import { detectWalletInfo, detectWalletProviderFromUrl, isQuickPayUrl } from '../lib/deepLinks';
 
 interface BrandIconProps {
   className?: string;
@@ -5601,7 +5902,7 @@ export function WalletProviderIcon({
   className = 'w-6 h-6',
   size,
 }: {
-  provider?: 'vodafone' | 'orange' | 'etisalat' | 'we' | 'generic';
+  provider?: WalletProvider;
   className?: string;
   size?: number;
 }) {
@@ -5614,6 +5915,8 @@ export function WalletProviderIcon({
       return <EtisalatCashIcon className={className} size={size} />;
     case 'we':
       return <WePayIcon className={className} size={size} />;
+    case 'instapay':
+      return <InstaPayIcon className={className} size={size} />;
     default:
       return <WalletCashIcon className={className} size={size} />;
   }
@@ -5711,7 +6014,7 @@ export function PlatformBrandIcon({
   className?: string;
   size?: number;
   targetUrl?: string;
-  walletProvider?: 'vodafone' | 'orange' | 'etisalat' | 'we' | 'generic';
+  walletProvider?: WalletProvider;
 }) {
   switch (type) {
     case 'whatsapp':
@@ -5727,13 +6030,14 @@ export function PlatformBrandIcon({
     case 'telegram':
       return <TelegramIcon className={className} size={size} />;
     case 'wallet': {
-      let prov = walletProvider;
+      let prov: WalletProvider | undefined = walletProvider && walletProvider !== 'generic' ? walletProvider : undefined;
       if (!prov && targetUrl) {
-        const clean = targetUrl.replace(/[^\d]/g, '');
-        if (clean.includes('010') || targetUrl.startsWith('010') || clean.startsWith('10')) prov = 'vodafone';
-        else if (clean.includes('012') || targetUrl.startsWith('012') || clean.startsWith('12')) prov = 'orange';
-        else if (clean.includes('011') || targetUrl.startsWith('011') || clean.startsWith('11')) prov = 'etisalat';
-        else if (clean.includes('015') || targetUrl.startsWith('015') || clean.startsWith('15')) prov = 'we';
+        if (isQuickPayUrl(targetUrl)) {
+          prov = detectWalletProviderFromUrl(targetUrl);
+        } else {
+          const detected = detectWalletInfo(targetUrl);
+          if (detected.provider !== 'generic') prov = detected.provider;
+        }
       }
       return <WalletProviderIcon provider={prov} className={className} size={size} />;
     }
@@ -6215,10 +6519,11 @@ import { AppType, QrCodeRecord, BankDetails, WalletItem, WalletProvider } from '
 import { PlatformBrandIcon, WalletProviderIcon } from './BrandIcons';
 
 const WALLET_PROVIDERS: Array<{ id: WalletProvider; nameAr: string; nameEn: string; prefix: string; color: string }> = [
-  { id: 'vodafone', nameAr: 'فودافون كاش', nameEn: 'Vodafone Cash', prefix: '010', color: 'border-red-500/40 text-red-400 bg-red-500/10' },
+  { id: 'vodafone', nameAr: 'ڨودافون كاش', nameEn: 'Vodafone Cash', prefix: '010', color: 'border-red-500/40 text-red-400 bg-red-500/10' },
   { id: 'orange', nameAr: 'أورانج كاش', nameEn: 'Orange Cash', prefix: '012', color: 'border-orange-500/40 text-orange-400 bg-orange-500/10' },
   { id: 'etisalat', nameAr: 'اتصالات كاش', nameEn: 'Etisalat Cash', prefix: '011', color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' },
   { id: 'we', nameAr: 'وي باي (WE Pay)', nameEn: 'WE Pay', prefix: '015', color: 'border-purple-500/40 text-purple-400 bg-purple-500/10' },
+  { id: 'instapay', nameAr: 'إنستاباي (InstaPay)', nameEn: 'InstaPay', prefix: 'IPN', color: 'border-fuchsia-500/40 text-fuchsia-300 bg-fuchsia-500/10' },
 ];
 
 interface EditQrModalProps {
@@ -6363,8 +6668,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
       if (trimmed) {
         const isUrl = isQuickPayUrl(trimmed);
         if (isUrl) {
-          const urlProv = detectWalletProviderFromUrl(trimmed);
-          newProvider = urlProv !== 'generic' ? urlProv : (next[index].provider !== 'generic' ? next[index].provider : 'vodafone');
+          newProvider = detectWalletProviderFromUrl(trimmed);
         } else {
           const detected = detectWalletInfo(trimmed);
           if (detected.provider !== 'generic') {
@@ -6508,15 +6812,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
           let detectedProvider: WalletProvider = 'generic';
           if (clean) {
             if (isQuickPayUrl(clean)) {
-              const lower = clean.toLowerCase();
-              if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) detectedProvider = 'vodafone';
-              else if (lower.includes('orange')) detectedProvider = 'orange';
-              else if (lower.includes('etisalat') || lower.includes('e&')) detectedProvider = 'etisalat';
-              else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProvider = 'we';
-              else detectedProvider = 'vodafone';
+              detectedProvider = detectWalletProviderFromUrl(clean);
             } else {
               const detected = detectWalletInfo(clean);
-              detectedProvider = (detected.provider !== 'generic' ? detected.provider : 'vodafone') as WalletProvider;
+              detectedProvider = (detected.provider !== 'generic' ? detected.provider : 'generic') as WalletProvider;
             }
           }
           setWalletCount(1);
@@ -6599,15 +6898,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
           let detectedProvider: WalletProvider = 'generic';
           if (clean) {
             if (isQuickPayUrl(clean)) {
-              const lower = clean.toLowerCase();
-              if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) detectedProvider = 'vodafone';
-              else if (lower.includes('orange')) detectedProvider = 'orange';
-              else if (lower.includes('etisalat') || lower.includes('e&')) detectedProvider = 'etisalat';
-              else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProvider = 'we';
-              else detectedProvider = 'vodafone';
+              detectedProvider = detectWalletProviderFromUrl(clean);
             } else {
               const detected = detectWalletInfo(clean);
-              detectedProvider = (detected.provider !== 'generic' ? detected.provider : 'vodafone') as WalletProvider;
+              detectedProvider = (detected.provider !== 'generic' ? detected.provider : 'generic') as WalletProvider;
             }
           }
           setWalletCount(1);
@@ -6678,15 +6972,17 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
         }
 
         if (isQuickPayUrl(trimmedVal)) {
-          const fullUrl = sanitizeQuickPayUrl(trimmedVal, item.provider);
+          const urlProv = detectWalletProviderFromUrl(trimmedVal);
+          const resolvedProv: WalletProvider = urlProv !== 'generic' ? urlProv : item.provider;
+          const fullUrl = sanitizeQuickPayUrl(trimmedVal, resolvedProv);
           activeList.push({
             phone: fullUrl,
-            provider: item.provider !== 'generic' ? item.provider : 'vodafone',
+            provider: resolvedProv,
             ownerName: trimmedOwner,
           });
         } else {
           const detected = detectWalletInfo(trimmedVal);
-          const finalProv = item.provider !== 'generic' ? item.provider : (detected.provider !== 'generic' ? detected.provider : 'vodafone');
+          const finalProv = item.provider !== 'generic' ? item.provider : (detected.provider !== 'generic' ? detected.provider : 'generic');
           activeList.push({
             phone: detected.cleanPhone || trimmedVal,
             provider: finalProv,
@@ -7072,8 +7368,11 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                   const hasInput = Boolean(item.phone && item.phone.trim());
                   const detected = hasInput ? detectWalletInfo(item.phone) : null;
                   const isUrl = hasInput ? isQuickPayUrl(item.phone) : false;
+                  const urlProv = hasInput && isUrl ? detectWalletProviderFromUrl(item.phone) : 'generic';
                   const activeProvider: WalletProvider = (hasInput 
-                    ? (item.provider !== 'generic' ? item.provider : (detected && detected.provider !== 'generic' ? detected.provider : 'generic'))
+                    ? (isUrl
+                        ? (urlProv !== 'generic' ? urlProv : item.provider)
+                        : (item.provider !== 'generic' ? item.provider : (detected && detected.provider !== 'generic' ? detected.provider : 'generic')))
                     : (item.provider !== 'generic' ? item.provider : 'generic')
                   ) as WalletProvider;
                   const isKnownBrand = hasInput && activeProvider !== 'generic';
@@ -7087,6 +7386,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                         isKnownBrand && activeProvider === 'orange' ? 'border-orange-500/35 shadow-[0_0_20px_rgba(255,121,0,0.1)]' :
                         isKnownBrand && activeProvider === 'etisalat' ? 'border-emerald-500/35 shadow-[0_0_20px_rgba(113,158,25,0.1)]' :
                         isKnownBrand && activeProvider === 'we' ? 'border-purple-500/35 shadow-[0_0_20px_rgba(102,45,145,0.15)]' :
+                        isKnownBrand && activeProvider === 'instapay' ? 'border-fuchsia-500/40 shadow-[0_0_20px_rgba(168,85,247,0.18)]' :
                         'border-amber-500/25 shadow-[0_0_15px_rgba(212,175,55,0.06)]'
                       }`}
                     >
@@ -7115,10 +7415,11 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                           className="px-2 py-1 bg-[#121216] border border-white/15 rounded-lg text-[11px] font-bold text-amber-200 focus:outline-none focus:border-amber-400"
                         >
                           <option value="generic">تلقائي (حسب الرقم/الرابط)</option>
-                          <option value="vodafone">فودافون كاش (010)</option>
+                          <option value="vodafone">ڨودافون كاش (010)</option>
                           <option value="orange">أورانج كاش (012)</option>
                           <option value="etisalat">اتصالات كاش (011)</option>
                           <option value="we">وي باي (015)</option>
+                          <option value="instapay">إنستاباي (InstaPay)</option>
                         </select>
                       </div>
 
@@ -7170,9 +7471,13 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
 
                         {/* Quick Pay URL Detected Badge */}
                         {isUrl && (
-                          <div className="flex items-center gap-1.5 p-2 bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-amber-500/15 border border-amber-500/30 rounded-xl text-[11px] font-bold text-amber-200">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
-                            <span>رابط دفع سريع{isKnownBrand && activeMeta ? ` لماركة (${activeMeta.nameAr})` : ''} ⚡ سيظهر زر فاخر للدفع السريع والتحويل المباشر!</span>
+                          <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-amber-500/15 border border-amber-500/30 rounded-xl text-[11px] font-bold text-amber-200">
+                            <WalletProviderIcon provider={isKnownBrand ? activeProvider : 'generic'} className="w-5 h-5 flex-shrink-0" />
+                            <span>
+                              {isKnownBrand && activeMeta
+                                ? `تم التعرف على رابط الدفع السريع (${activeMeta.nameAr}) ⚡ سيظهر شعار الشركة وزر التحويل المباشر`
+                                : 'رابط دفع سريع ⚡ سيظهر زر فاخر للدفع السريع والتحويل المباشر!'}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -7263,6 +7568,12 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                   </button>
                 )}
               </div>
+              {(targetUrl.toLowerCase().includes('ipn.eg') || targetUrl.toLowerCase().includes('instapay')) && (
+                <div className="p-2.5 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-xl flex items-center gap-2.5 text-xs font-bold text-fuchsia-200">
+                  <PlatformBrandIcon type="instapay" className="w-6 h-6 flex-shrink-0" />
+                  <span>تم التعرف على رابط الدفع السريع لـ إنستاباي (InstaPay Egypt) ✓</span>
+                </div>
+              )}
               <p className="text-[11px] text-amber-200/80 leading-relaxed">
                 💡 <strong>طريقة الحصول على الرابط:</strong> افتح تطبيق إنستاباي &gt; اضغط &quot;اطلب دفع&quot; &gt; اضغط &quot;مشاركة الرابط&quot; والصقه هنا ليتم توجيه العميل للدفع في التطبيق فوراً.
               </p>
@@ -7965,8 +8276,8 @@ export function BulkGenerateModal({ isOpen, onClose, onGenerated, domainUrl }: B
 FILE: src/components/PrintSheetModal.tsx
 ================================================================================
 import { useState, useEffect } from 'react';
-import { Printer, X, Download, Sliders, Sparkles, Filter } from 'lucide-react';
-import { generateQrDataUrl } from '../lib/qrService';
+import { Printer, X, PackageCheck } from 'lucide-react';
+import { batchUpdateQrPrintedStatus, generateQrDataUrl } from '../lib/qrService';
 import { QrCodeRecord } from '../types/qr';
 
 interface PrintSheetModalProps {
@@ -7974,15 +8285,18 @@ interface PrintSheetModalProps {
   onClose: () => void;
   records: QrCodeRecord[];
   domainUrl: string;
+  onMarkedPrinted?: (ids: string[]) => void;
 }
 
-export function PrintSheetModal({ isOpen, onClose, records, domainUrl }: PrintSheetModalProps) {
+export function PrintSheetModal({ isOpen, onClose, records, domainUrl, onMarkedPrinted }: PrintSheetModalProps) {
   const [qrMap, setQrMap] = useState<Record<string, string>>({});
   const [columns, setColumns] = useState<number>(3);
-  const [filterType, setFilterType] = useState<'all' | 'inactive' | 'active'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'unprinted' | 'inactive' | 'active'>('unprinted');
+  const [markingPrinted, setMarkingPrinted] = useState(false);
 
   const filtered = records.filter((r) => {
     if (!r || !r.id) return false;
+    if (filterType === 'unprinted') return !r.is_printed;
     if (filterType === 'inactive') return !r.is_active;
     if (filterType === 'active') return r.is_active;
     return true;
@@ -8011,6 +8325,18 @@ export function PrintSheetModal({ isOpen, onClose, records, domainUrl }: PrintSh
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleMarkShownPrinted = async () => {
+    const ids = filtered.map((r) => r.id).filter(Boolean);
+    if (ids.length === 0) return;
+    setMarkingPrinted(true);
+    try {
+      await batchUpdateQrPrintedStatus(ids, true);
+      onMarkedPrinted?.(ids);
+    } finally {
+      setMarkingPrinted(false);
+    }
   };
 
   return (
@@ -8051,6 +8377,7 @@ export function PrintSheetModal({ isOpen, onClose, records, domainUrl }: PrintSh
                 onChange={(e) => setFilterType(e.target.value as any)}
                 className="bg-black/60 border border-amber-500/30 rounded-xl px-3 py-1.5 text-amber-300 font-bold focus:outline-none focus:ring-1 focus:ring-amber-400"
               >
+                <option value="unprinted">غير المطبوعة فقط (جاهزة للطباعة • {records.filter((r) => !r.is_printed).length})</option>
                 <option value="all">جميع الأكواد ({records.length})</option>
                 <option value="inactive">غير المفعلة فقط (جاهزة للعملاء)</option>
                 <option value="active">المفعلة فقط</option>
@@ -8062,7 +8389,7 @@ export function PrintSheetModal({ isOpen, onClose, records, domainUrl }: PrintSh
               <button
                 type="button"
                 onClick={() => setColumns(2)}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition ${
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition whitespace-nowrap shrink-0 ${
                   columns === 2 
                     ? 'bg-amber-400 text-black border-amber-300 font-black shadow-md' 
                     : 'bg-black/40 text-slate-300 border-amber-500/20 hover:border-amber-400/40'
@@ -8073,7 +8400,7 @@ export function PrintSheetModal({ isOpen, onClose, records, domainUrl }: PrintSh
               <button
                 type="button"
                 onClick={() => setColumns(3)}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition ${
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition whitespace-nowrap shrink-0 ${
                   columns === 3 
                     ? 'bg-amber-400 text-black border-amber-300 font-black shadow-md' 
                     : 'bg-black/40 text-slate-300 border-amber-500/20 hover:border-amber-400/40'
@@ -8084,13 +8411,27 @@ export function PrintSheetModal({ isOpen, onClose, records, domainUrl }: PrintSh
             </div>
           </div>
 
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-black rounded-xl shadow-lg shadow-amber-500/20 transition cursor-pointer"
-          >
-            <Printer className="w-4 h-4 text-black" />
-            طباعة الورقة (Print A4)
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {filtered.length > 0 && (
+              <button
+                type="button"
+                disabled={markingPrinted}
+                onClick={handleMarkShownPrinted}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-cyan-500/15 hover:bg-cyan-400 hover:text-black text-cyan-300 border border-cyan-400/40 font-black rounded-xl transition whitespace-nowrap shrink-0 disabled:opacity-50 cursor-pointer"
+              >
+                <PackageCheck className="w-4 h-4" />
+                <span>{markingPrinted ? 'جاري التحديث...' : `تعليم المعروض كمطبوع ✓ (${filtered.length})`}</span>
+              </button>
+            )}
+
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black font-black rounded-xl shadow-lg shadow-amber-500/20 transition whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Printer className="w-4 h-4 text-black" />
+              طباعة الورقة (Print A4)
+            </button>
+          </div>
         </div>
 
         {/* Printable Sheet Area */}
@@ -9317,9 +9658,23 @@ import {
   Edit3,
   Calendar,
   FileText,
-  Code2
+  Code2,
+  PackageCheck
 } from 'lucide-react';
-import { fetchAllQrCodes, generateQrDataUrl, deleteQrCode, getQrCode, lookupExistingQrCode, fetchPlatformSettings, updatePlatformSettings, renewQrSubscription, subscribeToQrCodes } from '../lib/qrService';
+import {
+  fetchAllQrCodes,
+  generateQrDataUrl,
+  deleteQrCode,
+  getQrCode,
+  lookupExistingQrCode,
+  fetchPlatformSettings,
+  updatePlatformSettings,
+  renewQrSubscription,
+  subscribeToQrCodes,
+  toggleQrPrintedStatus,
+  batchUpdateQrPrintedStatus
+} from '../lib/qrService';
+import { detectWalletProviderFromUrl, getWalletProviderMeta, isQuickPayUrl } from '../lib/deepLinks';
 import { logoutAdmin, changeAdminPassword } from '../lib/auth';
 import { BulkGenerateModal } from '../components/BulkGenerateModal';
 import { UploadQrModal } from '../components/UploadQrModal';
@@ -9343,8 +9698,20 @@ function formatDisplayTarget(url: string | null | undefined, appType?: string, w
       const phones = wallets.map((w: any) => w.phone).filter(Boolean).join(' • ');
       return `${wallets.length} محافظ كاش (${phones})`;
     }
-    if (wallets && wallets.length === 1 && wallets[0]?.ownerName) {
-      return `محفظة: ${wallets[0].phone} (${wallets[0].ownerName})`;
+    if (wallets && wallets.length === 1) {
+      const w = wallets[0];
+      const detectedUrlProv = isQuickPayUrl(w.phone || url) ? detectWalletProviderFromUrl(w.phone || url) : null;
+      const prov = detectedUrlProv && detectedUrlProv !== 'generic' ? detectedUrlProv : w.provider;
+      const provLabel = prov && prov !== 'generic' ? getWalletProviderMeta(prov).nameAr : 'محفظة كاش';
+      if (w?.ownerName) {
+        return `${provLabel}: ${w.phone} (${w.ownerName})`;
+      }
+      return `${provLabel}: ${w.phone}`;
+    }
+    if (isQuickPayUrl(url)) {
+      const prov = detectWalletProviderFromUrl(url);
+      const provLabel = prov !== 'generic' ? getWalletProviderMeta(prov).nameAr : 'رابط دفع سريع';
+      return `${provLabel}: ${url}`;
     }
     if (url.startsWith('tel:*9*7*')) {
       const num = url.replace('tel:*9*7*', '').replace('#', '').replace('%23', '');
@@ -9365,8 +9732,11 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'expired'>('all');
+  const [printFilter, setPrintFilter] = useState<'all' | 'unprinted' | 'printed'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [renewingId, setRenewingId] = useState<string | null>(null);
+  const [togglingPrintId, setTogglingPrintId] = useState<string | null>(null);
+  const [isBatchMarkingPrint, setIsBatchMarkingPrint] = useState(false);
 
   // Modals state
   const [isBulkOpen, setIsBulkOpen] = useState(false);
@@ -9480,6 +9850,71 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
       console.error('Quick renew failed:', err);
     } finally {
       setRenewingId(null);
+    }
+  };
+
+  const handlePrintStatusChange = async (record: QrCodeRecord, nextPrinted: boolean) => {
+    const nowIso = new Date().toISOString();
+    const prevPrinted = Boolean(record.is_printed);
+    const prevPrintedAt = record.printed_at ?? null;
+    if (prevPrinted === nextPrinted) return;
+
+    setTogglingPrintId(record.id);
+    // Optimistic state update
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.id === record.id
+          ? { ...r, is_printed: nextPrinted, printed_at: nextPrinted ? nowIso : null, updated_at: nowIso }
+          : r
+      )
+    );
+
+    try {
+      const res = await toggleQrPrintedStatus(record.id, nextPrinted);
+      if (res.success && res.record) {
+        setRecords((prev) => prev.map((r) => (r.id === record.id ? res.record! : r)));
+        setAdminNotice({
+          type: 'success',
+          text: nextPrinted
+            ? `تم نقل الكود [${record.id}] إلى خانة الكروت المطبوعة ✓`
+            : `تمت إعادة الكود [${record.id}] إلى قائمة غير المطبوعة`,
+        });
+      } else {
+        throw new Error('Failed to update print status');
+      }
+    } catch {
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.id === record.id ? { ...r, is_printed: prevPrinted, printed_at: prevPrintedAt } : r
+        )
+      );
+      setAdminNotice({
+        type: 'error',
+        text: `تعذر تحديث حالة الطباعة للكود [${record.id}]. يرجى المحاولة مرة أخرى.`,
+      });
+    } finally {
+      setTogglingPrintId(null);
+    }
+  };
+
+  const handleBatchMarkVisiblePrinted = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    setIsBatchMarkingPrint(true);
+    const nowIso = new Date().toISOString();
+    const idSet = new Set(ids);
+    setRecords((prev) =>
+      prev.map((r) =>
+        idSet.has(r.id) ? { ...r, is_printed: true, printed_at: nowIso, updated_at: nowIso } : r
+      )
+    );
+    try {
+      await batchUpdateQrPrintedStatus(ids, true);
+      setAdminNotice({
+        type: 'success',
+        text: `تم نقل ${ids.length} كود إلى خانة الكروت المطبوعة ✓`,
+      });
+    } finally {
+      setIsBatchMarkingPrint(false);
     }
   };
 
@@ -9620,14 +10055,19 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
     }
 
     if (filterStatus === 'active') {
-      return Boolean(r.is_active && (!r.expires_at || new Date(r.expires_at).getTime() >= Date.now()));
+      if (!(r.is_active && (!r.expires_at || new Date(r.expires_at).getTime() >= Date.now()))) return false;
+    } else if (filterStatus === 'expired') {
+      if (!(r.is_active && r.expires_at && new Date(r.expires_at).getTime() < Date.now())) return false;
+    } else if (filterStatus === 'inactive') {
+      if (r.is_active) return false;
     }
-    if (filterStatus === 'expired') {
-      return Boolean(r.is_active && r.expires_at && new Date(r.expires_at).getTime() < Date.now());
+
+    if (printFilter === 'printed') {
+      if (!r.is_printed) return false;
+    } else if (printFilter === 'unprinted') {
+      if (r.is_printed) return false;
     }
-    if (filterStatus === 'inactive') {
-      return !r.is_active;
-    }
+
     return true;
   });
 
@@ -9637,6 +10077,8 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
   const expiredCodes = validRecords.filter((r) => r.is_active && r.expires_at && new Date(r.expires_at).getTime() < Date.now()).length;
   const activeCodes = validRecords.filter((r) => r.is_active && (!r.expires_at || new Date(r.expires_at).getTime() >= Date.now())).length;
   const pendingCodes = validRecords.filter((r) => !r.is_active).length;
+  const printedCodes = validRecords.filter((r) => Boolean(r.is_printed)).length;
+  const unprintedCodes = validRecords.filter((r) => !r.is_printed).length;
   const totalScans = validRecords.reduce((acc, curr) => acc + (Number(curr?.total_scans) || 0), 0);
 
   return (
@@ -9800,7 +10242,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         )}
 
         {/* KPI Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 stage-3d">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 stage-3d">
           <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/45 shadow-lg flex items-center justify-between card-3d-tilt">
             <div>
               <p className="text-[11px] font-bold text-slate-400">إجمالي الرموز</p>
@@ -9845,7 +10287,27 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             </div>
           </div>
 
-          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/45 shadow-lg flex items-center justify-between card-3d-tilt col-span-2 md:col-span-1">
+          <button
+            type="button"
+            onClick={() => setPrintFilter((prev) => (prev === 'printed' ? 'all' : 'printed'))}
+            className={`p-4 bg-[#121216] rounded-2xl border shadow-lg flex items-center justify-between card-3d-tilt text-right transition cursor-pointer ${
+              printFilter === 'printed'
+                ? 'border-cyan-400/70 ring-1 ring-cyan-400/30'
+                : 'border-cyan-500/25 hover:border-cyan-400/50'
+            }`}
+            title="اضغط لعرض الكروت المطبوعة فقط"
+          >
+            <div>
+              <p className="text-[11px] font-bold text-slate-400">الكروت المطبوعة</p>
+              <p className="text-xl sm:text-2xl font-black text-cyan-400 mt-0.5 tabular-nums">{printedCodes}</p>
+              <p className="text-[10px] text-slate-500 tabular-nums">متبقي {unprintedCodes} للطباعة</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-cyan-400/10 border border-cyan-400/25 text-cyan-400 flex items-center justify-center">
+              <PackageCheck className="w-5 h-5" />
+            </div>
+          </button>
+
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/45 shadow-lg flex items-center justify-between card-3d-tilt">
             <div>
               <div className="flex items-center gap-1.5">
                 <p className="text-[11px] font-bold text-slate-400">إجمالي المسح</p>
@@ -9920,128 +10382,205 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         {/* Search, Filters, and Table */}
         <div className="bg-[#121216] rounded-3xl border border-amber-500/20 shadow-2xl overflow-hidden">
           {/* Controls Header */}
-          <div className="p-5 border-b border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
-            {/* Search Input */}
-            <div className="relative w-full md:w-80">
-              <Search className="w-4 h-4 text-slate-500 absolute right-3.5 top-3" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="ابحث بالمعرّف ID أو الرابط المستهدف... (مثل I9pFBZwn8Y)"
-                className="w-full pr-10 pl-4 py-2.5 bg-black/70 border border-amber-500/30 rounded-xl text-xs font-mono font-black text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition selection:bg-amber-400 selection:text-black"
-              />
+          <div className="p-5 border-b border-white/5 space-y-3.5">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              {/* Search Input */}
+              <div className="relative w-full md:w-80">
+                <Search className="w-4 h-4 text-slate-500 absolute right-3.5 top-3" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="ابحث بالمعرّف ID أو الرابط المستهدف... (مثل I9pFBZwn8Y)"
+                  className="w-full pr-10 pl-4 py-2.5 bg-black/70 border border-amber-500/30 rounded-xl text-xs font-mono font-black text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition selection:bg-amber-400 selection:text-black"
+                />
+              </div>
+
+              {/* Filters and View Switcher */}
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                {/* Category Tabs: Active, Pending, All */}
+                <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-2xl text-xs font-bold text-slate-400 border border-white/5 overflow-x-auto max-w-full">
+                  <button
+                    type="button"
+                    onClick={() => setFilterStatus('active')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      filterStatus === 'active'
+                        ? 'bg-amber-400 text-black shadow-md font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>النشطة</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
+                      filterStatus === 'active' ? 'bg-black/20 text-black' : 'bg-amber-400/20 text-amber-300'
+                    }`}>
+                      {activeCodes}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilterStatus('expired')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      filterStatus === 'expired'
+                        ? 'bg-rose-500 text-white shadow-md font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>منتهية الصلاحية</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
+                      filterStatus === 'expired' ? 'bg-black/30 text-white' : 'bg-rose-500/20 text-rose-300'
+                    }`}>
+                      {expiredCodes}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilterStatus('inactive')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      filterStatus === 'inactive'
+                        ? 'bg-yellow-500 text-black shadow-md font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>في انتظار التفعيل</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
+                      filterStatus === 'inactive' ? 'bg-black/20 text-black' : 'bg-yellow-400/20 text-yellow-300'
+                    }`}>
+                      {pendingCodes}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilterStatus('all')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      filterStatus === 'all'
+                        ? 'bg-white/20 text-white shadow-md font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span>الكل</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
+                      filterStatus === 'all' ? 'bg-black/20 text-white' : 'bg-white/10 text-slate-300'
+                    }`}>
+                      {records.length}
+                    </span>
+                  </button>
+                </div>
+
+                {/* View Switcher */}
+                <div className="flex items-center border border-white/10 rounded-xl overflow-hidden p-0.5 bg-black/40 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('grid')}
+                    className={`p-1.5 rounded-lg transition ${
+                      viewMode === 'grid' ? 'bg-amber-400 text-black shadow-sm font-bold' : 'text-slate-500 hover:text-white'
+                    }`}
+                    title="عرض شبكي"
+                  >
+                    <Grid className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('table')}
+                    className={`p-1.5 rounded-lg transition ${
+                      viewMode === 'table' ? 'bg-amber-400 text-black shadow-sm font-bold' : 'text-slate-500 hover:text-white'
+                    }`}
+                    title="عرض جدولي"
+                  >
+                    <List className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Refresh Button */}
+                <button
+                  onClick={() => loadData(false)}
+                  disabled={loading}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition border border-white/5 shrink-0"
+                  title="تحديث البيانات"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-amber-400' : ''}`} />
+                </button>
+              </div>
             </div>
 
-            {/* Filters and View Switcher */}
-            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
-              {/* Category Tabs: Active, Pending, All */}
-              <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-2xl text-xs font-bold text-slate-400 border border-white/5">
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('active')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
-                    filterStatus === 'active'
-                      ? 'bg-amber-400 text-black shadow-md font-black'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>النشطة</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    filterStatus === 'active' ? 'bg-black/20 text-black' : 'bg-amber-400/20 text-amber-300'
-                  }`}>
-                    {activeCodes}
-                  </span>
-                </button>
+            {/* Admin-Only Print Tracking Filter Row */}
+            <div className="pt-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-cyan-300 whitespace-nowrap shrink-0">
+                  <Printer className="w-3.5 h-3.5" />
+                  حالة الطباعة (للأدمن فقط):
+                </span>
 
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('expired')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
-                    filterStatus === 'expired'
-                      ? 'bg-rose-500 text-white shadow-md font-black'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>منتهية الصلاحية</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    filterStatus === 'expired' ? 'bg-black/30 text-white' : 'bg-rose-500/20 text-rose-300'
-                  }`}>
-                    {expiredCodes}
-                  </span>
-                </button>
+                <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-2xl text-xs font-bold border border-white/5 overflow-x-auto">
+                  <button
+                    type="button"
+                    onClick={() => setPrintFilter('all')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      printFilter === 'all'
+                        ? 'bg-white/20 text-white shadow-sm font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span>الكل</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/10 text-slate-200 tabular-nums">
+                      {totalCodes}
+                    </span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('inactive')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
-                    filterStatus === 'inactive'
-                      ? 'bg-yellow-500 text-black shadow-md font-black'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>في انتظار التفعيل</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    filterStatus === 'inactive' ? 'bg-black/20 text-black' : 'bg-yellow-400/20 text-yellow-300'
-                  }`}>
-                    {pendingCodes}
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintFilter('unprinted')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      printFilter === 'unprinted'
+                        ? 'bg-amber-400 text-black shadow-sm font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>لم تُطبع بعد</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
+                      printFilter === 'unprinted' ? 'bg-black/20 text-black' : 'bg-amber-400/15 text-amber-300'
+                    }`}>
+                      {unprintedCodes}
+                    </span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('all')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
-                    filterStatus === 'all'
-                      ? 'bg-white/20 text-white shadow-md font-black'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <span>الكل</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    filterStatus === 'all' ? 'bg-black/20 text-white' : 'bg-white/10 text-slate-300'
-                  }`}>
-                    {records.length}
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintFilter('printed')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      printFilter === 'printed'
+                        ? 'bg-cyan-400 text-black shadow-sm font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <PackageCheck className="w-3.5 h-3.5" />
+                    <span>الكروت المطبوعة ✓</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
+                      printFilter === 'printed' ? 'bg-black/20 text-black' : 'bg-cyan-400/15 text-cyan-300'
+                    }`}>
+                      {printedCodes}
+                    </span>
+                  </button>
+                </div>
               </div>
 
-              {/* View Switcher */}
-              <div className="flex items-center border border-white/10 rounded-xl overflow-hidden p-0.5 bg-black/40">
+              {printFilter === 'unprinted' && filtered.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setViewMode('grid')}
-                  className={`p-1.5 rounded-lg transition ${
-                    viewMode === 'grid' ? 'bg-amber-400 text-black shadow-sm font-bold' : 'text-slate-500 hover:text-white'
-                  }`}
-                  title="عرض شبكي"
+                  disabled={isBatchMarkingPrint}
+                  onClick={() => handleBatchMarkVisiblePrinted(filtered.map((r) => r.id))}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-cyan-400/15 hover:bg-cyan-400 hover:text-black text-cyan-300 border border-cyan-400/35 text-[11px] font-black transition whitespace-nowrap shrink-0 disabled:opacity-50 cursor-pointer"
                 >
-                  <Grid className="w-4 h-4" />
+                  <PackageCheck className="w-3.5 h-3.5" />
+                  <span>{isBatchMarkingPrint ? 'جاري النقل...' : `نقل المعروض (${filtered.length}) إلى الكروت المطبوعة ✓`}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('table')}
-                  className={`p-1.5 rounded-lg transition ${
-                    viewMode === 'table' ? 'bg-amber-400 text-black shadow-sm font-bold' : 'text-slate-500 hover:text-white'
-                  }`}
-                  title="عرض جدولي"
-                >
-                  <List className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Refresh Button */}
-              <button
-                onClick={() => loadData(false)}
-                disabled={loading}
-                className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition border border-white/5"
-                title="تحديث البيانات"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-amber-400' : ''}`} />
-              </button>
+              )}
             </div>
           </div>
 
@@ -10110,7 +10649,12 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         <div className="flex items-center gap-1.5">
                           {record.is_active && record.app_type && (
                             <div className="animate-icon-alive">
-                              <PlatformBrandIcon type={record.app_type as any} className="w-5 h-5 flex-shrink-0" targetUrl={record.target_url || undefined} />
+                              <PlatformBrandIcon
+                                type={record.app_type as any}
+                                className="w-5 h-5 flex-shrink-0"
+                                targetUrl={record.target_url || undefined}
+                                walletProvider={record.wallets?.[0]?.provider}
+                              />
                             </div>
                           )}
                           <span className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold flex items-center gap-1.5 ${
@@ -10261,6 +10805,37 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                             </button>
                           </div>
                         </div>
+
+                        {/* Admin-Only Print Status Control (Checkbox + List Dropdown) */}
+                        <div className="mt-2.5 px-3 py-2 bg-black/50 border border-white/10 rounded-xl flex items-center justify-between gap-2 text-[11px]">
+                          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(record.is_printed)}
+                              disabled={togglingPrintId === record.id}
+                              onChange={(e) => handlePrintStatusChange(record, e.target.checked)}
+                              className="w-4 h-4 rounded accent-cyan-400 cursor-pointer disabled:opacity-50"
+                            />
+                            <span className={`font-extrabold ${record.is_printed ? 'text-cyan-300' : 'text-slate-300'}`}>
+                              {record.is_printed ? 'اتطبع' : 'حالة الطباعة'}
+                            </span>
+                          </label>
+
+                          <select
+                            aria-label={`حالة طباعة الكود ${record.id}`}
+                            value={record.is_printed ? 'printed' : 'unprinted'}
+                            disabled={togglingPrintId === record.id}
+                            onChange={(e) => handlePrintStatusChange(record, e.target.value === 'printed')}
+                            className={`px-2 py-1 rounded-lg border text-[10px] font-black focus:outline-none cursor-pointer transition ${
+                              record.is_printed
+                                ? 'bg-cyan-500/15 border-cyan-400/40 text-cyan-300'
+                                : 'bg-black/70 border-white/15 text-amber-300'
+                            }`}
+                          >
+                            <option value="unprinted" className="bg-[#121216] text-amber-300">لم يُطبع</option>
+                            <option value="printed" className="bg-[#121216] text-cyan-300">تمت الطباعة ✓</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
 
@@ -10324,6 +10899,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                   <tr>
                     <th className="py-3 px-4">كود الـ QR</th>
                     <th className="py-3 px-4">الحالة</th>
+                    <th className="py-3 px-4">حالة الطباعة</th>
                     <th className="py-3 px-4">مدة التفعيل والاشتراك</th>
                     <th className="py-3 px-4">مرات المسح</th>
                     <th className="py-3 px-4">المنصة</th>
@@ -10339,13 +10915,39 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         {record.id}
                       </td>
                       <td className="py-2.5 px-4">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${
                           record.is_active
                             ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                             : 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30'
                         }`}>
                           {record.is_active ? 'مفعل نشط' : 'في انتظار التفعيل'}
                         </span>
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <div className="inline-flex items-center gap-2 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(record.is_printed)}
+                            disabled={togglingPrintId === record.id}
+                            onChange={(e) => handlePrintStatusChange(record, e.target.checked)}
+                            aria-label={`تحديد الكود ${record.id} كمطبوع`}
+                            className="w-4 h-4 rounded accent-cyan-400 cursor-pointer disabled:opacity-50"
+                          />
+                          <select
+                            aria-label={`حالة طباعة ${record.id}`}
+                            value={record.is_printed ? 'printed' : 'unprinted'}
+                            disabled={togglingPrintId === record.id}
+                            onChange={(e) => handlePrintStatusChange(record, e.target.value === 'printed')}
+                            className={`px-2 py-1 rounded-lg border text-[10px] font-black focus:outline-none cursor-pointer ${
+                              record.is_printed
+                                ? 'bg-cyan-500/15 border-cyan-400/40 text-cyan-300'
+                                : 'bg-black/60 border-white/15 text-amber-300'
+                            }`}
+                          >
+                            <option value="unprinted" className="bg-[#121216] text-amber-300">لم يُطبع</option>
+                            <option value="printed" className="bg-[#121216] text-cyan-300">تمت الطباعة ✓</option>
+                          </select>
+                        </div>
                       </td>
                       <td className="py-2.5 px-4">
                         <div className="flex flex-col gap-1 items-start">
@@ -10388,12 +10990,19 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                       <td className="py-2.5 px-4 font-extrabold text-amber-300">
                         <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-400/10 border border-amber-400/30 rounded-full text-xs">
                           <Eye className="w-3.5 h-3.5 text-amber-400" />
-                          <span>{record.total_scans || 0}</span>
+                          <span className="tabular-nums">{record.total_scans || 0}</span>
                         </div>
                       </td>
                       <td className="py-2.5 px-4 text-slate-300">
                         <div className="flex items-center gap-1.5">
-                          {record.app_type && <PlatformBrandIcon type={record.app_type as any} className="w-4 h-4 flex-shrink-0" targetUrl={record.target_url || undefined} />}
+                          {record.app_type && (
+                            <PlatformBrandIcon
+                              type={record.app_type as any}
+                              className="w-4 h-4 flex-shrink-0"
+                              targetUrl={record.target_url || undefined}
+                              walletProvider={record.wallets?.[0]?.provider}
+                            />
+                          )}
                           <span className="capitalize">{record.app_type || '—'}</span>
                         </div>
                       </td>
@@ -10505,6 +11114,19 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         onClose={() => setIsPrintOpen(false)}
         records={records}
         domainUrl={domainUrl}
+        onMarkedPrinted={(ids) => {
+          const nowIso = new Date().toISOString();
+          const idSet = new Set(ids);
+          setRecords((prev) =>
+            prev.map((r) =>
+              idSet.has(r.id) ? { ...r, is_printed: true, printed_at: nowIso, updated_at: nowIso } : r
+            )
+          );
+          setAdminNotice({
+            type: 'success',
+            text: `تم نقل ${ids.length} كود إلى خانة الكروت المطبوعة ✓`,
+          });
+        }}
       />
 
       <QrScannerModal
@@ -10736,10 +11358,11 @@ interface CustomerActivationViewProps {
 }
 
 const WALLET_PROVIDERS: Array<{ id: WalletProvider; nameAr: string; nameEn: string; prefix: string; color: string }> = [
-  { id: 'vodafone', nameAr: 'فودافون كاش', nameEn: 'Vodafone Cash', prefix: '010', color: 'border-red-500/40 text-red-400 bg-red-500/10' },
+  { id: 'vodafone', nameAr: 'ڨودافون كاش', nameEn: 'Vodafone Cash', prefix: '010', color: 'border-red-500/40 text-red-400 bg-red-500/10' },
   { id: 'orange', nameAr: 'أورانج كاش', nameEn: 'Orange Cash', prefix: '012', color: 'border-orange-500/40 text-orange-400 bg-orange-500/10' },
   { id: 'etisalat', nameAr: 'اتصالات كاش', nameEn: 'Etisalat Cash', prefix: '011', color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' },
   { id: 'we', nameAr: 'وي باي (WE Pay)', nameEn: 'WE Pay', prefix: '015', color: 'border-purple-500/40 text-purple-400 bg-purple-500/10' },
+  { id: 'instapay', nameAr: 'إنستاباي (InstaPay)', nameEn: 'InstaPay', prefix: 'IPN', color: 'border-fuchsia-500/40 text-fuchsia-300 bg-fuchsia-500/10' },
 ];
 
 export function CustomerActivationView({ qrId, onActivated }: CustomerActivationViewProps) {
@@ -10812,8 +11435,8 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
     { 
       type: 'wallet', 
       label: 'محفظة كاش', 
-      placeholder: '010... أو 012... أو رابط الدفع السريع https://...', 
-      example: 'أدخل رقم هاتف المحفظة (فودافون، أورانج، اتصالات، وي) مع إمكانية إضافة حتى 4 محافظ واسم صاحب كل محفظة.' 
+      placeholder: '010... أو رابط دفع سريع (فودافون / أورانج / وي / اتصالات / إنستاباي)', 
+      example: 'أدخل رقم المحفظة أو رابط الدفع السريع (حتى إنستاباي ipn.eg)، وسيتم التعرف على الشركة وعرض شعارها تلقائياً مع إمكانية إضافة حتى 4 محافظ.' 
     },
     { 
       type: 'bank', 
@@ -10896,7 +11519,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
         // Check if quick pay url
         if (isQuickPayUrl(trimmedPhone)) {
           const urlProv = detectWalletProviderFromUrl(trimmedPhone);
-          const resolvedProv: WalletProvider = item.provider !== 'generic' ? item.provider : (urlProv !== 'generic' ? urlProv : 'vodafone');
+          const resolvedProv: WalletProvider = urlProv !== 'generic' ? urlProv : (item.provider !== 'generic' ? item.provider : 'generic');
           const fullUrl = sanitizeQuickPayUrl(trimmedPhone, resolvedProv);
           activeList.push({
             phone: fullUrl,
@@ -10905,7 +11528,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
           });
         } else {
           const detected = detectWalletInfo(trimmedPhone);
-          const finalProv = item.provider !== 'generic' ? item.provider : (detected.provider !== 'generic' ? detected.provider : 'vodafone');
+          const finalProv = item.provider !== 'generic' ? item.provider : (detected.provider !== 'generic' ? detected.provider : 'generic');
           activeList.push({
             phone: detected.cleanPhone || trimmedPhone,
             provider: finalProv,
@@ -11223,6 +11846,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                             isKnownBrand && activeProvider === 'orange' ? 'border-orange-500/35 shadow-[0_0_20px_rgba(255,121,0,0.1)]' :
                             isKnownBrand && activeProvider === 'etisalat' ? 'border-emerald-500/35 shadow-[0_0_20px_rgba(113,158,25,0.1)]' :
                             isKnownBrand && activeProvider === 'we' ? 'border-purple-500/35 shadow-[0_0_20px_rgba(102,45,145,0.15)]' :
+                            isKnownBrand && activeProvider === 'instapay' ? 'border-fuchsia-500/40 shadow-[0_0_20px_rgba(168,85,247,0.18)]' :
                             'border-amber-500/25 shadow-[0_0_15px_rgba(212,175,55,0.06)]'
                           }`}
                         >
@@ -11289,9 +11913,13 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
 
                             {/* Quick Pay URL Detected Badge */}
                             {isUrl && (
-                              <div className="p-1.5 px-2.5 bg-amber-400/10 border border-amber-400/20 rounded-lg flex items-center gap-1.5 text-[11px] text-amber-300 font-bold">
-                                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                                <span>سيظهر زر فاخر للدفع السريع والتحويل المباشر{isKnownBrand && activeMeta ? ` لـ (${activeMeta.nameAr})` : ''} ⚡</span>
+                              <div className="p-2 px-2.5 bg-amber-400/10 border border-amber-400/25 rounded-xl flex items-center gap-2 text-[11px] text-amber-200 font-bold">
+                                <WalletProviderIcon provider={isKnownBrand ? activeProvider : 'generic'} className="w-5 h-5 flex-shrink-0" />
+                                <span>
+                                  {isKnownBrand && activeMeta
+                                    ? `تم التعرف تلقائياً على (${activeMeta.nameAr}) — سيظهر شعار الشركة وزر الدفع السريع ⚡`
+                                    : 'تم التعرف على رابط دفع سريع ⚡ سيظهر زر الدفع والتحويل المباشر'}
+                                </span>
                               </div>
                             )}
                           </div>
@@ -11328,12 +11956,12 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
 
                           {/* Operator Visual Confirmation */}
                           {hasInput && isKnownBrand && activeMeta && (
-                            <div className="p-2.5 bg-black/40 rounded-xl border border-white/5 flex items-center justify-between text-[11px]">
+                            <div className="p-2.5 bg-black/40 rounded-xl border border-white/10 flex items-center justify-between text-[11px]">
                               <span className="text-slate-400">الشركة المحددة:</span>
                               <span className="font-bold text-white flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                {activeMeta.nameAr} ({activeMeta.nameEn})
-                                {isUrl ? ' • رابط دفع سريع ⚡' : ' • رقم هاتف محفظة'}
+                                <WalletProviderIcon provider={activeProvider} className="w-4 h-4 flex-shrink-0" />
+                                <span>{activeMeta.nameAr} ({activeMeta.nameEn})</span>
+                                <span className="text-amber-300">{isUrl ? '• رابط دفع سريع' : '• رقم محفظة'}</span>
                               </span>
                             </div>
                           )}
@@ -11363,6 +11991,12 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                       autoFocus
                     />
                   </div>
+                  {selectedType === 'instapay' && (rawInput.toLowerCase().includes('ipn.eg') || rawInput.toLowerCase().includes('instapay')) && (
+                    <div className="p-2.5 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-xl flex items-center gap-2.5 text-xs font-bold text-fuchsia-200 animate-in fade-in">
+                      <PlatformBrandIcon type="instapay" className="w-6 h-6 flex-shrink-0" />
+                      <span>تم التعرف على رابط الدفع السريع لـ إنستاباي (InstaPay Egypt) ✓</span>
+                    </div>
+                  )}
                   <p className="text-[11px] text-amber-200/70 leading-relaxed">
                     💡 {currentPlatformInfo.example}
                   </p>
@@ -11441,7 +12075,7 @@ import {
   Sparkles,
   User
 } from 'lucide-react';
-import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo, detectWalletProviderFromUrl, isQuickPayUrl, sanitizeQuickPayUrl } from '../lib/deepLinks';
+import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo, detectWalletProviderFromUrl, getWalletProviderMeta, isQuickPayUrl, sanitizeQuickPayUrl } from '../lib/deepLinks';
 import { QrCodeRecord, WalletItem, WalletProvider } from '../types/qr';
 import { PlatformBrandIcon, WalletProviderIcon } from '../components/BrandIcons';
 
@@ -11655,13 +12289,27 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
             gradient: 'from-purple-200 via-purple-400 to-indigo-400',
             ring: 'ring-purple-400/30',
           };
+        case 'instapay':
+          return {
+            border: 'border-fuchsia-500/40 shadow-[0_0_40px_rgba(168,85,247,0.22)]',
+            badge: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30',
+            gradient: 'from-fuchsia-200 via-purple-300 to-amber-400',
+            ring: 'ring-fuchsia-400/30',
+          };
         case 'vodafone':
-        default:
           return {
             border: 'border-red-500/40 shadow-[0_0_40px_rgba(230,0,0,0.2)]',
             badge: 'bg-red-500/15 text-red-300 border-red-500/30',
             gradient: 'from-red-200 via-red-400 to-rose-500',
             ring: 'ring-red-400/30',
+          };
+        case 'generic':
+        default:
+          return {
+            border: 'border-amber-500/40 shadow-[0_0_40px_rgba(234,179,8,0.2)]',
+            badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+            gradient: 'from-amber-200 via-yellow-400 to-amber-500',
+            ring: 'ring-amber-400/30',
           };
       }
     };
@@ -11694,28 +12342,16 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                 const detected = isUrl ? null : detectWalletInfo(walletItem.phone);
                 const urlProv = isUrl ? detectWalletProviderFromUrl(walletItem.phone) : 'generic';
                 const explicitProv = walletItem.provider && walletItem.provider !== 'generic' ? walletItem.provider : null;
-                const prov: WalletProvider = explicitProv || (urlProv !== 'generic' ? urlProv : (detected && detected.provider !== 'generic' ? detected.provider : 'vodafone'));
+                const prov: WalletProvider = isUrl
+                  ? (urlProv !== 'generic' ? urlProv : (explicitProv || 'generic'))
+                  : (explicitProv || (detected && detected.provider !== 'generic' ? detected.provider : 'generic'));
                 const style = getProviderStyle(prov);
                 const isCopied = copiedField === `wallet_${idx}`;
                 const formatted = detected?.formattedPhone || walletItem.phone;
-                const companyTitle = detected?.companyNameAr || (
-                  prov === 'vodafone' ? 'فودافون مصر - Vodafone Egypt' :
-                  prov === 'orange' ? 'أورانج مصر - Orange Egypt' :
-                  prov === 'etisalat' ? 'إي آند مصر (اتصالات) - e& Egypt' :
-                  prov === 'we' ? 'المصرية للاتصالات (WE Pay)' : 'محفظة كاش'
-                );
-                const providerNameAr = detected?.nameAr || (
-                  prov === 'vodafone' ? 'ڨودافون كاش' :
-                  prov === 'orange' ? 'أورانج كاش' :
-                  prov === 'etisalat' ? 'اتصالات كاش' :
-                  prov === 'we' ? 'وي باي (WE Pay)' : 'محفظة كاش'
-                );
-                const providerNameEn = detected?.nameEn || (
-                  prov === 'vodafone' ? 'Vodafone Cash' :
-                  prov === 'orange' ? 'Orange Cash' :
-                  prov === 'etisalat' ? 'Etisalat Cash' :
-                  prov === 'we' ? 'WE Pay' : 'Cash Wallet'
-                );
+                const provMeta = getWalletProviderMeta(prov);
+                const companyTitle = detected?.companyNameAr || provMeta.companyNameAr;
+                const providerNameAr = detected?.nameAr || provMeta.nameAr;
+                const providerNameEn = detected?.nameEn || provMeta.nameEn;
                 const cleanTargetUrl = isUrl ? sanitizeQuickPayUrl(walletItem.phone, prov) : walletItem.phone.trim();
 
                 return (
@@ -11849,25 +12485,13 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     const explicitProv = singleWallet.provider && singleWallet.provider !== 'generic' ? singleWallet.provider : null;
     const phone = detected?.cleanPhone || singleWallet.phone;
     const formattedPhone = detected?.formattedPhone || phone;
-    const provider: WalletProvider = explicitProv || (urlProv !== 'generic' ? urlProv : (detected && detected.provider !== 'generic' ? detected.provider : 'vodafone'));
-    const providerNameAr = detected?.nameAr || (
-      provider === 'vodafone' ? 'ڨودافون كاش' :
-      provider === 'orange' ? 'أورانج كاش' :
-      provider === 'etisalat' ? 'اتصالات كاش' :
-      provider === 'we' ? 'وي باي (WE Pay)' : 'محفظة كاش'
-    );
-    const providerNameEn = detected?.nameEn || (
-      provider === 'vodafone' ? 'Vodafone Cash' :
-      provider === 'orange' ? 'Orange Cash' :
-      provider === 'etisalat' ? 'Etisalat Cash' :
-      provider === 'we' ? 'WE Pay' : 'Cash Wallet'
-    );
-    const companyName = detected?.companyNameAr || (
-      provider === 'vodafone' ? 'فودافون مصر - Vodafone Egypt' :
-      provider === 'orange' ? 'أورانج مصر - Orange Egypt' :
-      provider === 'etisalat' ? 'إي آند مصر (اتصالات) - e& Egypt' :
-      provider === 'we' ? 'المصرية للاتصالات (WE Pay)' : 'محفظة كاش'
-    );
+    const provider: WalletProvider = isUrl
+      ? (urlProv !== 'generic' ? urlProv : (explicitProv || 'generic'))
+      : (explicitProv || (detected && detected.provider !== 'generic' ? detected.provider : 'generic'));
+    const provMeta = getWalletProviderMeta(provider);
+    const providerNameAr = detected?.nameAr || provMeta.nameAr;
+    const providerNameEn = detected?.nameEn || provMeta.nameEn;
+    const companyName = detected?.companyNameAr || provMeta.companyNameAr;
     const style = getProviderStyle(provider);
     const isCopied = copiedField === 'wallet';
     const cleanTargetUrl = isUrl ? sanitizeQuickPayUrl(singleWallet.phone, provider) : singleWallet.phone.trim();
@@ -12498,6 +13122,7 @@ enum WalletProvider {
   orange,
   etisalat,
   we,
+  instapay,
   generic;
 
   static WalletProvider fromString(String? value) {
@@ -12518,6 +13143,8 @@ enum WalletProvider {
         return 'اتصالات كاش';
       case WalletProvider.we:
         return 'وي باي (WE Pay)';
+      case WalletProvider.instapay:
+        return 'إنستاباي';
       case WalletProvider.generic:
         return 'محفظة كاش';
     }
@@ -12533,6 +13160,8 @@ enum WalletProvider {
         return 'Etisalat Cash';
       case WalletProvider.we:
         return 'WE Pay';
+      case WalletProvider.instapay:
+        return 'InstaPay';
       case WalletProvider.generic:
         return 'Cash Wallet';
     }
@@ -12548,6 +13177,8 @@ enum WalletProvider {
         return '011';
       case WalletProvider.we:
         return '015';
+      case WalletProvider.instapay:
+        return 'IPN';
       case WalletProvider.generic:
         return '01X';
     }
@@ -12563,6 +13194,8 @@ enum WalletProvider {
         return const Color(0xFF719E19);
       case WalletProvider.we:
         return const Color(0xFF7E22CE);
+      case WalletProvider.instapay:
+        return const Color(0xFFA855F7);
       case WalletProvider.generic:
         return const Color(0xFFF59E0B);
     }
@@ -12624,6 +13257,8 @@ class QrCodeRecord {
   final String? expiresAt;
   final int subscriptionMonths;
   final List<WalletItem> wallets;
+  final bool isPrinted;
+  final String? printedAt;
 
   const QrCodeRecord({
     required this.id,
@@ -12638,6 +13273,8 @@ class QrCodeRecord {
     this.expiresAt,
     this.subscriptionMonths = 1,
     this.wallets = const [],
+    this.isPrinted = false,
+    this.printedAt,
   });
 
   bool get isExpired {
@@ -12677,6 +13314,8 @@ class QrCodeRecord {
           ? (json['subscription_months'] as num).toInt()
           : int.tryParse(json['subscription_months']?.toString() ?? '1') ?? 1,
       wallets: parsedWallets,
+      isPrinted: json['is_printed'] == true,
+      printedAt: json['printed_at']?.toString(),
     );
   }
 
@@ -12692,6 +13331,8 @@ class QrCodeRecord {
       'total_scans': totalScans,
       'expires_at': expiresAt,
       'subscription_months': subscriptionMonths,
+      'is_printed': isPrinted,
+      'printed_at': printedAt,
     };
     if (lastScannedAt != null && lastScannedAt!.isNotEmpty) {
       map['last_scanned_at'] = lastScannedAt;
@@ -12765,7 +13406,7 @@ bool isQuickPayUrl(String input) {
   if (lower.startsWith('intent://') || lower.startsWith('android-app://') || lower.startsWith('android-app//')) {
     return true;
   }
-  if (RegExp(r'^(vfcash|orangecash|etisalatcash|wepay|ipn)://', caseSensitive: false).hasMatch(lower)) {
+  if (RegExp(r'^(vfcash|orangecash|etisalatcash|wepay|ipn|instapay)://', caseSensitive: false).hasMatch(lower)) {
     return true;
   }
   final hasDomain = lower.contains('.eg') ||
@@ -12780,18 +13421,42 @@ bool isQuickPayUrl(String input) {
 }
 
 WalletProvider detectWalletProviderFromUrl(String url) {
-  final lower = url.trim().toLowerCase();
-  if (lower.isEmpty) return WalletProvider.generic;
-  if (lower.contains('vodafone') || lower.contains('voda') || lower.contains('vf.eg') || lower.contains('vfcash')) {
+  final raw = url.trim().toLowerCase();
+  if (raw.isEmpty) return WalletProvider.generic;
+  var lower = raw;
+  try {
+    lower = Uri.decodeFull(raw);
+  } catch (_) {}
+
+  if (lower.contains('ipn.eg') || lower.contains('instapay') || lower.startsWith('ipn://')) {
+    return WalletProvider.instapay;
+  }
+  if (lower.contains('vodafone') ||
+      lower.contains('voda') ||
+      lower.contains('vf.eg') ||
+      lower.contains('vfcash') ||
+      lower.contains('anavodafone') ||
+      lower.contains('anafodafone') ||
+      lower.contains('com.vf')) {
     return WalletProvider.vodafone;
   }
-  if (lower.contains('orange')) {
+  if (lower.contains('orange') || lower.contains('orangecash') || lower.contains('com.orange')) {
     return WalletProvider.orange;
   }
-  if (lower.contains('etisalat') || lower.contains('e&')) {
+  if (lower.contains('etisalat') ||
+      lower.contains('etisalatcash') ||
+      lower.contains('e&') ||
+      lower.contains('eand') ||
+      lower.contains('e-and') ||
+      lower.contains('com.etisalat')) {
     return WalletProvider.etisalat;
   }
-  if (lower.contains('te.eg') || lower.contains('telecom') || RegExp(r'(?:^|[^a-z])we(?:pay)?(?:[^a-z]|$)').hasMatch(lower)) {
+  if (lower.contains('te.eg') ||
+      lower.contains('telecom') ||
+      lower.contains('wepay') ||
+      lower.contains('we-pay') ||
+      lower.contains('we.eg') ||
+      RegExp(r'(?:^|[^a-z])we(?:pay|cash)?(?:[^a-z]|$)').hasMatch(lower)) {
     return WalletProvider.we;
   }
   return WalletProvider.generic;
@@ -12853,7 +13518,7 @@ WalletProvider resolveWalletProvider(String input, [WalletProvider? explicit]) {
     final urlProv = detectWalletProviderFromUrl(trimmed);
     if (urlProv != WalletProvider.generic) return urlProv;
     if (explicit != null && explicit != WalletProvider.generic) return explicit;
-    return WalletProvider.vodafone;
+    return WalletProvider.generic;
   }
   final phoneInfo = detectWalletInfo(trimmed);
   if (phoneInfo.provider != WalletProvider.generic) return phoneInfo.provider;
@@ -12874,8 +13539,15 @@ String sanitizeQuickPayUrl(String raw, [WalletProvider? provider]) {
     return embeddedMatch.group(0) ?? s;
   }
 
+  if (s.toLowerCase().startsWith('instapay://') || s.toLowerCase().startsWith('ipn://')) {
+    return s;
+  }
+
   if (s.startsWith('android-app://')) {
     final pkg = s.replaceFirst('android-app://', '').split('/').first.trim().toLowerCase();
+    if (pkg.contains('instapay') || provider == WalletProvider.instapay) {
+      return 'https://ipn.eg';
+    }
     if (pkg.contains('vf') || pkg.contains('vodafone') || provider == WalletProvider.vodafone) {
       return 'intent://#Intent;package=com.vf.eg;scheme=anafodafone;S.browser_fallback_url=https%3A%2F%2Fweb.vodafone.com.eg%2Far%2Fvodafone-cash;end';
     }
@@ -13394,6 +14066,8 @@ class FirestoreService {
         totalScans: 0,
         expiresAt: expiresAt,
         subscriptionMonths: subscriptionMonths,
+        isPrinted: false,
+        printedAt: null,
       );
 
       final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(id)}?key=$_apiKey');
@@ -13436,7 +14110,7 @@ class FirestoreService {
                 : detectWalletInfo(trimmedPhone).cleanPhone;
             return WalletItem(
               phone: normalizedPhone,
-              provider: resolvedProv == WalletProvider.generic ? WalletProvider.vodafone : resolvedProv,
+              provider: resolvedProv,
               ownerName: w.ownerName.trim(),
             );
           }).toList()
@@ -13463,6 +14137,8 @@ class FirestoreService {
       expiresAt: expiresAt ?? existing.expiresAt,
       subscriptionMonths: subscriptionMonths ?? existing.subscriptionMonths,
       wallets: appType == AppType.wallet ? cleanWallets : const [],
+      isPrinted: existing.isPrinted,
+      printedAt: existing.printedAt,
     );
 
     final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(existing.id)}?key=$_apiKey');
@@ -13512,6 +14188,8 @@ class FirestoreService {
       expiresAt: existing.expiresAt,
       subscriptionMonths: existing.subscriptionMonths,
       wallets: existing.wallets,
+      isPrinted: existing.isPrinted,
+      printedAt: existing.printedAt,
     );
     final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(existing.id)}?key=$_apiKey');
     final res = await http
@@ -13522,6 +14200,36 @@ class FirestoreService {
         )
         .timeout(const Duration(seconds: 8));
     return res.statusCode >= 200 && res.statusCode < 300;
+  }
+
+  static Future<QrCodeRecord?> toggleQrPrintedStatus(QrCodeRecord existing, bool isPrinted) async {
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final updated = QrCodeRecord(
+      id: existing.id,
+      isActive: existing.isActive,
+      targetUrl: existing.targetUrl,
+      appType: existing.appType,
+      label: existing.label,
+      createdAt: existing.createdAt,
+      updatedAt: nowIso,
+      lastScannedAt: existing.lastScannedAt,
+      totalScans: existing.totalScans,
+      expiresAt: existing.expiresAt,
+      subscriptionMonths: existing.subscriptionMonths,
+      wallets: existing.wallets,
+      isPrinted: isPrinted,
+      printedAt: isPrinted ? nowIso : null,
+    );
+
+    final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(existing.id)}?key=$_apiKey');
+    final res = await http
+        .patch(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'fields': _recordToFirestoreFields(updated)}),
+        )
+        .timeout(const Duration(seconds: 8));
+    return (res.statusCode >= 200 && res.statusCode < 300) ? updated : null;
   }
 
   static Future<QrCodeRecord?> renewQrSubscription(QrCodeRecord existing, int months) async {
@@ -13550,6 +14258,8 @@ class FirestoreService {
       expiresAt: newExpiresAt,
       subscriptionMonths: months,
       wallets: existing.wallets,
+      isPrinted: existing.isPrinted,
+      printedAt: existing.printedAt,
     );
 
     final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(existing.id)}?key=$_apiKey');
@@ -14211,12 +14921,13 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../models/qr_models.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../utils/deep_links.dart';
 import '../widgets/three_d_widgets.dart';
 import 'edit_qr_sheet.dart';
 import 'qr_scanner_screen.dart';
 import 'settings_screen.dart';
 
-enum _QrFilter { all, active, inactive, expired }
+enum _QrFilter { all, active, inactive, expired, printed, unprinted }
 
 class AdminDashboardScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -14266,6 +14977,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       if (_filter == _QrFilter.active && (!r.isActive || r.isExpired)) return false;
       if (_filter == _QrFilter.inactive && r.isActive) return false;
       if (_filter == _QrFilter.expired && !r.isExpired) return false;
+      if (_filter == _QrFilter.printed && !r.isPrinted) return false;
+      if (_filter == _QrFilter.unprinted && r.isPrinted) return false;
 
       if (q.isEmpty) return true;
       if (r.id.toLowerCase().contains(q)) return true;
@@ -14418,12 +15131,58 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  Future<void> _togglePrinted(QrCodeRecord record, bool nextPrinted) async {
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    setState(() {
+      _records = _records.map((r) {
+        if (r.id != record.id) return r;
+        return QrCodeRecord(
+          id: r.id,
+          isActive: r.isActive,
+          targetUrl: r.targetUrl,
+          appType: r.appType,
+          label: r.label,
+          createdAt: r.createdAt,
+          updatedAt: nowIso,
+          lastScannedAt: r.lastScannedAt,
+          totalScans: r.totalScans,
+          expiresAt: r.expiresAt,
+          subscriptionMonths: r.subscriptionMonths,
+          wallets: r.wallets,
+          isPrinted: nextPrinted,
+          printedAt: nextPrinted ? nowIso : null,
+        );
+      }).toList();
+    });
+
+    final updated = await FirestoreService.toggleQrPrintedStatus(record, nextPrinted);
+    if (!mounted) return;
+    if (updated != null) {
+      setState(() {
+        _records = _records.map((r) => r.id == updated.id ? updated : r).toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: nextPrinted ? const Color(0xFF06B6D4) : const Color(0xFFF59E0B),
+          content: Text(
+            nextPrinted
+                ? 'تم نقل الكود [${record.id}] إلى خانة الكروت المطبوعة ✓'
+                : 'تمت إعادة الكود [${record.id}] إلى قائمة غير المطبوعة',
+            style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w800),
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final total = _records.length;
     final activeCount = _records.where((r) => r.isActive && !r.isExpired).length;
     final inactiveCount = _records.where((r) => !r.isActive).length;
     final expiredCount = _records.where((r) => r.isExpired).length;
+    final printedCount = _records.where((r) => r.isPrinted).length;
+    final unprintedCount = _records.where((r) => !r.isPrinted).length;
     final totalScans = _records.fold<int>(0, (acc, r) => acc + r.totalScans);
     final filtered = _filteredRecords;
 
@@ -14515,9 +15274,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Row(
                       children: [
                         Expanded(child: _kpiTile('إجمالي الأكواد', '$total', const Color(0xFFFBBF24))),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Expanded(child: _kpiTile('المفعّلة', '$activeCount', const Color(0xFF10B981))),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
+                        Expanded(child: _kpiTile('المطبوعة', '$printedCount', const Color(0xFF22D3EE))),
+                        const SizedBox(width: 6),
                         Expanded(child: _kpiTile('المسحات', '$totalScans', const Color(0xFF38BDF8))),
                       ],
                     ),
@@ -14586,6 +15347,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       child: Row(
                         children: [
                           _filterChip('الكل ($total)', _QrFilter.all),
+                          const SizedBox(width: 6),
+                          _filterChip('الكروت المطبوعة ✓ ($printedCount)', _QrFilter.printed),
+                          const SizedBox(width: 6),
+                          _filterChip('لم تُطبع بعد ($unprintedCount)', _QrFilter.unprinted),
                           const SizedBox(width: 6),
                           _filterChip('مفعّلة ($activeCount)', _QrFilter.active),
                           const SizedBox(width: 6),
@@ -14679,6 +15444,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ? const Color(0xFF10B981)
             : const Color(0xFFF59E0B);
     final statusText = r.isExpired ? 'منتهي' : (r.isActive ? 'مفعّل' : 'متاح للتفعيل');
+    final walletProv = r.appType == AppType.wallet && (r.targetUrl ?? '').isNotEmpty
+        ? resolveWalletProvider(r.targetUrl!, r.wallets.isNotEmpty ? r.wallets.first.provider : null)
+        : null;
+    final effectiveLabel = (r.appType == AppType.wallet && walletProv != null && walletProv != WalletProvider.generic)
+        ? walletProv.nameAr
+        : r.appType.labelAr;
+    final effectiveColor = (r.appType == AppType.wallet && walletProv != null && walletProv != WalletProvider.generic)
+        ? walletProv.color
+        : r.appType.brandColor;
 
     return Tilt3DCard(
       onTap: () => _openEditScreen(r),
@@ -14725,7 +15499,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  r.label.isNotEmpty ? r.label : '${r.appType.labelAr} • ${r.targetUrl ?? "بدون رابط"}',
+                  r.label.isNotEmpty ? r.label : '$effectiveLabel • ${r.targetUrl ?? "بدون رابط"}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12, color: Colors.white70),
@@ -14733,10 +15507,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Icon(r.appType.icon, size: 13, color: r.appType.brandColor),
+                    Icon(r.appType.icon, size: 13, color: effectiveColor),
                     const SizedBox(width: 4),
                     Text(
-                      r.appType.labelAr,
+                      effectiveLabel,
                       style: const TextStyle(fontSize: 10.5, color: Colors.white60, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(width: 10),
@@ -14745,6 +15519,31 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Text(
                       '${r.totalScans} مسحة',
                       style: const TextStyle(fontSize: 10.5, color: Colors.white60),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: r.isPrinted,
+                        activeColor: const Color(0xFF22D3EE),
+                        checkColor: Colors.black,
+                        side: const BorderSide(color: Colors.white38),
+                        onChanged: (val) => _togglePrinted(r, val ?? false),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      r.isPrinted ? 'تمت الطباعة ✓' : 'لم يُطبع بعد',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: r.isPrinted ? const Color(0xFF22D3EE) : Colors.white54,
+                      ),
                     ),
                   ],
                 ),
@@ -15256,7 +16055,7 @@ class _EditQrSheetState extends State<EditQrSheet> {
         final prov = resolveWalletProvider(phone, _walletProviders[i]);
         list.add(WalletItem(
           phone: isQuickPayUrl(phone) ? sanitizeQuickPayUrl(phone, prov) : detectWalletInfo(phone).cleanPhone,
-          provider: prov == WalletProvider.generic ? WalletProvider.vodafone : prov,
+          provider: prov,
           ownerName: owner,
         ));
       }
@@ -15613,6 +16412,8 @@ class _EditQrSheetState extends State<EditQrSheet> {
                                 expiresAt: _record.expiresAt,
                                 subscriptionMonths: _record.subscriptionMonths,
                                 wallets: _record.wallets,
+                                isPrinted: _record.isPrinted,
+                                printedAt: _record.printedAt,
                               );
                               setState(() {
                                 _record = updated;
@@ -15623,6 +16424,32 @@ class _EditQrSheetState extends State<EditQrSheet> {
                           },
                         ),
                       ],
+                    ),
+                    const Divider(color: Colors.white12, height: 22),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: const Color(0xFF22D3EE),
+                      title: const Text(
+                        'حالة الطباعة (تمت طباعة البطاقة ✓)',
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF67E8F9)),
+                      ),
+                      subtitle: Text(
+                        _record.isPrinted ? 'موجودة الآن في قائمة الكروت المطبوعة' : 'في انتظار الطباعة (غير مطبوعة)',
+                        style: const TextStyle(fontSize: 11, color: Colors.white60),
+                      ),
+                      value: _record.isPrinted,
+                      onChanged: (val) async {
+                        final res = await FirestoreService.toggleQrPrintedStatus(_record, val);
+                        if (res != null && mounted) {
+                          setState(() {
+                            _record = res;
+                            _noticeMsg = val
+                                ? 'تم نقل البطاقة إلى خانة الكروت المطبوعة ✓'
+                                : 'تمت إعادة البطاقة إلى قائمة غير المطبوعة';
+                          });
+                          widget.onSaved(res);
+                        }
+                      },
                     ),
                   ],
                 ),

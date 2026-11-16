@@ -21,7 +21,7 @@ import {
   Sparkles,
   User
 } from 'lucide-react';
-import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo, detectWalletProviderFromUrl, isQuickPayUrl, sanitizeQuickPayUrl } from '../lib/deepLinks';
+import { processSmartLink, triggerSmartRedirect, isRunningInIframe, detectWalletInfo, detectWalletProviderFromUrl, getWalletProviderMeta, isQuickPayUrl, sanitizeQuickPayUrl } from '../lib/deepLinks';
 import { QrCodeRecord, WalletItem, WalletProvider } from '../types/qr';
 import { PlatformBrandIcon, WalletProviderIcon } from '../components/BrandIcons';
 
@@ -235,13 +235,27 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
             gradient: 'from-purple-200 via-purple-400 to-indigo-400',
             ring: 'ring-purple-400/30',
           };
+        case 'instapay':
+          return {
+            border: 'border-fuchsia-500/40 shadow-[0_0_40px_rgba(168,85,247,0.22)]',
+            badge: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30',
+            gradient: 'from-fuchsia-200 via-purple-300 to-amber-400',
+            ring: 'ring-fuchsia-400/30',
+          };
         case 'vodafone':
-        default:
           return {
             border: 'border-red-500/40 shadow-[0_0_40px_rgba(230,0,0,0.2)]',
             badge: 'bg-red-500/15 text-red-300 border-red-500/30',
             gradient: 'from-red-200 via-red-400 to-rose-500',
             ring: 'ring-red-400/30',
+          };
+        case 'generic':
+        default:
+          return {
+            border: 'border-amber-500/40 shadow-[0_0_40px_rgba(234,179,8,0.2)]',
+            badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+            gradient: 'from-amber-200 via-yellow-400 to-amber-500',
+            ring: 'ring-amber-400/30',
           };
       }
     };
@@ -274,28 +288,16 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                 const detected = isUrl ? null : detectWalletInfo(walletItem.phone);
                 const urlProv = isUrl ? detectWalletProviderFromUrl(walletItem.phone) : 'generic';
                 const explicitProv = walletItem.provider && walletItem.provider !== 'generic' ? walletItem.provider : null;
-                const prov: WalletProvider = explicitProv || (urlProv !== 'generic' ? urlProv : (detected && detected.provider !== 'generic' ? detected.provider : 'vodafone'));
+                const prov: WalletProvider = isUrl
+                  ? (urlProv !== 'generic' ? urlProv : (explicitProv || 'generic'))
+                  : (explicitProv || (detected && detected.provider !== 'generic' ? detected.provider : 'generic'));
                 const style = getProviderStyle(prov);
                 const isCopied = copiedField === `wallet_${idx}`;
                 const formatted = detected?.formattedPhone || walletItem.phone;
-                const companyTitle = detected?.companyNameAr || (
-                  prov === 'vodafone' ? 'فودافون مصر - Vodafone Egypt' :
-                  prov === 'orange' ? 'أورانج مصر - Orange Egypt' :
-                  prov === 'etisalat' ? 'إي آند مصر (اتصالات) - e& Egypt' :
-                  prov === 'we' ? 'المصرية للاتصالات (WE Pay)' : 'محفظة كاش'
-                );
-                const providerNameAr = detected?.nameAr || (
-                  prov === 'vodafone' ? 'ڨودافون كاش' :
-                  prov === 'orange' ? 'أورانج كاش' :
-                  prov === 'etisalat' ? 'اتصالات كاش' :
-                  prov === 'we' ? 'وي باي (WE Pay)' : 'محفظة كاش'
-                );
-                const providerNameEn = detected?.nameEn || (
-                  prov === 'vodafone' ? 'Vodafone Cash' :
-                  prov === 'orange' ? 'Orange Cash' :
-                  prov === 'etisalat' ? 'Etisalat Cash' :
-                  prov === 'we' ? 'WE Pay' : 'Cash Wallet'
-                );
+                const provMeta = getWalletProviderMeta(prov);
+                const companyTitle = detected?.companyNameAr || provMeta.companyNameAr;
+                const providerNameAr = detected?.nameAr || provMeta.nameAr;
+                const providerNameEn = detected?.nameEn || provMeta.nameEn;
                 const cleanTargetUrl = isUrl ? sanitizeQuickPayUrl(walletItem.phone, prov) : walletItem.phone.trim();
 
                 return (
@@ -429,25 +431,13 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
     const explicitProv = singleWallet.provider && singleWallet.provider !== 'generic' ? singleWallet.provider : null;
     const phone = detected?.cleanPhone || singleWallet.phone;
     const formattedPhone = detected?.formattedPhone || phone;
-    const provider: WalletProvider = explicitProv || (urlProv !== 'generic' ? urlProv : (detected && detected.provider !== 'generic' ? detected.provider : 'vodafone'));
-    const providerNameAr = detected?.nameAr || (
-      provider === 'vodafone' ? 'ڨودافون كاش' :
-      provider === 'orange' ? 'أورانج كاش' :
-      provider === 'etisalat' ? 'اتصالات كاش' :
-      provider === 'we' ? 'وي باي (WE Pay)' : 'محفظة كاش'
-    );
-    const providerNameEn = detected?.nameEn || (
-      provider === 'vodafone' ? 'Vodafone Cash' :
-      provider === 'orange' ? 'Orange Cash' :
-      provider === 'etisalat' ? 'Etisalat Cash' :
-      provider === 'we' ? 'WE Pay' : 'Cash Wallet'
-    );
-    const companyName = detected?.companyNameAr || (
-      provider === 'vodafone' ? 'فودافون مصر - Vodafone Egypt' :
-      provider === 'orange' ? 'أورانج مصر - Orange Egypt' :
-      provider === 'etisalat' ? 'إي آند مصر (اتصالات) - e& Egypt' :
-      provider === 'we' ? 'المصرية للاتصالات (WE Pay)' : 'محفظة كاش'
-    );
+    const provider: WalletProvider = isUrl
+      ? (urlProv !== 'generic' ? urlProv : (explicitProv || 'generic'))
+      : (explicitProv || (detected && detected.provider !== 'generic' ? detected.provider : 'generic'));
+    const provMeta = getWalletProviderMeta(provider);
+    const providerNameAr = detected?.nameAr || provMeta.nameAr;
+    const providerNameEn = detected?.nameEn || provMeta.nameEn;
+    const companyName = detected?.companyNameAr || provMeta.companyNameAr;
     const style = getProviderStyle(provider);
     const isCopied = copiedField === 'wallet';
     const cleanTargetUrl = isUrl ? sanitizeQuickPayUrl(singleWallet.phone, provider) : singleWallet.phone.trim();

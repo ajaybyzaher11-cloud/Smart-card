@@ -47,10 +47,11 @@ import { AppType, QrCodeRecord, BankDetails, WalletItem, WalletProvider } from '
 import { PlatformBrandIcon, WalletProviderIcon } from './BrandIcons';
 
 const WALLET_PROVIDERS: Array<{ id: WalletProvider; nameAr: string; nameEn: string; prefix: string; color: string }> = [
-  { id: 'vodafone', nameAr: 'فودافون كاش', nameEn: 'Vodafone Cash', prefix: '010', color: 'border-red-500/40 text-red-400 bg-red-500/10' },
+  { id: 'vodafone', nameAr: 'ڨودافون كاش', nameEn: 'Vodafone Cash', prefix: '010', color: 'border-red-500/40 text-red-400 bg-red-500/10' },
   { id: 'orange', nameAr: 'أورانج كاش', nameEn: 'Orange Cash', prefix: '012', color: 'border-orange-500/40 text-orange-400 bg-orange-500/10' },
   { id: 'etisalat', nameAr: 'اتصالات كاش', nameEn: 'Etisalat Cash', prefix: '011', color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' },
   { id: 'we', nameAr: 'وي باي (WE Pay)', nameEn: 'WE Pay', prefix: '015', color: 'border-purple-500/40 text-purple-400 bg-purple-500/10' },
+  { id: 'instapay', nameAr: 'إنستاباي (InstaPay)', nameEn: 'InstaPay', prefix: 'IPN', color: 'border-fuchsia-500/40 text-fuchsia-300 bg-fuchsia-500/10' },
 ];
 
 interface EditQrModalProps {
@@ -195,8 +196,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
       if (trimmed) {
         const isUrl = isQuickPayUrl(trimmed);
         if (isUrl) {
-          const urlProv = detectWalletProviderFromUrl(trimmed);
-          newProvider = urlProv !== 'generic' ? urlProv : (next[index].provider !== 'generic' ? next[index].provider : 'vodafone');
+          newProvider = detectWalletProviderFromUrl(trimmed);
         } else {
           const detected = detectWalletInfo(trimmed);
           if (detected.provider !== 'generic') {
@@ -340,15 +340,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
           let detectedProvider: WalletProvider = 'generic';
           if (clean) {
             if (isQuickPayUrl(clean)) {
-              const lower = clean.toLowerCase();
-              if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) detectedProvider = 'vodafone';
-              else if (lower.includes('orange')) detectedProvider = 'orange';
-              else if (lower.includes('etisalat') || lower.includes('e&')) detectedProvider = 'etisalat';
-              else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProvider = 'we';
-              else detectedProvider = 'vodafone';
+              detectedProvider = detectWalletProviderFromUrl(clean);
             } else {
               const detected = detectWalletInfo(clean);
-              detectedProvider = (detected.provider !== 'generic' ? detected.provider : 'vodafone') as WalletProvider;
+              detectedProvider = (detected.provider !== 'generic' ? detected.provider : 'generic') as WalletProvider;
             }
           }
           setWalletCount(1);
@@ -431,15 +426,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
           let detectedProvider: WalletProvider = 'generic';
           if (clean) {
             if (isQuickPayUrl(clean)) {
-              const lower = clean.toLowerCase();
-              if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) detectedProvider = 'vodafone';
-              else if (lower.includes('orange')) detectedProvider = 'orange';
-              else if (lower.includes('etisalat') || lower.includes('e&')) detectedProvider = 'etisalat';
-              else if (lower.includes('we') || lower.includes('te.eg') || lower.includes('telecom')) detectedProvider = 'we';
-              else detectedProvider = 'vodafone';
+              detectedProvider = detectWalletProviderFromUrl(clean);
             } else {
               const detected = detectWalletInfo(clean);
-              detectedProvider = (detected.provider !== 'generic' ? detected.provider : 'vodafone') as WalletProvider;
+              detectedProvider = (detected.provider !== 'generic' ? detected.provider : 'generic') as WalletProvider;
             }
           }
           setWalletCount(1);
@@ -510,15 +500,17 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
         }
 
         if (isQuickPayUrl(trimmedVal)) {
-          const fullUrl = sanitizeQuickPayUrl(trimmedVal, item.provider);
+          const urlProv = detectWalletProviderFromUrl(trimmedVal);
+          const resolvedProv: WalletProvider = urlProv !== 'generic' ? urlProv : item.provider;
+          const fullUrl = sanitizeQuickPayUrl(trimmedVal, resolvedProv);
           activeList.push({
             phone: fullUrl,
-            provider: item.provider !== 'generic' ? item.provider : 'vodafone',
+            provider: resolvedProv,
             ownerName: trimmedOwner,
           });
         } else {
           const detected = detectWalletInfo(trimmedVal);
-          const finalProv = item.provider !== 'generic' ? item.provider : (detected.provider !== 'generic' ? detected.provider : 'vodafone');
+          const finalProv = item.provider !== 'generic' ? item.provider : (detected.provider !== 'generic' ? detected.provider : 'generic');
           activeList.push({
             phone: detected.cleanPhone || trimmedVal,
             provider: finalProv,
@@ -904,8 +896,11 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                   const hasInput = Boolean(item.phone && item.phone.trim());
                   const detected = hasInput ? detectWalletInfo(item.phone) : null;
                   const isUrl = hasInput ? isQuickPayUrl(item.phone) : false;
+                  const urlProv = hasInput && isUrl ? detectWalletProviderFromUrl(item.phone) : 'generic';
                   const activeProvider: WalletProvider = (hasInput 
-                    ? (item.provider !== 'generic' ? item.provider : (detected && detected.provider !== 'generic' ? detected.provider : 'generic'))
+                    ? (isUrl
+                        ? (urlProv !== 'generic' ? urlProv : item.provider)
+                        : (item.provider !== 'generic' ? item.provider : (detected && detected.provider !== 'generic' ? detected.provider : 'generic')))
                     : (item.provider !== 'generic' ? item.provider : 'generic')
                   ) as WalletProvider;
                   const isKnownBrand = hasInput && activeProvider !== 'generic';
@@ -919,6 +914,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                         isKnownBrand && activeProvider === 'orange' ? 'border-orange-500/35 shadow-[0_0_20px_rgba(255,121,0,0.1)]' :
                         isKnownBrand && activeProvider === 'etisalat' ? 'border-emerald-500/35 shadow-[0_0_20px_rgba(113,158,25,0.1)]' :
                         isKnownBrand && activeProvider === 'we' ? 'border-purple-500/35 shadow-[0_0_20px_rgba(102,45,145,0.15)]' :
+                        isKnownBrand && activeProvider === 'instapay' ? 'border-fuchsia-500/40 shadow-[0_0_20px_rgba(168,85,247,0.18)]' :
                         'border-amber-500/25 shadow-[0_0_15px_rgba(212,175,55,0.06)]'
                       }`}
                     >
@@ -947,10 +943,11 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                           className="px-2 py-1 bg-[#121216] border border-white/15 rounded-lg text-[11px] font-bold text-amber-200 focus:outline-none focus:border-amber-400"
                         >
                           <option value="generic">تلقائي (حسب الرقم/الرابط)</option>
-                          <option value="vodafone">فودافون كاش (010)</option>
+                          <option value="vodafone">ڨودافون كاش (010)</option>
                           <option value="orange">أورانج كاش (012)</option>
                           <option value="etisalat">اتصالات كاش (011)</option>
                           <option value="we">وي باي (015)</option>
+                          <option value="instapay">إنستاباي (InstaPay)</option>
                         </select>
                       </div>
 
@@ -1002,9 +999,13 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
 
                         {/* Quick Pay URL Detected Badge */}
                         {isUrl && (
-                          <div className="flex items-center gap-1.5 p-2 bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-amber-500/15 border border-amber-500/30 rounded-xl text-[11px] font-bold text-amber-200">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
-                            <span>رابط دفع سريع{isKnownBrand && activeMeta ? ` لماركة (${activeMeta.nameAr})` : ''} ⚡ سيظهر زر فاخر للدفع السريع والتحويل المباشر!</span>
+                          <div className="flex items-center gap-2 p-2 bg-gradient-to-r from-amber-500/15 via-emerald-500/10 to-amber-500/15 border border-amber-500/30 rounded-xl text-[11px] font-bold text-amber-200">
+                            <WalletProviderIcon provider={isKnownBrand ? activeProvider : 'generic'} className="w-5 h-5 flex-shrink-0" />
+                            <span>
+                              {isKnownBrand && activeMeta
+                                ? `تم التعرف على رابط الدفع السريع (${activeMeta.nameAr}) ⚡ سيظهر شعار الشركة وزر التحويل المباشر`
+                                : 'رابط دفع سريع ⚡ سيظهر زر فاخر للدفع السريع والتحويل المباشر!'}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -1095,6 +1096,12 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                   </button>
                 )}
               </div>
+              {(targetUrl.toLowerCase().includes('ipn.eg') || targetUrl.toLowerCase().includes('instapay')) && (
+                <div className="p-2.5 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-xl flex items-center gap-2.5 text-xs font-bold text-fuchsia-200">
+                  <PlatformBrandIcon type="instapay" className="w-6 h-6 flex-shrink-0" />
+                  <span>تم التعرف على رابط الدفع السريع لـ إنستاباي (InstaPay Egypt) ✓</span>
+                </div>
+              )}
               <p className="text-[11px] text-amber-200/80 leading-relaxed">
                 💡 <strong>طريقة الحصول على الرابط:</strong> افتح تطبيق إنستاباي &gt; اضغط &quot;اطلب دفع&quot; &gt; اضغط &quot;مشاركة الرابط&quot; والصقه هنا ليتم توجيه العميل للدفع في التطبيق فوراً.
               </p>

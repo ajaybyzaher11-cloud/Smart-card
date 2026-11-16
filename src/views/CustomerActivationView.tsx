@@ -36,10 +36,11 @@ interface CustomerActivationViewProps {
 }
 
 const WALLET_PROVIDERS: Array<{ id: WalletProvider; nameAr: string; nameEn: string; prefix: string; color: string }> = [
-  { id: 'vodafone', nameAr: 'فودافون كاش', nameEn: 'Vodafone Cash', prefix: '010', color: 'border-red-500/40 text-red-400 bg-red-500/10' },
+  { id: 'vodafone', nameAr: 'ڨودافون كاش', nameEn: 'Vodafone Cash', prefix: '010', color: 'border-red-500/40 text-red-400 bg-red-500/10' },
   { id: 'orange', nameAr: 'أورانج كاش', nameEn: 'Orange Cash', prefix: '012', color: 'border-orange-500/40 text-orange-400 bg-orange-500/10' },
   { id: 'etisalat', nameAr: 'اتصالات كاش', nameEn: 'Etisalat Cash', prefix: '011', color: 'border-emerald-500/40 text-emerald-400 bg-emerald-500/10' },
   { id: 'we', nameAr: 'وي باي (WE Pay)', nameEn: 'WE Pay', prefix: '015', color: 'border-purple-500/40 text-purple-400 bg-purple-500/10' },
+  { id: 'instapay', nameAr: 'إنستاباي (InstaPay)', nameEn: 'InstaPay', prefix: 'IPN', color: 'border-fuchsia-500/40 text-fuchsia-300 bg-fuchsia-500/10' },
 ];
 
 export function CustomerActivationView({ qrId, onActivated }: CustomerActivationViewProps) {
@@ -112,8 +113,8 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
     { 
       type: 'wallet', 
       label: 'محفظة كاش', 
-      placeholder: '010... أو 012... أو رابط الدفع السريع https://...', 
-      example: 'أدخل رقم هاتف المحفظة (فودافون، أورانج، اتصالات، وي) مع إمكانية إضافة حتى 4 محافظ واسم صاحب كل محفظة.' 
+      placeholder: '010... أو رابط دفع سريع (فودافون / أورانج / وي / اتصالات / إنستاباي)', 
+      example: 'أدخل رقم المحفظة أو رابط الدفع السريع (حتى إنستاباي ipn.eg)، وسيتم التعرف على الشركة وعرض شعارها تلقائياً مع إمكانية إضافة حتى 4 محافظ.' 
     },
     { 
       type: 'bank', 
@@ -196,7 +197,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
         // Check if quick pay url
         if (isQuickPayUrl(trimmedPhone)) {
           const urlProv = detectWalletProviderFromUrl(trimmedPhone);
-          const resolvedProv: WalletProvider = item.provider !== 'generic' ? item.provider : (urlProv !== 'generic' ? urlProv : 'vodafone');
+          const resolvedProv: WalletProvider = urlProv !== 'generic' ? urlProv : (item.provider !== 'generic' ? item.provider : 'generic');
           const fullUrl = sanitizeQuickPayUrl(trimmedPhone, resolvedProv);
           activeList.push({
             phone: fullUrl,
@@ -205,7 +206,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
           });
         } else {
           const detected = detectWalletInfo(trimmedPhone);
-          const finalProv = item.provider !== 'generic' ? item.provider : (detected.provider !== 'generic' ? detected.provider : 'vodafone');
+          const finalProv = item.provider !== 'generic' ? item.provider : (detected.provider !== 'generic' ? detected.provider : 'generic');
           activeList.push({
             phone: detected.cleanPhone || trimmedPhone,
             provider: finalProv,
@@ -523,6 +524,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                             isKnownBrand && activeProvider === 'orange' ? 'border-orange-500/35 shadow-[0_0_20px_rgba(255,121,0,0.1)]' :
                             isKnownBrand && activeProvider === 'etisalat' ? 'border-emerald-500/35 shadow-[0_0_20px_rgba(113,158,25,0.1)]' :
                             isKnownBrand && activeProvider === 'we' ? 'border-purple-500/35 shadow-[0_0_20px_rgba(102,45,145,0.15)]' :
+                            isKnownBrand && activeProvider === 'instapay' ? 'border-fuchsia-500/40 shadow-[0_0_20px_rgba(168,85,247,0.18)]' :
                             'border-amber-500/25 shadow-[0_0_15px_rgba(212,175,55,0.06)]'
                           }`}
                         >
@@ -589,9 +591,13 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
 
                             {/* Quick Pay URL Detected Badge */}
                             {isUrl && (
-                              <div className="p-1.5 px-2.5 bg-amber-400/10 border border-amber-400/20 rounded-lg flex items-center gap-1.5 text-[11px] text-amber-300 font-bold">
-                                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                                <span>سيظهر زر فاخر للدفع السريع والتحويل المباشر{isKnownBrand && activeMeta ? ` لـ (${activeMeta.nameAr})` : ''} ⚡</span>
+                              <div className="p-2 px-2.5 bg-amber-400/10 border border-amber-400/25 rounded-xl flex items-center gap-2 text-[11px] text-amber-200 font-bold">
+                                <WalletProviderIcon provider={isKnownBrand ? activeProvider : 'generic'} className="w-5 h-5 flex-shrink-0" />
+                                <span>
+                                  {isKnownBrand && activeMeta
+                                    ? `تم التعرف تلقائياً على (${activeMeta.nameAr}) — سيظهر شعار الشركة وزر الدفع السريع ⚡`
+                                    : 'تم التعرف على رابط دفع سريع ⚡ سيظهر زر الدفع والتحويل المباشر'}
+                                </span>
                               </div>
                             )}
                           </div>
@@ -628,12 +634,12 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
 
                           {/* Operator Visual Confirmation */}
                           {hasInput && isKnownBrand && activeMeta && (
-                            <div className="p-2.5 bg-black/40 rounded-xl border border-white/5 flex items-center justify-between text-[11px]">
+                            <div className="p-2.5 bg-black/40 rounded-xl border border-white/10 flex items-center justify-between text-[11px]">
                               <span className="text-slate-400">الشركة المحددة:</span>
                               <span className="font-bold text-white flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                {activeMeta.nameAr} ({activeMeta.nameEn})
-                                {isUrl ? ' • رابط دفع سريع ⚡' : ' • رقم هاتف محفظة'}
+                                <WalletProviderIcon provider={activeProvider} className="w-4 h-4 flex-shrink-0" />
+                                <span>{activeMeta.nameAr} ({activeMeta.nameEn})</span>
+                                <span className="text-amber-300">{isUrl ? '• رابط دفع سريع' : '• رقم محفظة'}</span>
                               </span>
                             </div>
                           )}
@@ -663,6 +669,12 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                       autoFocus
                     />
                   </div>
+                  {selectedType === 'instapay' && (rawInput.toLowerCase().includes('ipn.eg') || rawInput.toLowerCase().includes('instapay')) && (
+                    <div className="p-2.5 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded-xl flex items-center gap-2.5 text-xs font-bold text-fuchsia-200 animate-in fade-in">
+                      <PlatformBrandIcon type="instapay" className="w-6 h-6 flex-shrink-0" />
+                      <span>تم التعرف على رابط الدفع السريع لـ إنستاباي (InstaPay Egypt) ✓</span>
+                    </div>
+                  )}
                   <p className="text-[11px] text-amber-200/70 leading-relaxed">
                     💡 {currentPlatformInfo.example}
                   </p>

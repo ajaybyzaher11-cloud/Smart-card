@@ -142,6 +142,7 @@ enum WalletProvider {
   orange,
   etisalat,
   we,
+  instapay,
   generic;
 
   static WalletProvider fromString(String? value) {
@@ -162,6 +163,8 @@ enum WalletProvider {
         return 'اتصالات كاش';
       case WalletProvider.we:
         return 'وي باي (WE Pay)';
+      case WalletProvider.instapay:
+        return 'إنستاباي';
       case WalletProvider.generic:
         return 'محفظة كاش';
     }
@@ -177,6 +180,8 @@ enum WalletProvider {
         return 'Etisalat Cash';
       case WalletProvider.we:
         return 'WE Pay';
+      case WalletProvider.instapay:
+        return 'InstaPay';
       case WalletProvider.generic:
         return 'Cash Wallet';
     }
@@ -192,6 +197,8 @@ enum WalletProvider {
         return '011';
       case WalletProvider.we:
         return '015';
+      case WalletProvider.instapay:
+        return 'IPN';
       case WalletProvider.generic:
         return '01X';
     }
@@ -207,6 +214,8 @@ enum WalletProvider {
         return const Color(0xFF719E19);
       case WalletProvider.we:
         return const Color(0xFF7E22CE);
+      case WalletProvider.instapay:
+        return const Color(0xFFA855F7);
       case WalletProvider.generic:
         return const Color(0xFFF59E0B);
     }
@@ -268,6 +277,8 @@ class QrCodeRecord {
   final String? expiresAt;
   final int subscriptionMonths;
   final List<WalletItem> wallets;
+  final bool isPrinted;
+  final String? printedAt;
 
   const QrCodeRecord({
     required this.id,
@@ -282,6 +293,8 @@ class QrCodeRecord {
     this.expiresAt,
     this.subscriptionMonths = 1,
     this.wallets = const [],
+    this.isPrinted = false,
+    this.printedAt,
   });
 
   bool get isExpired {
@@ -321,6 +334,8 @@ class QrCodeRecord {
           ? (json['subscription_months'] as num).toInt()
           : int.tryParse(json['subscription_months']?.toString() ?? '1') ?? 1,
       wallets: parsedWallets,
+      isPrinted: json['is_printed'] == true,
+      printedAt: json['printed_at']?.toString(),
     );
   }
 
@@ -336,6 +351,8 @@ class QrCodeRecord {
       'total_scans': totalScans,
       'expires_at': expiresAt,
       'subscription_months': subscriptionMonths,
+      'is_printed': isPrinted,
+      'printed_at': printedAt,
     };
     if (lastScannedAt != null && lastScannedAt!.isNotEmpty) {
       map['last_scanned_at'] = lastScannedAt;

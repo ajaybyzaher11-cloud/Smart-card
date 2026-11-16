@@ -1,5 +1,6 @@
 import React from 'react';
-import { AppType } from '../types/qr';
+import { AppType, WalletProvider } from '../types/qr';
+import { detectWalletInfo, detectWalletProviderFromUrl, isQuickPayUrl } from '../lib/deepLinks';
 
 interface BrandIconProps {
   className?: string;
@@ -508,7 +509,7 @@ export function WalletProviderIcon({
   className = 'w-6 h-6',
   size,
 }: {
-  provider?: 'vodafone' | 'orange' | 'etisalat' | 'we' | 'generic';
+  provider?: WalletProvider;
   className?: string;
   size?: number;
 }) {
@@ -521,6 +522,8 @@ export function WalletProviderIcon({
       return <EtisalatCashIcon className={className} size={size} />;
     case 'we':
       return <WePayIcon className={className} size={size} />;
+    case 'instapay':
+      return <InstaPayIcon className={className} size={size} />;
     default:
       return <WalletCashIcon className={className} size={size} />;
   }
@@ -618,7 +621,7 @@ export function PlatformBrandIcon({
   className?: string;
   size?: number;
   targetUrl?: string;
-  walletProvider?: 'vodafone' | 'orange' | 'etisalat' | 'we' | 'generic';
+  walletProvider?: WalletProvider;
 }) {
   switch (type) {
     case 'whatsapp':
@@ -634,13 +637,14 @@ export function PlatformBrandIcon({
     case 'telegram':
       return <TelegramIcon className={className} size={size} />;
     case 'wallet': {
-      let prov = walletProvider;
+      let prov: WalletProvider | undefined = walletProvider && walletProvider !== 'generic' ? walletProvider : undefined;
       if (!prov && targetUrl) {
-        const clean = targetUrl.replace(/[^\d]/g, '');
-        if (clean.includes('010') || targetUrl.startsWith('010') || clean.startsWith('10')) prov = 'vodafone';
-        else if (clean.includes('012') || targetUrl.startsWith('012') || clean.startsWith('12')) prov = 'orange';
-        else if (clean.includes('011') || targetUrl.startsWith('011') || clean.startsWith('11')) prov = 'etisalat';
-        else if (clean.includes('015') || targetUrl.startsWith('015') || clean.startsWith('15')) prov = 'we';
+        if (isQuickPayUrl(targetUrl)) {
+          prov = detectWalletProviderFromUrl(targetUrl);
+        } else {
+          const detected = detectWalletInfo(targetUrl);
+          if (detected.provider !== 'generic') prov = detected.provider;
+        }
       }
       return <WalletProviderIcon provider={prov} className={className} size={size} />;
     }

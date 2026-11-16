@@ -282,6 +282,8 @@ interface QrRecord {
   expires_at?: string | null;
   subscription_months?: number;
   wallets?: any[];
+  is_printed?: boolean;
+  printed_at?: string | null;
 }
 
 function loadDatabase(): Record<string, QrRecord> {
@@ -634,6 +636,8 @@ async function fetchQrFromFirestoreRestServer(id: string): Promise<QrRecord | nu
       expires_at: f.expires_at?.stringValue ?? null,
       subscription_months: parseInt(f.subscription_months?.integerValue || '1', 10),
       wallets: Array.isArray(parsedWallets) ? parsedWallets : undefined,
+      is_printed: f.is_printed?.booleanValue ?? false,
+      printed_at: f.printed_at?.stringValue ?? null,
     };
   } catch {
     return null;
@@ -696,6 +700,8 @@ app.post('/api/qr/bulk', requireAdminAuth, bulkRateLimiter, (req, res) => {
       total_scans: 0,
       subscription_months: subscriptionMonths,
       expires_at: providedExpiresAt,
+      is_printed: false,
+      printed_at: null,
     };
 
     db[id] = record;
@@ -814,12 +820,59 @@ app.put('/api/qr/:id', requireAdminAuth, (req, res) => {
     }
   }
 
+  if (req.body.is_printed !== undefined) {
+    const printed = Boolean(req.body.is_printed);
+    current.is_printed = printed;
+    current.printed_at = printed ? (current.printed_at || now) : null;
+  }
   if (is_active !== undefined) current.is_active = Boolean(is_active);
   else current.is_active = true;
   current.updated_at = now;
 
   saveDatabase(db);
   res.json({ success: true, data: current });
+});
+
+// Admin Exclusive Print Status Toggle (PROTECTED with requireAdminAuth)
+app.patch('/api/qr/:id/print-status', requireAdminAuth, (req, res) => {
+  const { id } = req.params;
+  const isPrinted = Boolean(req.body?.is_printed);
+  const db = loadDatabase();
+  const record = db[id];
+  const now = new Date().toISOString();
+
+  if (!record) {
+    return res.status(404).json({ success: false, error: 'الكود غير موجود' });
+  }
+
+  record.is_printed = isPrinted;
+  record.printed_at = isPrinted ? now : null;
+  record.updated_at = now;
+
+  saveDatabase(db);
+  res.json({ success: true, data: record });
+});
+
+// Admin Exclusive Batch Print Status Update (PROTECTED with requireAdminAuth)
+app.post('/api/qr/print-status/batch', requireAdminAuth, (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+  const isPrinted = Boolean(req.body?.is_printed);
+  const db = loadDatabase();
+  const now = new Date().toISOString();
+  const updated: QrRecord[] = [];
+
+  for (const rawId of ids) {
+    const id = typeof rawId === 'string' ? rawId.trim() : '';
+    if (id && db[id]) {
+      db[id].is_printed = isPrinted;
+      db[id].printed_at = isPrinted ? now : null;
+      db[id].updated_at = now;
+      updated.push(db[id]);
+    }
+  }
+
+  saveDatabase(db);
+  res.json({ success: true, data: updated, count: updated.length });
 });
 
 // Debounced scan counter

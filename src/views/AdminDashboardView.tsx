@@ -35,9 +35,23 @@ import {
   Edit3,
   Calendar,
   FileText,
-  Code2
+  Code2,
+  PackageCheck
 } from 'lucide-react';
-import { fetchAllQrCodes, generateQrDataUrl, deleteQrCode, getQrCode, lookupExistingQrCode, fetchPlatformSettings, updatePlatformSettings, renewQrSubscription, subscribeToQrCodes } from '../lib/qrService';
+import {
+  fetchAllQrCodes,
+  generateQrDataUrl,
+  deleteQrCode,
+  getQrCode,
+  lookupExistingQrCode,
+  fetchPlatformSettings,
+  updatePlatformSettings,
+  renewQrSubscription,
+  subscribeToQrCodes,
+  toggleQrPrintedStatus,
+  batchUpdateQrPrintedStatus
+} from '../lib/qrService';
+import { detectWalletProviderFromUrl, getWalletProviderMeta, isQuickPayUrl } from '../lib/deepLinks';
 import { logoutAdmin, changeAdminPassword } from '../lib/auth';
 import { BulkGenerateModal } from '../components/BulkGenerateModal';
 import { UploadQrModal } from '../components/UploadQrModal';
@@ -61,8 +75,20 @@ function formatDisplayTarget(url: string | null | undefined, appType?: string, w
       const phones = wallets.map((w: any) => w.phone).filter(Boolean).join(' • ');
       return `${wallets.length} محافظ كاش (${phones})`;
     }
-    if (wallets && wallets.length === 1 && wallets[0]?.ownerName) {
-      return `محفظة: ${wallets[0].phone} (${wallets[0].ownerName})`;
+    if (wallets && wallets.length === 1) {
+      const w = wallets[0];
+      const detectedUrlProv = isQuickPayUrl(w.phone || url) ? detectWalletProviderFromUrl(w.phone || url) : null;
+      const prov = detectedUrlProv && detectedUrlProv !== 'generic' ? detectedUrlProv : w.provider;
+      const provLabel = prov && prov !== 'generic' ? getWalletProviderMeta(prov).nameAr : 'محفظة كاش';
+      if (w?.ownerName) {
+        return `${provLabel}: ${w.phone} (${w.ownerName})`;
+      }
+      return `${provLabel}: ${w.phone}`;
+    }
+    if (isQuickPayUrl(url)) {
+      const prov = detectWalletProviderFromUrl(url);
+      const provLabel = prov !== 'generic' ? getWalletProviderMeta(prov).nameAr : 'رابط دفع سريع';
+      return `${provLabel}: ${url}`;
     }
     if (url.startsWith('tel:*9*7*')) {
       const num = url.replace('tel:*9*7*', '').replace('#', '').replace('%23', '');
@@ -83,8 +109,11 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'expired'>('all');
+  const [printFilter, setPrintFilter] = useState<'all' | 'unprinted' | 'printed'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [renewingId, setRenewingId] = useState<string | null>(null);
+  const [togglingPrintId, setTogglingPrintId] = useState<string | null>(null);
+  const [isBatchMarkingPrint, setIsBatchMarkingPrint] = useState(false);
 
   // Modals state
   const [isBulkOpen, setIsBulkOpen] = useState(false);
@@ -198,6 +227,71 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
       console.error('Quick renew failed:', err);
     } finally {
       setRenewingId(null);
+    }
+  };
+
+  const handlePrintStatusChange = async (record: QrCodeRecord, nextPrinted: boolean) => {
+    const nowIso = new Date().toISOString();
+    const prevPrinted = Boolean(record.is_printed);
+    const prevPrintedAt = record.printed_at ?? null;
+    if (prevPrinted === nextPrinted) return;
+
+    setTogglingPrintId(record.id);
+    // Optimistic state update
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.id === record.id
+          ? { ...r, is_printed: nextPrinted, printed_at: nextPrinted ? nowIso : null, updated_at: nowIso }
+          : r
+      )
+    );
+
+    try {
+      const res = await toggleQrPrintedStatus(record.id, nextPrinted);
+      if (res.success && res.record) {
+        setRecords((prev) => prev.map((r) => (r.id === record.id ? res.record! : r)));
+        setAdminNotice({
+          type: 'success',
+          text: nextPrinted
+            ? `تم نقل الكود [${record.id}] إلى خانة الكروت المطبوعة ✓`
+            : `تمت إعادة الكود [${record.id}] إلى قائمة غير المطبوعة`,
+        });
+      } else {
+        throw new Error('Failed to update print status');
+      }
+    } catch {
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.id === record.id ? { ...r, is_printed: prevPrinted, printed_at: prevPrintedAt } : r
+        )
+      );
+      setAdminNotice({
+        type: 'error',
+        text: `تعذر تحديث حالة الطباعة للكود [${record.id}]. يرجى المحاولة مرة أخرى.`,
+      });
+    } finally {
+      setTogglingPrintId(null);
+    }
+  };
+
+  const handleBatchMarkVisiblePrinted = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    setIsBatchMarkingPrint(true);
+    const nowIso = new Date().toISOString();
+    const idSet = new Set(ids);
+    setRecords((prev) =>
+      prev.map((r) =>
+        idSet.has(r.id) ? { ...r, is_printed: true, printed_at: nowIso, updated_at: nowIso } : r
+      )
+    );
+    try {
+      await batchUpdateQrPrintedStatus(ids, true);
+      setAdminNotice({
+        type: 'success',
+        text: `تم نقل ${ids.length} كود إلى خانة الكروت المطبوعة ✓`,
+      });
+    } finally {
+      setIsBatchMarkingPrint(false);
     }
   };
 
@@ -338,14 +432,19 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
     }
 
     if (filterStatus === 'active') {
-      return Boolean(r.is_active && (!r.expires_at || new Date(r.expires_at).getTime() >= Date.now()));
+      if (!(r.is_active && (!r.expires_at || new Date(r.expires_at).getTime() >= Date.now()))) return false;
+    } else if (filterStatus === 'expired') {
+      if (!(r.is_active && r.expires_at && new Date(r.expires_at).getTime() < Date.now())) return false;
+    } else if (filterStatus === 'inactive') {
+      if (r.is_active) return false;
     }
-    if (filterStatus === 'expired') {
-      return Boolean(r.is_active && r.expires_at && new Date(r.expires_at).getTime() < Date.now());
+
+    if (printFilter === 'printed') {
+      if (!r.is_printed) return false;
+    } else if (printFilter === 'unprinted') {
+      if (r.is_printed) return false;
     }
-    if (filterStatus === 'inactive') {
-      return !r.is_active;
-    }
+
     return true;
   });
 
@@ -355,6 +454,8 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
   const expiredCodes = validRecords.filter((r) => r.is_active && r.expires_at && new Date(r.expires_at).getTime() < Date.now()).length;
   const activeCodes = validRecords.filter((r) => r.is_active && (!r.expires_at || new Date(r.expires_at).getTime() >= Date.now())).length;
   const pendingCodes = validRecords.filter((r) => !r.is_active).length;
+  const printedCodes = validRecords.filter((r) => Boolean(r.is_printed)).length;
+  const unprintedCodes = validRecords.filter((r) => !r.is_printed).length;
   const totalScans = validRecords.reduce((acc, curr) => acc + (Number(curr?.total_scans) || 0), 0);
 
   return (
@@ -518,7 +619,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         )}
 
         {/* KPI Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 stage-3d">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 stage-3d">
           <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/45 shadow-lg flex items-center justify-between card-3d-tilt">
             <div>
               <p className="text-[11px] font-bold text-slate-400">إجمالي الرموز</p>
@@ -563,7 +664,27 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
             </div>
           </div>
 
-          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/45 shadow-lg flex items-center justify-between card-3d-tilt col-span-2 md:col-span-1">
+          <button
+            type="button"
+            onClick={() => setPrintFilter((prev) => (prev === 'printed' ? 'all' : 'printed'))}
+            className={`p-4 bg-[#121216] rounded-2xl border shadow-lg flex items-center justify-between card-3d-tilt text-right transition cursor-pointer ${
+              printFilter === 'printed'
+                ? 'border-cyan-400/70 ring-1 ring-cyan-400/30'
+                : 'border-cyan-500/25 hover:border-cyan-400/50'
+            }`}
+            title="اضغط لعرض الكروت المطبوعة فقط"
+          >
+            <div>
+              <p className="text-[11px] font-bold text-slate-400">الكروت المطبوعة</p>
+              <p className="text-xl sm:text-2xl font-black text-cyan-400 mt-0.5 tabular-nums">{printedCodes}</p>
+              <p className="text-[10px] text-slate-500 tabular-nums">متبقي {unprintedCodes} للطباعة</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-cyan-400/10 border border-cyan-400/25 text-cyan-400 flex items-center justify-center">
+              <PackageCheck className="w-5 h-5" />
+            </div>
+          </button>
+
+          <div className="p-4 bg-[#121216] rounded-2xl border border-amber-500/20 hover:border-amber-400/45 shadow-lg flex items-center justify-between card-3d-tilt">
             <div>
               <div className="flex items-center gap-1.5">
                 <p className="text-[11px] font-bold text-slate-400">إجمالي المسح</p>
@@ -638,128 +759,205 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         {/* Search, Filters, and Table */}
         <div className="bg-[#121216] rounded-3xl border border-amber-500/20 shadow-2xl overflow-hidden">
           {/* Controls Header */}
-          <div className="p-5 border-b border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
-            {/* Search Input */}
-            <div className="relative w-full md:w-80">
-              <Search className="w-4 h-4 text-slate-500 absolute right-3.5 top-3" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="ابحث بالمعرّف ID أو الرابط المستهدف... (مثل I9pFBZwn8Y)"
-                className="w-full pr-10 pl-4 py-2.5 bg-black/70 border border-amber-500/30 rounded-xl text-xs font-mono font-black text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition selection:bg-amber-400 selection:text-black"
-              />
+          <div className="p-5 border-b border-white/5 space-y-3.5">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              {/* Search Input */}
+              <div className="relative w-full md:w-80">
+                <Search className="w-4 h-4 text-slate-500 absolute right-3.5 top-3" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="ابحث بالمعرّف ID أو الرابط المستهدف... (مثل I9pFBZwn8Y)"
+                  className="w-full pr-10 pl-4 py-2.5 bg-black/70 border border-amber-500/30 rounded-xl text-xs font-mono font-black text-amber-300 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition selection:bg-amber-400 selection:text-black"
+                />
+              </div>
+
+              {/* Filters and View Switcher */}
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                {/* Category Tabs: Active, Pending, All */}
+                <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-2xl text-xs font-bold text-slate-400 border border-white/5 overflow-x-auto max-w-full">
+                  <button
+                    type="button"
+                    onClick={() => setFilterStatus('active')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      filterStatus === 'active'
+                        ? 'bg-amber-400 text-black shadow-md font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>النشطة</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
+                      filterStatus === 'active' ? 'bg-black/20 text-black' : 'bg-amber-400/20 text-amber-300'
+                    }`}>
+                      {activeCodes}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilterStatus('expired')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      filterStatus === 'expired'
+                        ? 'bg-rose-500 text-white shadow-md font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    <span>منتهية الصلاحية</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
+                      filterStatus === 'expired' ? 'bg-black/30 text-white' : 'bg-rose-500/20 text-rose-300'
+                    }`}>
+                      {expiredCodes}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilterStatus('inactive')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      filterStatus === 'inactive'
+                        ? 'bg-yellow-500 text-black shadow-md font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>في انتظار التفعيل</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
+                      filterStatus === 'inactive' ? 'bg-black/20 text-black' : 'bg-yellow-400/20 text-yellow-300'
+                    }`}>
+                      {pendingCodes}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilterStatus('all')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      filterStatus === 'all'
+                        ? 'bg-white/20 text-white shadow-md font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span>الكل</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
+                      filterStatus === 'all' ? 'bg-black/20 text-white' : 'bg-white/10 text-slate-300'
+                    }`}>
+                      {records.length}
+                    </span>
+                  </button>
+                </div>
+
+                {/* View Switcher */}
+                <div className="flex items-center border border-white/10 rounded-xl overflow-hidden p-0.5 bg-black/40 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('grid')}
+                    className={`p-1.5 rounded-lg transition ${
+                      viewMode === 'grid' ? 'bg-amber-400 text-black shadow-sm font-bold' : 'text-slate-500 hover:text-white'
+                    }`}
+                    title="عرض شبكي"
+                  >
+                    <Grid className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('table')}
+                    className={`p-1.5 rounded-lg transition ${
+                      viewMode === 'table' ? 'bg-amber-400 text-black shadow-sm font-bold' : 'text-slate-500 hover:text-white'
+                    }`}
+                    title="عرض جدولي"
+                  >
+                    <List className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Refresh Button */}
+                <button
+                  onClick={() => loadData(false)}
+                  disabled={loading}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition border border-white/5 shrink-0"
+                  title="تحديث البيانات"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-amber-400' : ''}`} />
+                </button>
+              </div>
             </div>
 
-            {/* Filters and View Switcher */}
-            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
-              {/* Category Tabs: Active, Pending, All */}
-              <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-2xl text-xs font-bold text-slate-400 border border-white/5">
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('active')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
-                    filterStatus === 'active'
-                      ? 'bg-amber-400 text-black shadow-md font-black'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>النشطة</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    filterStatus === 'active' ? 'bg-black/20 text-black' : 'bg-amber-400/20 text-amber-300'
-                  }`}>
-                    {activeCodes}
-                  </span>
-                </button>
+            {/* Admin-Only Print Tracking Filter Row */}
+            <div className="pt-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-cyan-300 whitespace-nowrap shrink-0">
+                  <Printer className="w-3.5 h-3.5" />
+                  حالة الطباعة (للأدمن فقط):
+                </span>
 
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('expired')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
-                    filterStatus === 'expired'
-                      ? 'bg-rose-500 text-white shadow-md font-black'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>منتهية الصلاحية</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    filterStatus === 'expired' ? 'bg-black/30 text-white' : 'bg-rose-500/20 text-rose-300'
-                  }`}>
-                    {expiredCodes}
-                  </span>
-                </button>
+                <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-2xl text-xs font-bold border border-white/5 overflow-x-auto">
+                  <button
+                    type="button"
+                    onClick={() => setPrintFilter('all')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      printFilter === 'all'
+                        ? 'bg-white/20 text-white shadow-sm font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span>الكل</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/10 text-slate-200 tabular-nums">
+                      {totalCodes}
+                    </span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('inactive')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
-                    filterStatus === 'inactive'
-                      ? 'bg-yellow-500 text-black shadow-md font-black'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>في انتظار التفعيل</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    filterStatus === 'inactive' ? 'bg-black/20 text-black' : 'bg-yellow-400/20 text-yellow-300'
-                  }`}>
-                    {pendingCodes}
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintFilter('unprinted')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      printFilter === 'unprinted'
+                        ? 'bg-amber-400 text-black shadow-sm font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>لم تُطبع بعد</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
+                      printFilter === 'unprinted' ? 'bg-black/20 text-black' : 'bg-amber-400/15 text-amber-300'
+                    }`}>
+                      {unprintedCodes}
+                    </span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('all')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition ${
-                    filterStatus === 'all'
-                      ? 'bg-white/20 text-white shadow-md font-black'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <span>الكل</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    filterStatus === 'all' ? 'bg-black/20 text-white' : 'bg-white/10 text-slate-300'
-                  }`}>
-                    {records.length}
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintFilter('printed')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-xl transition whitespace-nowrap shrink-0 cursor-pointer ${
+                      printFilter === 'printed'
+                        ? 'bg-cyan-400 text-black shadow-sm font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <PackageCheck className="w-3.5 h-3.5" />
+                    <span>الكروت المطبوعة ✓</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
+                      printFilter === 'printed' ? 'bg-black/20 text-black' : 'bg-cyan-400/15 text-cyan-300'
+                    }`}>
+                      {printedCodes}
+                    </span>
+                  </button>
+                </div>
               </div>
 
-              {/* View Switcher */}
-              <div className="flex items-center border border-white/10 rounded-xl overflow-hidden p-0.5 bg-black/40">
+              {printFilter === 'unprinted' && filtered.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setViewMode('grid')}
-                  className={`p-1.5 rounded-lg transition ${
-                    viewMode === 'grid' ? 'bg-amber-400 text-black shadow-sm font-bold' : 'text-slate-500 hover:text-white'
-                  }`}
-                  title="عرض شبكي"
+                  disabled={isBatchMarkingPrint}
+                  onClick={() => handleBatchMarkVisiblePrinted(filtered.map((r) => r.id))}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-cyan-400/15 hover:bg-cyan-400 hover:text-black text-cyan-300 border border-cyan-400/35 text-[11px] font-black transition whitespace-nowrap shrink-0 disabled:opacity-50 cursor-pointer"
                 >
-                  <Grid className="w-4 h-4" />
+                  <PackageCheck className="w-3.5 h-3.5" />
+                  <span>{isBatchMarkingPrint ? 'جاري النقل...' : `نقل المعروض (${filtered.length}) إلى الكروت المطبوعة ✓`}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('table')}
-                  className={`p-1.5 rounded-lg transition ${
-                    viewMode === 'table' ? 'bg-amber-400 text-black shadow-sm font-bold' : 'text-slate-500 hover:text-white'
-                  }`}
-                  title="عرض جدولي"
-                >
-                  <List className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Refresh Button */}
-              <button
-                onClick={() => loadData(false)}
-                disabled={loading}
-                className="p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition border border-white/5"
-                title="تحديث البيانات"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-amber-400' : ''}`} />
-              </button>
+              )}
             </div>
           </div>
 
@@ -828,7 +1026,12 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         <div className="flex items-center gap-1.5">
                           {record.is_active && record.app_type && (
                             <div className="animate-icon-alive">
-                              <PlatformBrandIcon type={record.app_type as any} className="w-5 h-5 flex-shrink-0" targetUrl={record.target_url || undefined} />
+                              <PlatformBrandIcon
+                                type={record.app_type as any}
+                                className="w-5 h-5 flex-shrink-0"
+                                targetUrl={record.target_url || undefined}
+                                walletProvider={record.wallets?.[0]?.provider}
+                              />
                             </div>
                           )}
                           <span className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold flex items-center gap-1.5 ${
@@ -979,6 +1182,37 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                             </button>
                           </div>
                         </div>
+
+                        {/* Admin-Only Print Status Control (Checkbox + List Dropdown) */}
+                        <div className="mt-2.5 px-3 py-2 bg-black/50 border border-white/10 rounded-xl flex items-center justify-between gap-2 text-[11px]">
+                          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(record.is_printed)}
+                              disabled={togglingPrintId === record.id}
+                              onChange={(e) => handlePrintStatusChange(record, e.target.checked)}
+                              className="w-4 h-4 rounded accent-cyan-400 cursor-pointer disabled:opacity-50"
+                            />
+                            <span className={`font-extrabold ${record.is_printed ? 'text-cyan-300' : 'text-slate-300'}`}>
+                              {record.is_printed ? 'اتطبع' : 'حالة الطباعة'}
+                            </span>
+                          </label>
+
+                          <select
+                            aria-label={`حالة طباعة الكود ${record.id}`}
+                            value={record.is_printed ? 'printed' : 'unprinted'}
+                            disabled={togglingPrintId === record.id}
+                            onChange={(e) => handlePrintStatusChange(record, e.target.value === 'printed')}
+                            className={`px-2 py-1 rounded-lg border text-[10px] font-black focus:outline-none cursor-pointer transition ${
+                              record.is_printed
+                                ? 'bg-cyan-500/15 border-cyan-400/40 text-cyan-300'
+                                : 'bg-black/70 border-white/15 text-amber-300'
+                            }`}
+                          >
+                            <option value="unprinted" className="bg-[#121216] text-amber-300">لم يُطبع</option>
+                            <option value="printed" className="bg-[#121216] text-cyan-300">تمت الطباعة ✓</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
 
@@ -1042,6 +1276,7 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                   <tr>
                     <th className="py-3 px-4">كود الـ QR</th>
                     <th className="py-3 px-4">الحالة</th>
+                    <th className="py-3 px-4">حالة الطباعة</th>
                     <th className="py-3 px-4">مدة التفعيل والاشتراك</th>
                     <th className="py-3 px-4">مرات المسح</th>
                     <th className="py-3 px-4">المنصة</th>
@@ -1057,13 +1292,39 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                         {record.id}
                       </td>
                       <td className="py-2.5 px-4">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${
                           record.is_active
                             ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                             : 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30'
                         }`}>
                           {record.is_active ? 'مفعل نشط' : 'في انتظار التفعيل'}
                         </span>
+                      </td>
+                      <td className="py-2.5 px-4">
+                        <div className="inline-flex items-center gap-2 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(record.is_printed)}
+                            disabled={togglingPrintId === record.id}
+                            onChange={(e) => handlePrintStatusChange(record, e.target.checked)}
+                            aria-label={`تحديد الكود ${record.id} كمطبوع`}
+                            className="w-4 h-4 rounded accent-cyan-400 cursor-pointer disabled:opacity-50"
+                          />
+                          <select
+                            aria-label={`حالة طباعة ${record.id}`}
+                            value={record.is_printed ? 'printed' : 'unprinted'}
+                            disabled={togglingPrintId === record.id}
+                            onChange={(e) => handlePrintStatusChange(record, e.target.value === 'printed')}
+                            className={`px-2 py-1 rounded-lg border text-[10px] font-black focus:outline-none cursor-pointer ${
+                              record.is_printed
+                                ? 'bg-cyan-500/15 border-cyan-400/40 text-cyan-300'
+                                : 'bg-black/60 border-white/15 text-amber-300'
+                            }`}
+                          >
+                            <option value="unprinted" className="bg-[#121216] text-amber-300">لم يُطبع</option>
+                            <option value="printed" className="bg-[#121216] text-cyan-300">تمت الطباعة ✓</option>
+                          </select>
+                        </div>
                       </td>
                       <td className="py-2.5 px-4">
                         <div className="flex flex-col gap-1 items-start">
@@ -1106,12 +1367,19 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
                       <td className="py-2.5 px-4 font-extrabold text-amber-300">
                         <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-400/10 border border-amber-400/30 rounded-full text-xs">
                           <Eye className="w-3.5 h-3.5 text-amber-400" />
-                          <span>{record.total_scans || 0}</span>
+                          <span className="tabular-nums">{record.total_scans || 0}</span>
                         </div>
                       </td>
                       <td className="py-2.5 px-4 text-slate-300">
                         <div className="flex items-center gap-1.5">
-                          {record.app_type && <PlatformBrandIcon type={record.app_type as any} className="w-4 h-4 flex-shrink-0" targetUrl={record.target_url || undefined} />}
+                          {record.app_type && (
+                            <PlatformBrandIcon
+                              type={record.app_type as any}
+                              className="w-4 h-4 flex-shrink-0"
+                              targetUrl={record.target_url || undefined}
+                              walletProvider={record.wallets?.[0]?.provider}
+                            />
+                          )}
                           <span className="capitalize">{record.app_type || '—'}</span>
                         </div>
                       </td>
@@ -1223,6 +1491,19 @@ export function AdminDashboardView({ onLogout, domainUrl, onSimulateScan }: Admi
         onClose={() => setIsPrintOpen(false)}
         records={records}
         domainUrl={domainUrl}
+        onMarkedPrinted={(ids) => {
+          const nowIso = new Date().toISOString();
+          const idSet = new Set(ids);
+          setRecords((prev) =>
+            prev.map((r) =>
+              idSet.has(r.id) ? { ...r, is_printed: true, printed_at: nowIso, updated_at: nowIso } : r
+            )
+          );
+          setAdminNotice({
+            type: 'success',
+            text: `تم نقل ${ids.length} كود إلى خانة الكروت المطبوعة ✓`,
+          });
+        }}
       />
 
       <QrScannerModal

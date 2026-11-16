@@ -79,6 +79,8 @@ function buildCanonicalQrRecord(params: {
   expires_at?: string | null;
   subscription_months?: number;
   wallets?: WalletItem[];
+  is_printed?: boolean;
+  printed_at?: string | null;
 }): QrCodeRecord {
   const canonical: Record<string, any> = {
     id: params.id,
@@ -91,6 +93,8 @@ function buildCanonicalQrRecord(params: {
     label: params.label ?? '',
     expires_at: params.expires_at !== undefined ? params.expires_at : null,
     subscription_months: params.subscription_months !== undefined ? params.subscription_months : 1,
+    is_printed: Boolean(params.is_printed),
+    printed_at: params.is_printed ? (params.printed_at || new Date().toISOString()) : null,
   };
 
   if (params.last_scanned_at) {
@@ -102,7 +106,7 @@ function buildCanonicalQrRecord(params: {
   if (params.app_type === 'wallet' && Array.isArray(params.wallets) && params.wallets.length > 0) {
     canonical.wallets = params.wallets.map((w) => ({
       phone: (w.phone || '').trim(),
-      provider: w.provider || 'vodafone',
+      provider: w.provider || 'generic',
       ownerName: (w.ownerName || '').trim(),
     }));
   }
@@ -153,6 +157,8 @@ function firestoreRestDocToQrRecord(id: string, docJson: any): QrCodeRecord | nu
     total_scans: typeof parsed.total_scans === 'number' ? parsed.total_scans : 0,
     is_active: Boolean(parsed.is_active),
     target_url: parsed.target_url ?? null,
+    is_printed: Boolean(parsed.is_printed),
+    printed_at: parsed.printed_at ?? null,
     ...parsed,
     id: parsed.id || id,
   } as QrCodeRecord;
@@ -264,6 +270,8 @@ export async function generateBulkQrCodes(count: number, subscriptionMonths = 1)
         total_scans: 0,
         subscription_months: subscriptionMonths,
         expires_at: expiresAt,
+        is_printed: false,
+        printed_at: null,
       };
       generatedRecords.push(record);
     }
@@ -452,6 +460,8 @@ export async function fetchAllQrCodes(): Promise<QrCodeRecord[]> {
             total_scans: data.total_scans || 0,
             is_active: Boolean(data.is_active),
             target_url: data.target_url || null,
+            is_printed: Boolean(data.is_printed),
+            printed_at: data.printed_at ?? null,
             ...data,
             id,
           };
@@ -552,6 +562,8 @@ export async function activateQrCode(
     expires_at,
     subscription_months,
     wallets: isWallet ? cleanWallets : undefined,
+    is_printed: Boolean(existing?.is_printed),
+    printed_at: existing?.printed_at ?? null,
   });
 
   // 1. Write to Cloud Firestore via SDK (full replace) + REST API concurrently
@@ -639,6 +651,8 @@ export async function purgeQrTargetInDatabase(
     expires_at: options.expiresAt !== undefined ? options.expiresAt : (current.expires_at ?? null),
     subscription_months: current.subscription_months ?? 1,
     wallets: isWallet && cleanedWallets.length > 0 ? cleanedWallets : undefined,
+    is_printed: Boolean(current.is_printed),
+    printed_at: current.printed_at ?? null,
   });
 
   // 1. Overwrite full Firestore doc via SDK + REST (permanently deleting cleared URLs/fields)
@@ -742,6 +756,8 @@ export async function adminUpdateQrCode(
       ? subscriptionMonths
       : (current.subscription_months ?? 1),
     wallets: isWallet && resolvedWallets.length > 0 ? resolvedWallets : undefined,
+    is_printed: Boolean(current.is_printed),
+    printed_at: current.printed_at ?? null,
   });
 
   // 1. ALWAYS write full canonical record to Cloud Firestore (SDK setDoc overwrite + REST PATCH)
@@ -902,6 +918,8 @@ export function subscribeToQrCodes(
               total_scans: data.total_scans || 0,
               is_active: Boolean(data.is_active),
               target_url: data.target_url || null,
+              is_printed: Boolean(data.is_printed),
+              printed_at: data.printed_at ?? null,
               ...data,
               id,
             };
@@ -1289,3 +1307,114 @@ export async function updatePlatformSettings(settings: Partial<PlatformSettings>
   } catch {}
   return payload;
 }
+
+/**
+ * Admin-Only: Mark a single QR code as printed or unprinted across Firestore (SDK + REST),
+ * Express Server API, and Local Cache simultaneously.
+ */
+export async function toggleQrPrintedStatus(
+  id: string,
+  isPrinted: boolean
+): Promise<{ success: boolean; record?: QrCodeRecord }> {
+  const cleanId = id.trim();
+  if (!cleanId) return { success: false };
+
+  const nowIso = new Date().toISOString();
+  const printedAt = isPrinted ? nowIso : null;
+  const current = await getQrCode(cleanId);
+  if (!current) return { success: false };
+
+  const updatedRecord: QrCodeRecord = {
+    ...current,
+    is_printed: isPrinted,
+    printed_at: printedAt,
+    updated_at: nowIso,
+  };
+
+  // Update local cache immediately for instant UI responsiveness
+  const cache = getLocalCache();
+  cache[cleanId] = updatedRecord;
+  saveLocalCache(cache);
+
+  const sdkWrite = setDoc(
+    doc(db, 'qr_codes', cleanId),
+    {
+      is_printed: isPrinted,
+      printed_at: printedAt,
+      updated_at: nowIso,
+    },
+    { merge: true }
+  ).catch((err) => {
+    console.warn('Firestore print status write warning:', err);
+  });
+
+  const restWrite = writeQrToFirestoreRest(cleanId, updatedRecord);
+
+  const serverWrite = authFetch(`/api/qr/${encodeURIComponent(cleanId)}/print-status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ is_printed: isPrinted }),
+  }).catch(() => {});
+
+  await Promise.allSettled([sdkWrite, restWrite, serverWrite]);
+
+  return { success: true, record: updatedRecord };
+}
+
+/**
+ * Admin-Only: Batch mark multiple QR codes as printed or unprinted cleanly.
+ */
+export async function batchUpdateQrPrintedStatus(
+  ids: string[],
+  isPrinted: boolean
+): Promise<{ success: boolean }> {
+  const cleanIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+  if (cleanIds.length === 0) return { success: true };
+
+  const nowIso = new Date().toISOString();
+  const printedAt = isPrinted ? nowIso : null;
+
+  const cache = getLocalCache();
+  cleanIds.forEach((cleanId) => {
+    if (cache[cleanId]) {
+      cache[cleanId] = {
+        ...cache[cleanId],
+        is_printed: isPrinted,
+        printed_at: printedAt,
+        updated_at: nowIso,
+      };
+    }
+  });
+  saveLocalCache(cache);
+
+  const sdkBatchPromise = (async () => {
+    try {
+      const batch = writeBatch(db);
+      for (const cleanId of cleanIds) {
+        batch.set(
+          doc(db, 'qr_codes', cleanId),
+          {
+            is_printed: isPrinted,
+            printed_at: printedAt,
+            updated_at: nowIso,
+          },
+          { merge: true }
+        );
+      }
+      await batch.commit();
+    } catch (err) {
+      console.warn('Firestore batch print status warning:', err);
+    }
+  })();
+
+  const serverPromise = authFetch('/api/qr/print-status/batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: cleanIds, is_printed: isPrinted }),
+  }).catch(() => {});
+
+  await Promise.allSettled([sdkBatchPromise, serverPromise]);
+
+  return { success: true };
+}
+

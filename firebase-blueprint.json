@@ -60,6 +60,15 @@
         "wallets": {
           "type": "array",
           "description": "List of electronic wallet accounts (phone, provider, ownerName) present only for wallet cards"
+        },
+        "is_printed": {
+          "type": "boolean",
+          "description": "Admin-only flag indicating whether this QR code card has been printed"
+        },
+        "printed_at": {
+          "type": "string",
+          "description": "ISO timestamp when the admin marked this QR code as printed",
+          "maxLength": 64
         }
       },
       "required": ["id", "is_active"]

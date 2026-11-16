@@ -22,7 +22,7 @@ export interface BankDetails {
 
 export type SubscriptionPlan = 'monthly' | 'quarterly' | 'semi_annual' | 'annual' | 'unlimited' | 'custom';
 
-export type WalletProvider = 'vodafone' | 'orange' | 'etisalat' | 'we' | 'generic';
+export type WalletProvider = 'vodafone' | 'orange' | 'etisalat' | 'we' | 'instapay' | 'generic';
 
 export interface WalletItem {
   phone: string;
@@ -44,6 +44,8 @@ export interface QrCodeRecord {
   wallets?: WalletItem[]; // Multi-wallet support (1, 2, 3, or 4 wallets with owner names & provider logos)
   expires_at?: string | null; // ISO timestamp or null for permanent
   subscription_months?: number; // e.g. 1 for monthly, 3, 6, 12, or 0 for unlimited
+  is_printed?: boolean; // Admin-only: whether the card has been printed
+  printed_at?: string | null; // Admin-only: ISO timestamp when marked as printed
 }
 
 export interface DeepLinkInfo {
@@ -57,7 +59,7 @@ export interface DeepLinkInfo {
   isInstaPayCard?: boolean;
   instaPayHandle?: string;
   isWalletCard?: boolean;
-  walletProvider?: 'vodafone' | 'etisalat' | 'orange' | 'we' | 'generic';
+  walletProvider?: WalletProvider;
   walletProviderNameAr?: string;
   walletProviderNameEn?: string;
   walletCompanyNameAr?: string;

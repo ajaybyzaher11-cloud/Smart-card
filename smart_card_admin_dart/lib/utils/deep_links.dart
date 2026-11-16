@@ -23,7 +23,7 @@ bool isQuickPayUrl(String input) {
   if (lower.startsWith('intent://') || lower.startsWith('android-app://') || lower.startsWith('android-app//')) {
     return true;
   }
-  if (RegExp(r'^(vfcash|orangecash|etisalatcash|wepay|ipn)://', caseSensitive: false).hasMatch(lower)) {
+  if (RegExp(r'^(vfcash|orangecash|etisalatcash|wepay|ipn|instapay)://', caseSensitive: false).hasMatch(lower)) {
     return true;
   }
   final hasDomain = lower.contains('.eg') ||
@@ -38,18 +38,42 @@ bool isQuickPayUrl(String input) {
 }
 
 WalletProvider detectWalletProviderFromUrl(String url) {
-  final lower = url.trim().toLowerCase();
-  if (lower.isEmpty) return WalletProvider.generic;
-  if (lower.contains('vodafone') || lower.contains('voda') || lower.contains('vf.eg') || lower.contains('vfcash')) {
+  final raw = url.trim().toLowerCase();
+  if (raw.isEmpty) return WalletProvider.generic;
+  var lower = raw;
+  try {
+    lower = Uri.decodeFull(raw);
+  } catch (_) {}
+
+  if (lower.contains('ipn.eg') || lower.contains('instapay') || lower.startsWith('ipn://')) {
+    return WalletProvider.instapay;
+  }
+  if (lower.contains('vodafone') ||
+      lower.contains('voda') ||
+      lower.contains('vf.eg') ||
+      lower.contains('vfcash') ||
+      lower.contains('anavodafone') ||
+      lower.contains('anafodafone') ||
+      lower.contains('com.vf')) {
     return WalletProvider.vodafone;
   }
-  if (lower.contains('orange')) {
+  if (lower.contains('orange') || lower.contains('orangecash') || lower.contains('com.orange')) {
     return WalletProvider.orange;
   }
-  if (lower.contains('etisalat') || lower.contains('e&')) {
+  if (lower.contains('etisalat') ||
+      lower.contains('etisalatcash') ||
+      lower.contains('e&') ||
+      lower.contains('eand') ||
+      lower.contains('e-and') ||
+      lower.contains('com.etisalat')) {
     return WalletProvider.etisalat;
   }
-  if (lower.contains('te.eg') || lower.contains('telecom') || RegExp(r'(?:^|[^a-z])we(?:pay)?(?:[^a-z]|$)').hasMatch(lower)) {
+  if (lower.contains('te.eg') ||
+      lower.contains('telecom') ||
+      lower.contains('wepay') ||
+      lower.contains('we-pay') ||
+      lower.contains('we.eg') ||
+      RegExp(r'(?:^|[^a-z])we(?:pay|cash)?(?:[^a-z]|$)').hasMatch(lower)) {
     return WalletProvider.we;
   }
   return WalletProvider.generic;
@@ -111,7 +135,7 @@ WalletProvider resolveWalletProvider(String input, [WalletProvider? explicit]) {
     final urlProv = detectWalletProviderFromUrl(trimmed);
     if (urlProv != WalletProvider.generic) return urlProv;
     if (explicit != null && explicit != WalletProvider.generic) return explicit;
-    return WalletProvider.vodafone;
+    return WalletProvider.generic;
   }
   final phoneInfo = detectWalletInfo(trimmed);
   if (phoneInfo.provider != WalletProvider.generic) return phoneInfo.provider;
@@ -132,8 +156,15 @@ String sanitizeQuickPayUrl(String raw, [WalletProvider? provider]) {
     return embeddedMatch.group(0) ?? s;
   }
 
+  if (s.toLowerCase().startsWith('instapay://') || s.toLowerCase().startsWith('ipn://')) {
+    return s;
+  }
+
   if (s.startsWith('android-app://')) {
     final pkg = s.replaceFirst('android-app://', '').split('/').first.trim().toLowerCase();
+    if (pkg.contains('instapay') || provider == WalletProvider.instapay) {
+      return 'https://ipn.eg';
+    }
     if (pkg.contains('vf') || pkg.contains('vodafone') || provider == WalletProvider.vodafone) {
       return 'intent://#Intent;package=com.vf.eg;scheme=anafodafone;S.browser_fallback_url=https%3A%2F%2Fweb.vodafone.com.eg%2Far%2Fvodafone-cash;end';
     }

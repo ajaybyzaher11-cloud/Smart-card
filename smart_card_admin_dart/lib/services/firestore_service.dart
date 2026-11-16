@@ -202,6 +202,8 @@ class FirestoreService {
         totalScans: 0,
         expiresAt: expiresAt,
         subscriptionMonths: subscriptionMonths,
+        isPrinted: false,
+        printedAt: null,
       );
 
       final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(id)}?key=$_apiKey');
@@ -244,7 +246,7 @@ class FirestoreService {
                 : detectWalletInfo(trimmedPhone).cleanPhone;
             return WalletItem(
               phone: normalizedPhone,
-              provider: resolvedProv == WalletProvider.generic ? WalletProvider.vodafone : resolvedProv,
+              provider: resolvedProv,
               ownerName: w.ownerName.trim(),
             );
           }).toList()
@@ -271,6 +273,8 @@ class FirestoreService {
       expiresAt: expiresAt ?? existing.expiresAt,
       subscriptionMonths: subscriptionMonths ?? existing.subscriptionMonths,
       wallets: appType == AppType.wallet ? cleanWallets : const [],
+      isPrinted: existing.isPrinted,
+      printedAt: existing.printedAt,
     );
 
     final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(existing.id)}?key=$_apiKey');
@@ -320,6 +324,8 @@ class FirestoreService {
       expiresAt: existing.expiresAt,
       subscriptionMonths: existing.subscriptionMonths,
       wallets: existing.wallets,
+      isPrinted: existing.isPrinted,
+      printedAt: existing.printedAt,
     );
     final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(existing.id)}?key=$_apiKey');
     final res = await http
@@ -330,6 +336,36 @@ class FirestoreService {
         )
         .timeout(const Duration(seconds: 8));
     return res.statusCode >= 200 && res.statusCode < 300;
+  }
+
+  static Future<QrCodeRecord?> toggleQrPrintedStatus(QrCodeRecord existing, bool isPrinted) async {
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final updated = QrCodeRecord(
+      id: existing.id,
+      isActive: existing.isActive,
+      targetUrl: existing.targetUrl,
+      appType: existing.appType,
+      label: existing.label,
+      createdAt: existing.createdAt,
+      updatedAt: nowIso,
+      lastScannedAt: existing.lastScannedAt,
+      totalScans: existing.totalScans,
+      expiresAt: existing.expiresAt,
+      subscriptionMonths: existing.subscriptionMonths,
+      wallets: existing.wallets,
+      isPrinted: isPrinted,
+      printedAt: isPrinted ? nowIso : null,
+    );
+
+    final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(existing.id)}?key=$_apiKey');
+    final res = await http
+        .patch(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'fields': _recordToFirestoreFields(updated)}),
+        )
+        .timeout(const Duration(seconds: 8));
+    return (res.statusCode >= 200 && res.statusCode < 300) ? updated : null;
   }
 
   static Future<QrCodeRecord?> renewQrSubscription(QrCodeRecord existing, int months) async {
@@ -358,6 +394,8 @@ class FirestoreService {
       expiresAt: newExpiresAt,
       subscriptionMonths: months,
       wallets: existing.wallets,
+      isPrinted: existing.isPrinted,
+      printedAt: existing.printedAt,
     );
 
     final url = Uri.parse('$_baseDocUrl/qr_codes/${Uri.encodeComponent(existing.id)}?key=$_apiKey');

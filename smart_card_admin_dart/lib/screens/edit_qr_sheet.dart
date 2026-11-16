@@ -234,7 +234,7 @@ class _EditQrSheetState extends State<EditQrSheet> {
         final prov = resolveWalletProvider(phone, _walletProviders[i]);
         list.add(WalletItem(
           phone: isQuickPayUrl(phone) ? sanitizeQuickPayUrl(phone, prov) : detectWalletInfo(phone).cleanPhone,
-          provider: prov == WalletProvider.generic ? WalletProvider.vodafone : prov,
+          provider: prov,
           ownerName: owner,
         ));
       }
@@ -591,6 +591,8 @@ class _EditQrSheetState extends State<EditQrSheet> {
                                 expiresAt: _record.expiresAt,
                                 subscriptionMonths: _record.subscriptionMonths,
                                 wallets: _record.wallets,
+                                isPrinted: _record.isPrinted,
+                                printedAt: _record.printedAt,
                               );
                               setState(() {
                                 _record = updated;
@@ -601,6 +603,32 @@ class _EditQrSheetState extends State<EditQrSheet> {
                           },
                         ),
                       ],
+                    ),
+                    const Divider(color: Colors.white12, height: 22),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: const Color(0xFF22D3EE),
+                      title: const Text(
+                        'حالة الطباعة (تمت طباعة البطاقة ✓)',
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF67E8F9)),
+                      ),
+                      subtitle: Text(
+                        _record.isPrinted ? 'موجودة الآن في قائمة الكروت المطبوعة' : 'في انتظار الطباعة (غير مطبوعة)',
+                        style: const TextStyle(fontSize: 11, color: Colors.white60),
+                      ),
+                      value: _record.isPrinted,
+                      onChanged: (val) async {
+                        final res = await FirestoreService.toggleQrPrintedStatus(_record, val);
+                        if (res != null && mounted) {
+                          setState(() {
+                            _record = res;
+                            _noticeMsg = val
+                                ? 'تم نقل البطاقة إلى خانة الكروت المطبوعة ✓'
+                                : 'تمت إعادة البطاقة إلى قائمة غير المطبوعة';
+                          });
+                          widget.onSaved(res);
+                        }
+                      },
                     ),
                   ],
                 ),

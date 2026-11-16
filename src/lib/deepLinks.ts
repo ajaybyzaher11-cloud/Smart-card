@@ -123,10 +123,9 @@ export function cleanAndSanitizeUrl(input: string): string {
     return s;
   }
 
-  // 6. Custom scheme like instapay://send?to=
-  if (s.startsWith('instapay://send?to=')) {
-    const handle = decodeURIComponent(s.replace('instapay://send?to=', ''));
-    return handle.replace(/@instapay$/i, '').trim();
+  // 6. Custom payment schemes (preserve as-is so wallet/quick-pay detectors recognize them)
+  if (/^(instapay|ipn|vfcash|orangecash|etisalatcash|wepay):\/\//i.test(s)) {
+    return s;
   }
 
   return s;
@@ -152,7 +151,7 @@ export function isQuickPayUrl(input: string): boolean {
   if (/^https?:\/\//i.test(s)) return true;
   if (/^intent:\/\//i.test(s)) return true;
   if (/^android-app:?\/\//i.test(s) || /^android-app\/\//i.test(s)) return true;
-  if (/^(vfcash|orangecash|etisalatcash|wepay|ipn):\/\//i.test(s)) return true;
+  if (/^(vfcash|orangecash|etisalatcash|wepay|ipn|instapay):\/\//i.test(s)) return true;
 
   const hasDomain = s.includes('.eg') || s.includes('.com') || s.includes('.net') || s.includes('.me') || s.includes('.io') || s.startsWith('www.') || s.includes('/');
   const digitsOnly = s.replace(/[^\d]/g, '');
@@ -164,23 +163,128 @@ export function isQuickPayUrl(input: string): boolean {
 }
 
 /**
- * Automatically detects the Egyptian mobile wallet operator from a Quick Pay URL or deep link.
+ * Shared display metadata for every wallet/quick-pay provider.
+ */
+export const WALLET_PROVIDER_META: Record<
+  WalletProvider,
+  { nameAr: string; nameEn: string; companyNameAr: string; prefix: string; brandColor: string }
+> = {
+  vodafone: {
+    nameAr: 'ڨودافون كاش',
+    nameEn: 'Vodafone Cash',
+    companyNameAr: 'فودافون مصر - Vodafone Egypt',
+    prefix: '010',
+    brandColor: '#E60000',
+  },
+  orange: {
+    nameAr: 'أورانج كاش',
+    nameEn: 'Orange Cash',
+    companyNameAr: 'أورانج مصر - Orange Egypt',
+    prefix: '012',
+    brandColor: '#FF7900',
+  },
+  etisalat: {
+    nameAr: 'اتصالات كاش',
+    nameEn: 'Etisalat Cash (e&)',
+    companyNameAr: 'إي آند مصر (اتصالات) - e& Egypt',
+    prefix: '011',
+    brandColor: '#719E19',
+  },
+  we: {
+    nameAr: 'وي باي (WE Pay)',
+    nameEn: 'WE Pay',
+    companyNameAr: 'المصرية للاتصالات - Telecom Egypt (WE)',
+    prefix: '015',
+    brandColor: '#7E22CE',
+  },
+  instapay: {
+    nameAr: 'إنستاباي',
+    nameEn: 'InstaPay',
+    companyNameAr: 'شبكة المدفوعات اللحظية - InstaPay Egypt',
+    prefix: 'IPN',
+    brandColor: '#A855F7',
+  },
+  generic: {
+    nameAr: 'محفظة كاش إلكترونية',
+    nameEn: 'Smart Cash Wallet',
+    companyNameAr: 'محفظة دفع إلكترونية',
+    prefix: '01X',
+    brandColor: '#EAB308',
+  },
+};
+
+export function getWalletProviderMeta(provider: WalletProvider) {
+  return WALLET_PROVIDER_META[provider] || WALLET_PROVIDER_META.generic;
+}
+
+/**
+ * Automatically detects the Egyptian mobile wallet operator OR InstaPay from a Quick Pay URL or deep link.
  */
 export function detectWalletProviderFromUrl(url: string): WalletProvider {
-  const lower = (url || '').trim().toLowerCase();
+  let lower = (url || '').trim().toLowerCase();
   if (!lower) return 'generic';
-  if (lower.includes('vodafone') || lower.includes('voda') || lower.includes('vf.eg') || lower.includes('vfcash')) {
+  try {
+    const decoded = decodeURIComponent(lower);
+    if (decoded) lower = `${lower} ${decoded.toLowerCase()}`;
+  } catch {
+    // ignore malformed URI components
+  }
+
+  // 1. InstaPay Egypt Quick Pay Links (e.g. https://ipn.eg/S/..., instapay://..., com.instapay...)
+  if (
+    lower.includes('ipn.eg') ||
+    lower.includes('instapay') ||
+    /^ipn:\/\//i.test(lower)
+  ) {
+    return 'instapay';
+  }
+
+  // 2. Vodafone Cash (Vodafone Egypt / Ana Vodafone / vf.eg / vfcash)
+  if (
+    lower.includes('vodafone') ||
+    lower.includes('voda') ||
+    lower.includes('vf.eg') ||
+    lower.includes('vfcash') ||
+    lower.includes('anavodafone') ||
+    lower.includes('anafodafone') ||
+    lower.includes('com.vf')
+  ) {
     return 'vodafone';
   }
-  if (lower.includes('orange')) {
+
+  // 3. Orange Cash
+  if (
+    lower.includes('orange') ||
+    lower.includes('orangecash') ||
+    lower.includes('com.orange')
+  ) {
     return 'orange';
   }
-  if (lower.includes('etisalat') || lower.includes('e&')) {
+
+  // 4. Etisalat Cash (e& Egypt)
+  if (
+    lower.includes('etisalat') ||
+    lower.includes('etisalatcash') ||
+    lower.includes('e&') ||
+    lower.includes('eand') ||
+    lower.includes('e-and') ||
+    lower.includes('com.etisalat')
+  ) {
     return 'etisalat';
   }
-  if (lower.includes('te.eg') || lower.includes('telecom') || /(?:^|[^a-z])we(?:pay)?(?:[^a-z]|$)/i.test(lower)) {
+
+  // 5. WE Pay (Telecom Egypt)
+  if (
+    lower.includes('te.eg') ||
+    lower.includes('telecom') ||
+    lower.includes('wepay') ||
+    lower.includes('we-pay') ||
+    lower.includes('we.eg') ||
+    /(?:^|[^a-z])we(?:pay|cash|_pay|-pay)?(?:[^a-z]|$)/i.test(lower)
+  ) {
     return 'we';
   }
+
   return 'generic';
 }
 
@@ -199,6 +303,12 @@ export function sanitizeQuickPayUrl(raw: string, provider?: WalletProvider): str
   s = s.replace(/^android-app\/\//i, 'android-app://');
   s = s.replace(/^https?:\/\/+(https?:\/\/)/i, '$1');
 
+  // Handle instapay://send?to=...
+  if (s.toLowerCase().startsWith('instapay://send?to=')) {
+    const handle = decodeURIComponent(s.slice('instapay://send?to='.length)).replace(/@instapay$/i, '').trim();
+    return handle ? `https://ipn.eg/${encodeURIComponent(handle)}` : 'https://ipn.eg';
+  }
+
   // 2. Check if the string contains an embedded web URL (common in Android share intents)
   const embeddedMatch = s.match(/https?:\/\/[^\s"'<>]+/i) || s.match(/https?\/[^\s"'<>]+/i);
   if (embeddedMatch) {
@@ -212,7 +322,11 @@ export function sanitizeQuickPayUrl(raw: string, provider?: WalletProvider): str
   // 3. Handle Android app links: android-app://<package>/...
   if (s.startsWith('android-app://')) {
     const pkg = s.replace('android-app://', '').split('/')[0].trim().toLowerCase();
-    
+
+    // InstaPay
+    if (pkg.includes('instapay') || provider === 'instapay') {
+      return 'https://ipn.eg';
+    }
     // Vodafone / Ana Vodafone
     if (pkg.includes('vf') || pkg.includes('vodafone') || provider === 'vodafone') {
       return `intent://#Intent;package=com.vf.eg;scheme=anafodafone;S.browser_fallback_url=https%3A%2F%2Fweb.vodafone.com.eg%2Far%2Fvodafone-cash;end`;
@@ -222,7 +336,7 @@ export function sanitizeQuickPayUrl(raw: string, provider?: WalletProvider): str
       return `intent://#Intent;package=com.orange.mail.egypt;scheme=orangecash;S.browser_fallback_url=https%3A%2F%2Fwww.orange.eg%2Far%2Forange-cash;end`;
     }
     // Etisalat Cash
-    if (pkg.includes('etisalat') || provider === 'etisalat') {
+    if (pkg.includes('etisalat') || pkg.includes('eand') || provider === 'etisalat') {
       return `intent://#Intent;package=com.etisalat;scheme=etisalatcash;S.browser_fallback_url=https%3A%2F%2Fwww.etisalat.eg;end`;
     }
     // WE Pay
@@ -249,7 +363,7 @@ export function sanitizeQuickPayUrl(raw: string, provider?: WalletProvider): str
 }
 
 export interface DetectedWalletInfo {
-  provider: 'vodafone' | 'orange' | 'etisalat' | 'we' | 'generic';
+  provider: WalletProvider;
   nameAr: string;
   nameEn: string;
   companyNameAr: string;
@@ -529,22 +643,11 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
       cleanTrimmed = cleanTrimmed.replace('tel:*9*7*', '').replace('#', '').replace('%23', '');
     }
 
-    // 1. Check if input is a Web URL or Quick Payment Link (e.g. https://... or vf.eg or web.vodafone.com.eg/...)
+    // 1. Check if input is a Web URL or Quick Payment Link (e.g. https://ipn.eg/..., https://vf.eg/..., etc.)
     if (isQuickPayUrl(cleanTrimmed)) {
-      // Detect operator from URL domain / keywords
-      const urlProv = detectWalletProviderFromUrl(cleanTrimmed);
-      const detectedProv: WalletProvider = urlProv !== 'generic' ? urlProv : 'vodafone';
-
+      const detectedProv: WalletProvider = detectWalletProviderFromUrl(cleanTrimmed);
       const fullUrl = sanitizeQuickPayUrl(cleanTrimmed, detectedProv);
-
-      const provMeta: Record<WalletProvider, { nameAr: string; nameEn: string; companyNameAr: string }> = {
-        vodafone: { nameAr: 'ڨودافون كاش', nameEn: 'Vodafone Cash', companyNameAr: 'فودافون مصر - Vodafone Egypt' },
-        orange: { nameAr: 'أورانج كاش', nameEn: 'Orange Cash', companyNameAr: 'أورانج مصر - Orange Egypt' },
-        etisalat: { nameAr: 'اتصالات كاش', nameEn: 'Etisalat Cash (e&)', companyNameAr: 'إي آند مصر (اتصالات) - e& Egypt' },
-        we: { nameAr: 'وي باي', nameEn: 'WE Pay', companyNameAr: 'المصرية للاتصالات - Telecom Egypt (WE)' },
-        generic: { nameAr: 'محفظة كاش', nameEn: 'Cash Wallet', companyNameAr: 'محفظة كاش مصرية' },
-      };
-      const activeMeta = provMeta[detectedProv] || provMeta.vodafone;
+      const activeMeta = getWalletProviderMeta(detectedProv);
 
       return {
         appType: 'wallet',
@@ -663,7 +766,12 @@ export function processSmartLink(rawInput: string, preferredType?: AppType): Dee
 
   if (isInstaPay) {
     let paymentUrl = trimmed;
-    if (paymentUrl.startsWith('ipn.eg/')) {
+    if (paymentUrl.toLowerCase().startsWith('instapay://send?to=')) {
+      const handle = decodeURIComponent(paymentUrl.replace(/^instapay:\/\/send\?to=/i, ''))
+        .replace(/@instapay$/i, '')
+        .trim();
+      paymentUrl = `https://ipn.eg/${handle}`;
+    } else if (paymentUrl.startsWith('ipn.eg/')) {
       paymentUrl = `https://${paymentUrl}`;
     } else if (!paymentUrl.startsWith('http://') && !paymentUrl.startsWith('https://')) {
       if (paymentUrl.includes('ipn.eg')) {
