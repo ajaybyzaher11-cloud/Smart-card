@@ -1,7 +1,7 @@
 ################################################################################
 # SMART CARD PLATFORM - COMPLETE UNIFIED SOURCE CODE (SINGLE COPYABLE FILE)
-# Total Files: 46
-# Generated At: 2026-11-17T12:50:29.908Z
+# Total Files: 47
+# Generated At: 2026-11-17T12:59:56.865Z
 # Live URL: https://smart-card-inky.vercel.app
 ################################################################################
 #
@@ -16,42 +16,43 @@
 #   08. firestore.rules (26 lines)
 #   09. firebase-blueprint.json (96 lines)
 #   10. firebase-applet-config.json (12 lines)
-#   11. server.ts (1227 lines)
-#   12. api/redirect.ts (293 lines)
-#   13. src/main.tsx (6 lines)
-#   14. src/App.tsx (253 lines)
-#   15. src/index.css (161 lines)
-#   16. src/types/qr.ts (80 lines)
-#   17. src/types/jsqr.d.ts (37 lines)
-#   18. src/lib/firebase.ts (80 lines)
-#   19. src/lib/auth.ts (374 lines)
-#   20. src/lib/deepLinks.ts (947 lines)
-#   21. src/lib/qrService.ts (1510 lines)
-#   22. src/components/BrandIcons.tsx (660 lines)
-#   23. src/components/QrScannerModal.tsx (413 lines)
-#   24. src/components/EditQrModal.tsx (1524 lines)
-#   25. src/components/BulkGenerateModal.tsx (389 lines)
-#   26. src/components/PrintSheetModal.tsx (224 lines)
-#   27. src/components/UploadQrModal.tsx (320 lines)
-#   28. src/components/DeveloperSettingsModal.tsx (252 lines)
-#   29. src/views/HomeLandingView.tsx (404 lines)
-#   30. src/views/AdminLoginView.tsx (131 lines)
-#   31. src/views/AdminDashboardView.tsx (1809 lines)
-#   32. src/views/CustomerActivationView.tsx (729 lines)
-#   33. src/views/SmartRedirectView.tsx (657 lines)
-#   34. src/views/CardExpiredView.tsx (140 lines)
-#   35. smart_card_admin_dart/pubspec.yaml (32 lines)
-#   36. smart_card_admin_dart/lib/main.dart (74 lines)
-#   37. smart_card_admin_dart/lib/models/qr_models.dart (400 lines)
-#   38. smart_card_admin_dart/lib/utils/deep_links.dart (329 lines)
-#   39. smart_card_admin_dart/lib/services/auth_service.dart (146 lines)
-#   40. smart_card_admin_dart/lib/services/firestore_service.dart (537 lines)
-#   41. smart_card_admin_dart/lib/widgets/three_d_widgets.dart (361 lines)
-#   42. smart_card_admin_dart/lib/screens/admin_login_screen.dart (213 lines)
-#   43. smart_card_admin_dart/lib/screens/admin_dashboard_screen.dart (718 lines)
-#   44. smart_card_admin_dart/lib/screens/qr_scanner_screen.dart (247 lines)
-#   45. smart_card_admin_dart/lib/screens/edit_qr_sheet.dart (1021 lines)
-#   46. smart_card_admin_dart/lib/screens/settings_screen.dart (275 lines)
+#   11. .agents/skills/smart-card-sync-deploy/SKILL.md (61 lines)
+#   12. server.ts (1227 lines)
+#   13. api/redirect.ts (293 lines)
+#   14. src/main.tsx (6 lines)
+#   15. src/App.tsx (253 lines)
+#   16. src/index.css (161 lines)
+#   17. src/types/qr.ts (80 lines)
+#   18. src/types/jsqr.d.ts (37 lines)
+#   19. src/lib/firebase.ts (80 lines)
+#   20. src/lib/auth.ts (374 lines)
+#   21. src/lib/deepLinks.ts (947 lines)
+#   22. src/lib/qrService.ts (1510 lines)
+#   23. src/components/BrandIcons.tsx (660 lines)
+#   24. src/components/QrScannerModal.tsx (413 lines)
+#   25. src/components/EditQrModal.tsx (1524 lines)
+#   26. src/components/BulkGenerateModal.tsx (389 lines)
+#   27. src/components/PrintSheetModal.tsx (224 lines)
+#   28. src/components/UploadQrModal.tsx (320 lines)
+#   29. src/components/DeveloperSettingsModal.tsx (252 lines)
+#   30. src/views/HomeLandingView.tsx (404 lines)
+#   31. src/views/AdminLoginView.tsx (131 lines)
+#   32. src/views/AdminDashboardView.tsx (1809 lines)
+#   33. src/views/CustomerActivationView.tsx (729 lines)
+#   34. src/views/SmartRedirectView.tsx (657 lines)
+#   35. src/views/CardExpiredView.tsx (140 lines)
+#   36. smart_card_admin_dart/pubspec.yaml (32 lines)
+#   37. smart_card_admin_dart/lib/main.dart (74 lines)
+#   38. smart_card_admin_dart/lib/models/qr_models.dart (400 lines)
+#   39. smart_card_admin_dart/lib/utils/deep_links.dart (329 lines)
+#   40. smart_card_admin_dart/lib/services/auth_service.dart (146 lines)
+#   41. smart_card_admin_dart/lib/services/firestore_service.dart (537 lines)
+#   42. smart_card_admin_dart/lib/widgets/three_d_widgets.dart (361 lines)
+#   43. smart_card_admin_dart/lib/screens/admin_login_screen.dart (213 lines)
+#   44. smart_card_admin_dart/lib/screens/admin_dashboard_screen.dart (718 lines)
+#   45. smart_card_admin_dart/lib/screens/qr_scanner_screen.dart (247 lines)
+#   46. smart_card_admin_dart/lib/screens/edit_qr_sheet.dart (1021 lines)
+#   47. smart_card_admin_dart/lib/screens/settings_screen.dart (275 lines)
 #
 ################################################################################
 
@@ -552,6 +553,70 @@ FILE: firebase-applet-config.json
   "oAuthClientId": "249241650463-blhulj2p0upq50uubi9fedvff9jj0kn6.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }
+
+================================================================================
+FILE: .agents/skills/smart-card-sync-deploy/SKILL.md
+================================================================================
+---
+name: smart-card-sync-deploy
+description: Mandatory post-edit workflow for the Smart Card platform. Automatically propagates every change across all generated QR codes (web views, API redirect, admin modals, and Dart Admin mobile app), rebuilds SMART_CARD_FULL_CODE.txt, verifies build & TypeScript lint, and pushes to GitHub (main) to trigger Vercel production deployment.
+---
+
+# Smart Card — Sync Generated QR Codes & Deploy (GitHub + Vercel)
+
+Activate and follow this skill on **every** modification request in the Smart Card workspace before reporting completion to the user.
+
+## 1. Propagate Changes Across All Generated QR Codes & Clients
+
+All generated QR codes (`/q/:id` and `/?view=:id`) read live state from Firestore (`ai-studio-41f04a06-1999-41b9-b7be-e25b21dc1fd0`) and render dynamically through the platform components. Keep every layer synchronized:
+
+1. **Live Generated QR Code Views (Applies to all existing & future QR codes):**
+   - `src/views/SmartRedirectView.tsx`: Customer-facing card views (Multi-wallet, Single-wallet, Bank, InstaPay, Quick Pay links, Social links, and deactivation/expiration fallbacks).
+   - `src/views/CustomerActivationView.tsx`: First-time card activation form and validation rules.
+   - `src/lib/deepLinks.ts` & `src/lib/qrService.ts` & `src/types/qr.ts`: Wallet/provider auto-detection, deep links, QR payload schema, and deactivation/print helpers.
+2. **Server & Vercel Serverless Redirect:**
+   - `api/redirect.ts`: Vercel production rewrite target for `/q/:id` (must stay in sync with `server.ts` redirect logic).
+   - `server.ts`: Express server endpoints & dev/full-stack QR handling.
+3. **Admin Dashboard & Modals (Web):**
+   - `src/views/AdminDashboardView.tsx`, `src/components/EditQrModal.tsx`, `src/components/BulkGenerateModal.tsx`, `src/components/PrintSheetModal.tsx`, `src/components/QrScannerModal.tsx`.
+4. **Dart / Flutter Admin-Only Mobile App (`smart_card_admin_dart/`):**
+   - Keep `lib/models/qr_models.dart`, `lib/services/firestore_service.dart`, `lib/utils/deep_links.dart`, and `lib/screens/*` synchronized with all Admin capabilities, schema fields, and labels.
+5. **Firestore & Rules (when schema/permissions change):**
+   - Always read `/skills/system_skills/firebase-integration-rpc/SKILL.md` first and deploy updated `firestore.rules` if modified.
+
+## 2. Rebuild Unified Code Bundle
+
+Regenerate the complete copyable bundle so it reflects the latest workspace files:
+
+```bash
+npx tsx scripts/build-single-code.ts
+```
+
+This updates both `SMART_CARD_FULL_CODE.txt` and `public/SMART_CARD_FULL_CODE.txt`.
+
+## 3. Build & Lint Verification
+
+1. Co-execute `compile_applet` (`npm run build`) and `lint_applet` (`tsc --noEmit`) and resolve any errors until both pass with exit code `0`.
+2. Confirm local dev server health (`http://localhost:3000` returns HTTP `200`).
+
+## 4. Push to GitHub (`main`) & Trigger Vercel Deployment
+
+- **Repository:** `https://github.com/ajaybyzaher11-cloud/Smart-card.git`
+- **Branch:** `main`
+- **Live Vercel URL:** `https://smart-card-inky.vercel.app` (auto-deploys on every push to `main`)
+
+### Safe Sync Steps:
+1. Clone shallowly into `/tmp/repo_sync` (`git clone --depth 1 --branch main ... /tmp/repo_sync`) using the session GitHub credential (never store plaintext PAT tokens inside repository files).
+2. Copy tracked workspace files while **strictly excluding** `.git`, `node_modules`, `dist`, `data`, `.env`, and `public/assets/`:
+   ```bash
+   tar --exclude='.git' --exclude='node_modules' --exclude='dist' --exclude='data' --exclude='.env' --exclude='public/assets' -cf - . | tar -xf - -C /tmp/repo_sync
+   ```
+3. Inspect `git -c safe.directory=/tmp/repo_sync -C /tmp/repo_sync status -s` to ensure only intended source files are modified and no secrets or runtime data files are staged.
+4. Commit and push to `origin main`, then immediately delete `/tmp/repo_sync`:
+   ```bash
+   rm -rf /tmp/repo_sync
+   ```
+5. Confirm commit hash in the user summary (in Arabic).
 
 ================================================================================
 FILE: server.ts

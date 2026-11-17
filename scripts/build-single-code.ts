@@ -13,6 +13,7 @@ const filesToInclude = [
   'firestore.rules',
   'firebase-blueprint.json',
   'firebase-applet-config.json',
+  '.agents/skills/smart-card-sync-deploy/SKILL.md',
 
   // Backend & Serverless Redirect
   'server.ts',
