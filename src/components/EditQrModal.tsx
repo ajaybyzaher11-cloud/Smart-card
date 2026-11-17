@@ -541,7 +541,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
 
         const trimmedOwner = item.ownerName?.trim() || '';
         if (!trimmedOwner) {
-          setErrorMsg(walletCount === 1 ? 'يرجى كتابة اسم صاحب المحفظة (إلزامي).' : `يرجى كتابة اسم صاحب المحفظة رقم ${i + 1} (إلزامي).`);
+          setErrorMsg(walletCount === 1 ? 'يرجى كتابة الاسم (إلزامي).' : `يرجى كتابة الاسم للمحفظة رقم ${i + 1} (إلزامي).`);
           setLoading(false);
           return;
         }
@@ -908,7 +908,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  يمكنك ربط محفظة واحدة أو حتى 4 محافظ (فودافون، أورانج، اتصالات، وي). لكل محفظة لوجو شركتها الخاص وخانة لاسم صاحب المحفظة:
+                  يمكنك ربط محفظة واحدة أو حتى 4 محافظ (فودافون، أورانج، اتصالات، وي). لكل محفظة لوجو شركتها الخاص وخانة للاسم:
                 </p>
 
                 {/* 4 Segmented Count Buttons */}
@@ -1060,10 +1060,10 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
                       {/* Input 2: Wallet Owner Name - Mandatory */}
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                          <label className="text-amber-200/90 font-bold">
-                            اسم صاحب المحفظة (إلزامي):
+                          <label className="text-amber-200/90 font-bold whitespace-nowrap">
+                            الاسم (إلزامي):
                           </label>
-                          <span className="text-[10px] text-amber-400 font-bold">إلزامي</span>
+                          <span className="text-[10px] text-amber-400 font-bold shrink-0">إلزامي</span>
                         </div>
                         <div className="relative">
                           <input
@@ -1093,7 +1093,7 @@ export function EditQrModal({ isOpen, onClose, record, domainUrl, onSaved, onPur
               <div className="p-3 bg-black/50 border border-amber-500/20 rounded-xl text-[11px] text-amber-200/80 leading-relaxed flex items-start gap-2">
                 <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
                 <span>
-                  عند مسح الكارت، ستظهر {walletCount === 1 ? 'بطاقة المحفظة' : `${walletCount} بطاقات للمحافظ`} مع لوجو كل شركة رسمي، واسم صاحب المحفظة، ورقم الهاتف، وزر نسخ مخصص لكل رقم.
+                  عند مسح الكارت، ستظهر {walletCount === 1 ? 'بطاقة المحفظة' : `${walletCount} بطاقات للمحافظ`} مع لوجو كل شركة رسمي، والاسم في سطر واحد متناسق، ورقم الهاتف، وزر نسخ واحد أسفل كل رقم.
                 </span>
               </div>
             </div>

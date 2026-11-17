@@ -228,8 +228,8 @@ class _EditQrSheetState extends State<EditQrSheet> {
         }
         if (owner.isEmpty) {
           setState(() => _errorMsg = _walletCount == 1
-              ? 'يرجى كتابة اسم صاحب المحفظة (إلزامي).'
-              : 'يرجى كتابة اسم صاحب المحفظة رقم ${i + 1} (إلزامي).');
+              ? 'يرجى كتابة الاسم (إلزامي).'
+              : 'يرجى كتابة الاسم للمحفظة رقم ${i + 1} (إلزامي).');
           return;
         }
         final prov = resolveWalletProvider(phone, _walletProviders[i]);
@@ -1001,7 +1001,7 @@ class _EditQrSheetState extends State<EditQrSheet> {
                   controller: _walletOwnerCtrls[idx],
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
                   decoration: InputDecoration(
-                    labelText: 'اسم صاحب المحفظة (إلزامي)',
+                    labelText: 'الاسم (إلزامي)',
                     labelStyle: const TextStyle(color: Colors.white70, fontSize: 11.5),
                     hintText: 'مثال: أحمد محمد علي',
                     hintStyle: const TextStyle(color: Colors.white30),

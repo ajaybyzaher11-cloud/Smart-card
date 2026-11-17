@@ -329,12 +329,20 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                       </span>
                     </div>
 
-                    {/* Owner Name Badge (if set) */}
+                    {/* Owner Name Badge (if set) - Single-line proportional bar */}
                     {walletItem.ownerName && (
-                      <div className="flex items-center gap-2 p-2 px-3 bg-amber-400/10 border border-amber-400/25 rounded-xl text-xs text-amber-300">
-                        <User className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                        <span className="font-medium text-slate-300">اسم صاحب المحفظة:</span>
-                        <span className="font-black text-white">{walletItem.ownerName}</span>
+                      <div className="w-full flex items-center justify-between gap-2.5 px-3.5 py-2.5 bg-amber-400/10 border border-amber-400/25 rounded-xl">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-300 whitespace-nowrap shrink-0">
+                          <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>الاسم:</span>
+                        </span>
+                        <span
+                          className="min-w-0 flex-1 text-left font-black text-[13px] sm:text-sm text-white whitespace-nowrap truncate"
+                          dir="auto"
+                          title={walletItem.ownerName}
+                        >
+                          {walletItem.ownerName}
+                        </span>
                       </div>
                     )}
 
@@ -351,37 +359,25 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                               e.preventDefault();
                             }
                           }}
-                          className="w-full py-3.5 px-4 text-xs sm:text-sm font-black rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/20"
+                          className="w-full min-h-[48px] py-3 px-4 text-xs sm:text-sm font-black rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/20 whitespace-nowrap"
                         >
-                          <ExternalLink className="w-4 h-4 text-black" />
-                          <span>الانتقال للدفع السريع الآن بـ ({providerNameAr}) ⚡</span>
+                          <ExternalLink className="w-4 h-4 text-black shrink-0" />
+                          <span className="truncate">الانتقال للدفع السريع الآن بـ ({providerNameAr}) ⚡</span>
                         </a>
                       </div>
                     ) : (
-                      /* Phone Number Case */
+                      /* Phone Number Case - Single centered display + ONE copy button underneath */
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between bg-black/80 border border-amber-500/25 rounded-xl p-3">
-                          <span className="font-mono text-lg sm:text-xl font-black text-amber-300 tracking-wider select-all" dir="ltr">
+                        <div className="flex items-center justify-center bg-black/80 border border-amber-500/25 rounded-xl py-3 px-4">
+                          <span className="font-mono tabular-nums text-lg sm:text-xl font-black text-amber-300 tracking-wider select-all text-center" dir="ltr">
                             {formatted}
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(walletItem.phone, `wallet_${idx}`)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-black rounded-lg transition shadow-md cursor-pointer ${
-                              isCopied
-                                ? 'bg-emerald-500 text-black'
-                                : 'bg-gradient-to-r from-amber-400 to-yellow-500 text-black hover:from-amber-300 hover:to-amber-400'
-                            }`}
-                          >
-                            {isCopied ? <Check className="w-3.5 h-3.5 text-black" /> : <Copy className="w-3.5 h-3.5 text-black" />}
-                            <span>{isCopied ? 'تم النسخ!' : 'نسخ'}</span>
-                          </button>
                         </div>
 
                         <button
                           type="button"
                           onClick={() => handleCopy(walletItem.phone, `wallet_${idx}`)}
-                          className={`w-full py-3 px-4 text-xs sm:text-sm font-black rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                          className={`w-full min-h-[48px] py-3 px-4 text-xs sm:text-sm font-black rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap ${
                             isCopied
                               ? 'bg-emerald-500 hover:bg-emerald-400 text-black ring-2 ring-emerald-300'
                               : 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black'
@@ -389,13 +385,13 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                         >
                           {isCopied ? (
                             <>
-                              <Check className="w-4 h-4 text-black animate-bounce" />
-                              <span>تم نسخ رقم ({providerNameAr}) بنجاح ✓ (جاهز للصق)</span>
+                              <Check className="w-4 h-4 text-black shrink-0 animate-bounce" />
+                              <span className="truncate">تم نسخ رقم ({providerNameAr}) بنجاح ✓</span>
                             </>
                           ) : (
                             <>
-                              <Copy className="w-4 h-4 text-black" />
-                              <span>نسخ رقم محفظة ({providerNameAr})</span>
+                              <Copy className="w-4 h-4 text-black shrink-0" />
+                              <span className="truncate">نسخ رقم محفظة ({providerNameAr})</span>
                             </>
                           )}
                         </button>
@@ -415,7 +411,7 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
               <ol className="list-decimal list-inside space-y-1 pr-1 text-slate-300">
                 <li>اختر المحفظة التابعة لشبكة خطك أعلاه.</li>
                 <li>للدفع بالرابط السريع: اضغط على زر <strong>الانتقال للدفع السريع الآن</strong> للتحويل الفوري.</li>
-                <li>للدفع برقم الهاتف: اضغط على <strong>نسخ الرقم</strong> ثم افتح تطبيق المحفظة وأتم التحويل.</li>
+                <li>للدفع برقم الهاتف: اضغط على زر <strong>نسخ رقم محفظة</strong> أسفل الرقم ثم افتح تطبيق المحفظة وأتم التحويل.</li>
               </ol>
             </div>
           </div>
@@ -470,12 +466,20 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
               {providerNameEn}
             </p>
 
-            {/* Owner Name Badge (if set on single wallet) */}
+            {/* Owner Name Badge (if set on single wallet) - Single-line proportional bar */}
             {singleWallet.ownerName && (
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-amber-400/15 border border-amber-400/35 rounded-xl text-xs font-bold text-amber-300 mx-auto mt-2">
-                <User className="w-4 h-4 text-amber-400" />
-                <span className="text-slate-300">اسم صاحب المحفظة:</span>
-                <span className="text-white font-black">{singleWallet.ownerName}</span>
+              <div className="w-full flex items-center justify-between gap-2.5 px-3.5 py-2.5 bg-amber-400/15 border border-amber-400/35 rounded-xl mt-3">
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-300 whitespace-nowrap shrink-0">
+                  <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>الاسم:</span>
+                </span>
+                <span
+                  className="min-w-0 flex-1 text-left font-black text-[13px] sm:text-sm text-white whitespace-nowrap truncate"
+                  dir="auto"
+                  title={singleWallet.ownerName}
+                >
+                  {singleWallet.ownerName}
+                </span>
               </div>
             )}
           </div>
@@ -493,14 +497,14 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                     e.preventDefault();
                   }
                 }}
-                className="w-full py-4 px-6 text-sm sm:text-base font-black rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/30"
+                className="w-full min-h-[48px] py-3.5 px-5 text-sm sm:text-base font-black rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/30 whitespace-nowrap"
               >
-                <ExternalLink className="w-5 h-5 text-black" />
-                <span>الانتقال للدفع السريع الآن بـ ({providerNameAr}) ⚡</span>
+                <ExternalLink className="w-5 h-5 text-black shrink-0" />
+                <span className="truncate">الانتقال للدفع السريع الآن بـ ({providerNameAr}) ⚡</span>
               </a>
             </div>
           ) : (
-            /* Phone Number Display Box */
+            /* Phone Number Display Box + ONE Copy Button Underneath */
             <div className="space-y-4">
               <div className="bg-black/60 border border-white/10 rounded-2xl p-4 sm:p-5 space-y-3">
                 <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
@@ -508,34 +512,19 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                   <span className="text-[10px] text-amber-400/90 font-bold">جاهز للتحويل الفوري</span>
                 </div>
 
-                <div className="flex items-center justify-between bg-black/80 border border-amber-500/30 rounded-xl p-3 sm:p-3.5">
-                  <span className="font-mono text-xl sm:text-2xl font-black text-amber-300 tracking-wider select-all" dir="ltr">
+                <div className="flex items-center justify-center bg-black/80 border border-amber-500/30 rounded-xl py-3.5 px-4">
+                  <span className="font-mono tabular-nums text-xl sm:text-2xl font-black text-amber-300 tracking-wider select-all text-center" dir="ltr">
                     {formattedPhone}
                   </span>
-
-                  {/* Compact Inline Copy Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(phone, 'wallet')}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-black rounded-lg transition shadow-md cursor-pointer ${
-                      isCopied
-                        ? 'bg-emerald-500 text-black hover:bg-emerald-400'
-                        : 'bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-amber-400 text-black'
-                    }`}
-                    title="نسخ الرقم"
-                  >
-                    {isCopied ? <Check className="w-4 h-4 text-black" /> : <Copy className="w-4 h-4 text-black" />}
-                    <span>{isCopied ? 'تم النسخ!' : 'نسخ'}</span>
-                  </button>
                 </div>
               </div>
 
-              {/* Prominent Primary Copy Button */}
+              {/* Single Prominent Primary Copy Button Underneath */}
               <div className="space-y-4 pt-1">
                 <button
                   type="button"
                   onClick={() => handleCopy(phone, 'wallet')}
-                  className={`w-full py-4 px-6 text-sm sm:text-base font-black rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3 cursor-pointer ${
+                  className={`w-full min-h-[48px] py-3.5 px-5 text-sm sm:text-base font-black rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer whitespace-nowrap ${
                     isCopied
                       ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/25 ring-2 ring-emerald-300'
                       : 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-black shadow-amber-500/25'
@@ -543,13 +532,13 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                 >
                   {isCopied ? (
                     <>
-                      <Check className="w-5 h-5 text-black animate-bounce" />
-                      <span>تم نسخ رقم المحفظة بنجاح ✓ (جاهز للصق)</span>
+                      <Check className="w-5 h-5 text-black shrink-0 animate-bounce" />
+                      <span className="truncate">تم نسخ رقم المحفظة بنجاح ✓</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="w-5 h-5 text-black" />
-                      <span>نسخ رقم محفظة ({providerNameAr})</span>
+                      <Copy className="w-5 h-5 text-black shrink-0" />
+                      <span className="truncate">نسخ رقم محفظة ({providerNameAr})</span>
                     </>
                   )}
                 </button>
@@ -561,7 +550,7 @@ export function SmartRedirectView({ record }: SmartRedirectViewProps) {
                     <span>طريقة التحويل:</span>
                   </p>
                   <ol className="list-decimal list-inside space-y-1 pr-1 text-slate-300">
-                    <li>اضغط على زر <strong>نسخ رقم المحفظة</strong> أعلاه.</li>
+                    <li>اضغط على زر <strong>نسخ رقم محفظة</strong> أسفل الرقم.</li>
                     <li>افتح تطبيق محفظتك الخاصة ({providerNameAr}).</li>
                     <li>الصق الرقم وحدد المبلغ المطلوب وأكّد عملية التحويل.</li>
                   </ol>

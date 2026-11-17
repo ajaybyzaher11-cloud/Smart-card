@@ -190,7 +190,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
 
         const trimmedOwner = item.ownerName?.trim() || '';
         if (!trimmedOwner) {
-          setErrorMsg(walletCount === 1 ? 'يرجى كتابة اسم صاحب المحفظة (إلزامي).' : `يرجى كتابة اسم صاحب المحفظة رقم ${i + 1} (إلزامي).`);
+          setErrorMsg(walletCount === 1 ? 'يرجى كتابة الاسم (إلزامي).' : `يرجى كتابة الاسم للمحفظة رقم ${i + 1} (إلزامي).`);
           return;
         }
 
@@ -473,7 +473,7 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-400 leading-relaxed">
-                      إذا كان لديك أكثر من رقم محفظة كاش (فودافون، أورانج، اتصالات، وي)، اختر العدد لعرض لوجو كل شركة واسم صاحب المحفظة بشكل منفصل:
+                      إذا كان لديك أكثر من رقم محفظة كاش (فودافون، أورانج، اتصالات، وي)، اختر العدد لعرض لوجو كل شركة والاسم بشكل منفصل:
                     </p>
 
                     {/* 4 Segmented Count Buttons */}
@@ -605,11 +605,11 @@ export function CustomerActivationView({ qrId, onActivated }: CustomerActivation
                           {/* Field 2: Owner Name - Mandatory */}
                           <div className="space-y-1.5 pt-1">
                             <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                              <span className="flex items-center gap-1.5 text-amber-200/90">
-                                <User className="w-3.5 h-3.5 text-amber-400" />
-                                <span>اسم صاحب المحفظة (إلزامي):</span>
+                              <span className="flex items-center gap-1.5 text-amber-200/90 whitespace-nowrap">
+                                <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                <span>الاسم (إلزامي):</span>
                               </span>
-                              <span className="text-[10px] text-amber-400 font-bold">إلزامي</span>
+                              <span className="text-[10px] text-amber-400 font-bold shrink-0">إلزامي</span>
                             </div>
                             <div className="relative">
                               <input
